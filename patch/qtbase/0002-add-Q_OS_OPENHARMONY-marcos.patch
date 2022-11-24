@@ -1,7 +1,7 @@
 From 85870e1056071b34cb7e1ad39be7a9a25a395f07 Mon Sep 17 00:00:00 2001
 From: caiwc <caiwc@sinux.com.cn>
 Date: Mon, 21 Nov 2022 15:03:43 +0800
-Subject: [PATCH 2/4] add Q_OS_OPENHARMONY marcos
+Subject: [PATCH 2/5] add Q_OS_OPENHARMONY marcos
 
 Signed-off-by: caiwc <caiwc@sinux.com.cn>
 ---

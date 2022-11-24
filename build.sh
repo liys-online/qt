@@ -107,7 +107,7 @@ cd $ROOT_DIR/qt5
             -prefix $QT_INSTALL_DIR -skip qtdeclarative -skip qttranslations -skip qtserialport -skip webengine \
             -skip qtpurchasing -skip qtconnectivity -skip qtmultimedia -skip qtspeech -skip qtwebchannel -skip qtgamepad \
             -skip qtsensors -skip qtlocation -skip qtxmlpatterns -skip qt3d -skip qtscript -skip qtnetworkauth \
-            -skip qtsystems -no-feature-bearermanagement -no-feature-http -no-feature-timezone -no-gui -no-widgets \
+            -skip qtsystems -no-feature-bearermanagement -no-feature-http -no-gui -no-widgets \
             -no-dbus -no-opengl -recheck-all
 make -j4
 make install

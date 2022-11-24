@@ -1,7 +1,7 @@
 From 3d9df91ff4bf8c9640dfc96bcd3e34fe5a991e9d Mon Sep 17 00:00:00 2001
 From: caiwc <caiwc@sinux.com.cn>
 Date: Thu, 24 Nov 2022 16:50:05 +0800
-Subject: [PATCH 3/4] change NDK environment as SDK environment
+Subject: [PATCH 3/5] change NDK environment as SDK environment
 
 Signed-off-by: caiwc <caiwc@sinux.com.cn>
 ---
