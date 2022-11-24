@@ -1,0 +1,349 @@
+From 3ac9301fdec6fb997ef537222540c3b435ebc000 Mon Sep 17 00:00:00 2001
+From: caiwc <caiwc@sinux.com.cn>
+Date: Sat, 19 Nov 2022 15:46:06 +0800
+Subject: [PATCH 1/4] add ohos mkspecs
+
+Signed-off-by: caiwc <caiwc@sinux.com.cn>
+---
+ mkspecs/common/oh-base-head.conf |  23 ++++
+ mkspecs/common/oh-base-tail.conf |  73 +++++++++++++
+ mkspecs/oh-clang/qmake.conf      |  30 ++++++
+ mkspecs/oh-clang/qplatformdefs.h | 177 +++++++++++++++++++++++++++++++
+ 4 files changed, 303 insertions(+)
+ create mode 100644 mkspecs/common/oh-base-head.conf
+ create mode 100644 mkspecs/common/oh-base-tail.conf
+ create mode 100644 mkspecs/oh-clang/qmake.conf
+ create mode 100644 mkspecs/oh-clang/qplatformdefs.h
+
+diff --git a/mkspecs/common/oh-base-head.conf b/mkspecs/common/oh-base-head.conf
+new file mode 100644
+index 0000000000..4d2f5e59db
+--- /dev/null
++++ b/mkspecs/common/oh-base-head.conf
+@@ -0,0 +1,23 @@
++load(device_config)
++
++
++NDK_ROOT = $$(OHOS_NDK_PATH)
++
++isEmpty(NDK_TOOLCHAIN_PREFIX) {
++    equals(OHOS_ARCH, arm64-v8a): NDK_TOOLCHAIN_PREFIX = aarch64-linux-ohos
++    else: equals(OHOS_ARCH, armeabi-v7a): NDK_TOOLCHAIN_PREFIX = arm-linux-ohos
++    else: equals(OHOS_ARCH, x86_64): NDK_TOOLCHAIN_PREFIX = x86_64-linux-ohos
++    else: NDK_TOOLCHAIN_PREFIX = arm-linux-ohos
++}
++
++QMAKE_CFLAGS = -D__MUSL__
++QMAKE_CFLAGS = -D_OPENHARMONY
++
++CROSS_COMPILE = $$NDK_ROOT/native/llvm/bin
++
++QMAKE_PCH_OUTPUT_EXT    = .gch
++
++QMAKE_CFLAGS_PRECOMPILE       = -x c-header -c ${QMAKE_PCH_INPUT} -o ${QMAKE_PCH_OUTPUT}
++QMAKE_CFLAGS_USE_PRECOMPILE   = -include ${QMAKE_PCH_OUTPUT_BASE}
++QMAKE_CXXFLAGS_PRECOMPILE     = -x c++-header -c ${QMAKE_PCH_INPUT} -o ${QMAKE_PCH_OUTPUT}
++QMAKE_CXXFLAGS_USE_PRECOMPILE = $$QMAKE_CFLAGS_USE_PRECOMPILE
+diff --git a/mkspecs/common/oh-base-tail.conf b/mkspecs/common/oh-base-tail.conf
+new file mode 100644
+index 0000000000..7cf3d477d6
+--- /dev/null
++++ b/mkspecs/common/oh-base-tail.conf
+@@ -0,0 +1,73 @@
++
++equals(OHOS_ARCH, armeabi-v7a): \
++    QMAKE_CFLAGS += -march=armv7a
++else: equals(OHOS_ARCH, arm64-v8a): \
++    QMAKE_CFLAGS += -march=armv8a
++else: equals(OHOS_ARCH, x86_64): \
++    QMAKE_CFLAGS += -march=x86_64
++else: \
++    QMAKE_CFLAGS += -march=armv7a
++
++QMAKE_CFLAGS_SHLIB      = -fPIC
++QMAKE_CFLAGS_YACC       = -Wno-unused -Wno-parentheses
++QMAKE_CFLAGS_THREAD     = -D_REENTRANT
++QMAKE_CFLAGS_HIDESYMS   = -fvisibility=hidden
++QMAKE_CFLAGS_NEON       = -mfpu=neon
++
++QMAKE_CFLAGS_GNUC99     = -std=gnu99
++QMAKE_CFLAGS_GNUC11     = -std=gnu11
++QMAKE_CXXFLAGS_CXX11    = -std=c++11
++QMAKE_CXXFLAGS_CXX14    = -std=c++14
++QMAKE_CXXFLAGS_CXX1Z    = -std=c++1z
++QMAKE_CXXFLAGS_GNUCXX11 = -std=gnu++11
++QMAKE_CXXFLAGS_GNUCXX14 = -std=gnu++14
++QMAKE_CXXFLAGS_GNUCXX1Z = -std=gnu++1z
++
++QMAKE_CXXFLAGS          = $$QMAKE_CFLAGS
++QMAKE_CXXFLAGS_WARN_ON  = $$QMAKE_CFLAGS_WARN_ON
++QMAKE_CXXFLAGS_WARN_OFF = $$QMAKE_CFLAGS_WARN_OFF
++QMAKE_CXXFLAGS_RELEASE += $$QMAKE_CFLAGS_RELEASE
++QMAKE_CXXFLAGS_RELEASE_WITH_DEBUGINFO += $$QMAKE_CFLAGS_RELEASE_WITH_DEBUGINFO
++QMAKE_CXXFLAGS_DEBUG   += $$QMAKE_CFLAGS_DEBUG
++QMAKE_CXXFLAGS_SHLIB    = $$QMAKE_CFLAGS_SHLIB
++QMAKE_CXXFLAGS_YACC     = $$QMAKE_CFLAGS_YACC
++QMAKE_CXXFLAGS_THREAD   = $$QMAKE_CFLAGS_THREAD
++QMAKE_CXXFLAGS_HIDESYMS = $$QMAKE_CFLAGS_HIDESYMS -fvisibility-inlines-hidden
++
++# modifications to linux.conf
++QMAKE_AR                = $${CROSS_COMPILE}/llvm-ar cqs
++QMAKE_OBJCOPY           = $${CROSS_COMPILE}/llvm-objcopy
++QMAKE_NM                = $${CROSS_COMPILE}/llvm-nm -P
++
++QMAKE_STRIP             =
++#$${CROSS_COMPILE}strip
++
++QMAKE_RANLIB            = $${CROSS_COMPILE}/llvm-ranlib
++
++QMAKE_INCDIR_POST       =
++QMAKE_LIBDIR_POST       = $$NDK_ROOT/native/llvm/lib/$$NDK_TOOLCHAIN_PREFIX/c++
++QMAKE_INCDIR_X11        =
++QMAKE_LIBDIR_X11        =
++QMAKE_INCDIR_OPENGL     =
++QMAKE_LIBDIR_OPENGL     =
++
++QMAKE_LINK_SHLIB        = $$QMAKE_LINK
++QMAKE_LFLAGS            = --sysroot=$$NDK_ROOT/native/sysroot
++QMAKE_LFLAGS_APP        = -Wl,--no-undefined -Wl,-z,noexecstack -shared
++QMAKE_LFLAGS_SHLIB      = -Wl,--no-undefined -Wl,-z,noexecstack -shared
++QMAKE_LFLAGS_PLUGIN     = $$QMAKE_LFLAGS_SHLIB
++QMAKE_LFLAGS_NOUNDEF    = -Wl,--no-undefined
++QMAKE_LFLAGS_RPATH      = -Wl,-rpath=
++QMAKE_LFLAGS_RPATHLINK  = -Wl,-rpath-link=
++
++QMAKE_LIBS_PRIVATE      = -lc++ -lz -lm -ldl -lc -lhilog_ndk.z
++QMAKE_LIBS_X11          =
++QMAKE_LIBS_THREAD       =
++QMAKE_LIBS_EGL          = -lEGL
++QMAKE_LIBS_OPENGL       =
++QMAKE_LIBS_OPENGL_ES2   = -lGLESv2
++
++
++!exists($$NDK_ROOT): error("You need to set the OHOS_NDK_PATH environment variable to point to your Android NDK.")
++
++load(qt_config)
+\ No newline at end of file
+diff --git a/mkspecs/oh-clang/qmake.conf b/mkspecs/oh-clang/qmake.conf
+new file mode 100644
+index 0000000000..10e0e8c08a
+--- /dev/null
++++ b/mkspecs/oh-clang/qmake.conf
+@@ -0,0 +1,30 @@
++# # qmake configuration for building with oh-clang
++MAKEFILE_GENERATOR      = UNIX
++QMAKE_PLATFORM          = openharmony
++QMAKE_COMPILER          = gcc clang llvm
++
++include(../common/linux.conf)
++include(../common/gcc-base-unix.conf)
++include(../common/clang.conf)
++include(../common/oh-base-head.conf)
++
++QMAKE_CC      = $$CROSS_COMPILE/clang
++QMAKE_CXX     = $$CROSS_COMPILE/clang++
++
++QMAKE_CFLAGS += -target $$NDK_TOOLCHAIN_PREFIX
++QMAKE_CFLAGS += -gcc-toolchain $$NDK_ROOT/native/llvm -fno-limit-debug-info
++QMAKE_CFLAGS += -g -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -fno-addrsig -Wa,--noexecstack
++QMAKE_CFLAGS += -Wno-error=format-security
++
++QMAKE_LINK = $$QMAKE_CXX $$QMAKE_CFLAGS -Wl,--gc-sections
++QMAKE_LINK += -Wl,--exclude-libs,$$NDK_ROOT/native/llvm/lib/$$NDK_TOOLCHAIN_PREFIX/libunwind.a
++
++QMAKE_CFLAGS += --sysroot=$$NDK_ROOT/native/sysroot \
++                -isystem $$NDK_ROOT/native/sysroot/usr/include/arm-linux-ohos \
++                -isystem $$NDK_ROOT/native/llvm/include/libcxx-ohos/include/c++/v1 \
++                -isystem $$NDK_ROOT/native/llvm/include \
++                -isystem $$NDK_ROOT/native/sysroot/usr/include 
++
++QMAKE_CFLAGS_OPTIMIZE_SIZE = -Oz
++
++include(../common/oh-base-tail.conf)
+\ No newline at end of file
+diff --git a/mkspecs/oh-clang/qplatformdefs.h b/mkspecs/oh-clang/qplatformdefs.h
+new file mode 100644
+index 0000000000..f405c91ecb
+--- /dev/null
++++ b/mkspecs/oh-clang/qplatformdefs.h
+@@ -0,0 +1,177 @@
++/****************************************************************************
++**
++** Copyright (C) 2017 The Qt Company Ltd.
++** Contact: https://www.qt.io/licensing/
++**
++** This file is part of the qmake spec of the Qt Toolkit.
++**
++** $QT_BEGIN_LICENSE:LGPL$
++** Commercial License Usage
++** Licensees holding valid commercial Qt licenses may use this file in
++** accordance with the commercial license agreement provided with the
++** Software or, alternatively, in accordance with the terms contained in
++** a written agreement between you and The Qt Company. For licensing terms
++** and conditions see https://www.qt.io/terms-conditions. For further
++** information use the contact form at https://www.qt.io/contact-us.
++**
++** GNU Lesser General Public License Usage
++** Alternatively, this file may be used under the terms of the GNU Lesser
++** General Public License version 3 as published by the Free Software
++** Foundation and appearing in the file LICENSE.LGPL3 included in the
++** packaging of this file. Please review the following information to
++** ensure the GNU Lesser General Public License version 3 requirements
++** will be met: https://www.gnu.org/licenses/lgpl-3.0.html.
++**
++** GNU General Public License Usage
++** Alternatively, this file may be used under the terms of the GNU
++** General Public License version 2.0 or (at your option) the GNU General
++** Public license version 3 or any later version approved by the KDE Free
++** Qt Foundation. The licenses are as published by the Free Software
++** Foundation and appearing in the file LICENSE.GPL2 and LICENSE.GPL3
++** included in the packaging of this file. Please review the following
++** information to ensure the GNU General Public License requirements will
++** be met: https://www.gnu.org/licenses/gpl-2.0.html and
++** https://www.gnu.org/licenses/gpl-3.0.html.
++**
++** $QT_END_LICENSE$
++**
++****************************************************************************/
++
++#ifndef QPLATFORMDEFS_H
++#define QPLATFORMDEFS_H
++
++// Get Qt defines/settings
++
++#include "qglobal.h"
++
++// Set any POSIX/XOPEN defines at the top of this file to turn on specific APIs
++
++// 1) need to reset default environment if _BSD_SOURCE is defined
++// 2) need to specify POSIX thread interfaces explicitly in glibc 2.0
++// 3) it seems older glibc need this to include the X/Open stuff
++
++#include <unistd.h>
++
++// We are hot - unistd.h should have turned on the specific APIs we requested
++
++#include <features.h>
++#include <pthread.h>
++#include <dirent.h>
++#include <fcntl.h>
++#include <grp.h>
++#include <pwd.h>
++#include <signal.h>
++#include <dlfcn.h>
++
++#include <sys/types.h>
++#include <sys/ioctl.h>
++#include <sys/ipc.h>
++#include <sys/time.h>
++#include <sys/socket.h>
++#include <sys/stat.h>
++#include <sys/wait.h>
++
++#ifndef _GNU_SOURCE
++#  define _GNU_SOURCE
++#endif
++
++#ifdef QT_LARGEFILE_SUPPORT
++#define QT_STATBUF              struct stat64
++#define QT_STATBUF4TSTAT        struct stat64
++#define QT_STAT                 ::stat64
++#define QT_FSTAT                ::fstat64
++#define QT_LSTAT                ::lstat64
++#define QT_OPEN                 ::open64
++#define QT_TRUNCATE             ::truncate64
++#define QT_FTRUNCATE            ::ftruncate64
++#define QT_LSEEK                ::lseek64
++#else
++#define QT_STATBUF              struct stat
++#define QT_STATBUF4TSTAT        struct stat
++#define QT_STAT                 ::stat
++#define QT_FSTAT                ::fstat
++#define QT_LSTAT                ::lstat
++#define QT_OPEN                 ::open
++#define QT_TRUNCATE             ::truncate
++#define QT_FTRUNCATE            ::ftruncate
++#define QT_LSEEK                ::lseek
++#endif
++
++#ifdef QT_LARGEFILE_SUPPORT
++#define QT_FOPEN                ::fopen64
++#define QT_FSEEK                ::fseeko64
++#define QT_FTELL                ::ftello64
++#define QT_FGETPOS              ::fgetpos64
++#define QT_FSETPOS              ::fsetpos64
++#define QT_MMAP                 ::mmap64
++#define QT_FPOS_T               fpos64_t
++#define QT_OFF_T                off64_t
++#else
++#define QT_FOPEN                ::fopen
++#define QT_FSEEK                ::fseek
++#define QT_FTELL                ::ftell
++#define QT_FGETPOS              ::fgetpos
++#define QT_FSETPOS              ::fsetpos
++#define QT_MMAP                 ::mmap
++#define QT_FPOS_T               fpos_t
++#define QT_OFF_T                long
++#endif
++
++#define QT_STAT_REG             S_IFREG
++#define QT_STAT_DIR             S_IFDIR
++#define QT_STAT_MASK            S_IFMT
++#define QT_STAT_LNK             S_IFLNK
++#define QT_SOCKET_CONNECT       ::connect
++#define QT_SOCKET_BIND          ::bind
++#define QT_FILENO               fileno
++#define QT_CLOSE                ::close
++#define QT_READ                 ::read
++#define QT_WRITE                ::write
++#define QT_ACCESS               ::access
++#define QT_GETCWD               ::getcwd
++#define QT_CHDIR                ::chdir
++#define QT_MKDIR                ::mkdir
++#define QT_RMDIR                ::rmdir
++#define QT_OPEN_LARGEFILE       O_LARGEFILE
++#define QT_OPEN_RDONLY          O_RDONLY
++#define QT_OPEN_WRONLY          O_WRONLY
++#define QT_OPEN_RDWR            O_RDWR
++#define QT_OPEN_CREAT           O_CREAT
++#define QT_OPEN_TRUNC           O_TRUNC
++#define QT_OPEN_APPEND          O_APPEND
++#define QT_OPEN_EXCL            O_EXCL
++
++// Directory iteration
++#define QT_DIR                  DIR
++
++#define QT_OPENDIR              ::opendir
++#define QT_CLOSEDIR             ::closedir
++
++#if defined(QT_LARGEFILE_SUPPORT) \
++        && defined(QT_USE_XOPEN_LFS_EXTENSIONS) \
++        && !defined(QT_NO_READDIR64)
++#define QT_DIRENT               struct dirent64
++#define QT_READDIR              ::readdir64
++#define QT_READDIR_R            ::readdir64_r
++#else
++#define QT_DIRENT               struct dirent
++#define QT_READDIR              ::readdir
++#define QT_READDIR_R            ::readdir_r
++#endif
++
++#define QT_SOCKET_CONNECT       ::connect
++#define QT_SOCKET_BIND          ::bind
++
++
++#define QT_SIGNAL_RETTYPE       void
++#define QT_SIGNAL_ARGS          int
++#define QT_SIGNAL_IGNORE        SIG_IGN
++
++#define QT_SOCKLEN_T            socklen_t
++
++#if defined(_XOPEN_SOURCE) && (_XOPEN_SOURCE >= 500)
++#define QT_SNPRINTF             ::snprintf
++#define QT_VSNPRINTF            ::vsnprintf
++#endif
++
++#endif // QPLATFORMDEFS_H
+-- 
+2.25.1
+
