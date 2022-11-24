@@ -18,9 +18,9 @@ Gitee子仓库只包含了Qt For OpenHarmony需要修改的子库，主仓库只
 
 ## 代码补丁生成
 
-使用"git diff"命令生成代码补丁，代码补丁以子库命名的方式进行存放，如qtbase.patch，qtconnectivity.patch。
+使用"git format-patch"命令生成代码补丁，提交commits补丁到对应的分支目录文件夹下。
 
-> 各子库使用xxxx-ohos的命名方式对适配分支进行代码分支管理，例如"git diff v5.12.12 5.12.12-ohos > qtbase.patch"生成qtbase子模块的5.12.12适配代码补丁，生成代码补丁后，遵循OpenHarmony社区要求提交主仓库补丁。
+> 各子库使用xxxx-ohos的命名方式对适配分支进行代码分支管理，例如在qtbase子仓库目录下执行"git format-patch -M v5.12.12"可生成对应的commits代码补丁，生成代码补丁后，遵循OpenHarmony社区要求提交到主仓库分支。
 
 # 分支说明
 
