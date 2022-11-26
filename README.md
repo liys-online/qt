@@ -1,19 +1,46 @@
+# 贡献说明
+
+由于Qt源码包含多个Qt子库，遵循社区管理要求，Qt For OpenHarmony采用代码补丁的方式进行贡献。
+
+## 子库地址
+
+Gitee子仓库只包含了Qt For OpenHarmony需要修改的子库，主仓库只存放代码补丁，为方便适配代码版本管理和同步，使用以下子库辅助完成适配代码管理。
+
+- qtbase: https://gitee.com/cwc1987/qtbase
+- qtconnectivity：https://gitee.com/cwc1987/qtconnectivity
+- qtdeclarative：https://gitee.com/cwc1987/qtdeclarative
+- qtlocation：https://gitee.com/cwc1987/qtlocation
+- qtmultimedia：https://gitee.com/cwc1987/qtmultimedia
+- qtsensors：https://gitee.com/cwc1987/qtsensors
+- qtsystems：https://gitee.com/cwc1987/qtsystems
+- qtvirtualkeyboard：https://gitee.com/cwc1987/qtvirtualkeyboard
+- qtremoteobjects：https://gitee.com/cwc1987/qtremoteobjects
+
+## 代码补丁生成
+
+使用"git format-patch"命令生成代码补丁，提交commits补丁到对应的分支目录文件夹下。
+
+> 各子库使用xxxx-ohos的命名方式对适配分支进行代码分支管理，例如在qtbase子仓库目录下执行"git format-patch -M v5.12.12"可生成对应的commits代码补丁，生成代码补丁后，遵循OpenHarmony社区要求提交到主仓库分支。
+
+# 版本支持信息
+
+目前支持适配Qt5.12.12版本，其它版本暂无。
+
 # 目录说明
 
 ```
 OpenHarmony - Qt
 │
 └───patch - 源码补丁文件夹
-│   │   qtbase.patch - qtbase子模块代码补丁
-|   |   qtconnectivity.patch - qtconnectivity子模块代码补丁
-|	|   qtdeclarative.patch - qtdeclarative子模块代码补丁
-|	|   qtlocation.patch - qtlocation子模块代码补丁
-|	|   qtmultimedia.patch - qtmultimedia子模块代码补丁
-|	|	qtsensors.patch - qtsensors子模块代码补丁
-|	|	qtsystems.patch - qtsystems子模块代码补丁
-|	|   qtvirtualkeyboard.patch - qtvirtualkeyboard子模块代码补丁
-└───init_env.sh - 环境初始化脚本（完成Qt源码及OpenHarmony NDK下载）
-└───patch.sh - 代码补丁脚本
+│   │   qtbase - qtbase子模块代码补丁文件夹
+|   |   qtconnectivity - qtconnectivity子模块代码补丁文件夹
+|	|   qtdeclarative - qtdeclarative子模块代码补丁文件夹
+|	|   qtlocation - qtlocation子模块代码补丁文件夹
+|	|   qtmultimedia - qtmultimedia子模块代码补丁文件夹
+|	|	qtsensors - qtsensors子模块代码补丁文件夹
+|	|	qtsystems - qtsystems子模块代码补丁文件夹
+|	|   qtvirtualkeyboard - qtvirtualkeyboard子模块代码补丁文件夹
+|	|   qtremoteobjects - qtremoteobjects子模块代码补丁文件夹
 └───build.sh - 交叉编译脚本
 └───LICENSE.FDL - GNU Free Documentation License
 └───LICENSE.GPLv2 - GNU GENERAL PUBLIC LICENSE Version 2
@@ -30,14 +57,14 @@ OpenHarmony - Qt
 ## 前置条件
 1. 基于Ubuntu20.04 amd64版本完成交叉编译，下载链接：https://releases.ubuntu.com/focal/ubuntu-20.04.5-desktop-amd64.iso
 2. 安装Git工具（sudo apt-get install git）
+3. 安装Curl工具（sudo apt-get install curl）
 
-## 编译配置步骤
-1. 执行init_env.sh脚本，完成Qt源码下载及OpenHarmony NDK下载(下载路径为当前文件夹根目录qt5及ohos-sdk)
-2. 执行patch.sh脚本，完成OpenHarmony Qt适配代码补丁安装
-3. 执行build.sh脚本，执行交叉编译
+## 编译步骤
+1. 执行build.sh脚本，完成qt5源码、OpenHarmony NDK及代码补丁应用和编译安装
+2. 脚本执行完成后，生成安装目录为当前文件夹的bin目录
 
-
-# 支持模块
+# Qt5.12.12版本适配情况
+## 支持模块
 
 | module | description | support | status |
 | :----: | :---- | :----: | :----: |
@@ -103,7 +130,7 @@ OpenHarmony - Qt
 | Qt Virtual Keyboard | A framework for implementing different input methods as well as a QML virtual keyboard. Supports localized keyboard layouts and custom visual themes. | :white_large_square: | un-schedule |
 | Qt Quick WebGL | Provides a platform plugin that allows streaming Qt Quick user interfaces over the network using WebGL™. | :white_large_square: | un-schedule |
 
-# 支持功能项(./configure -feature-list)
+## 支持功能项(./configure -feature-list)
 
 | feature | description | support | status |
 | :----: | :---- | :----: | :----: |

@@ -1,0 +1,96 @@
+From 3d9df91ff4bf8c9640dfc96bcd3e34fe5a991e9d Mon Sep 17 00:00:00 2001
+From: caiwc <caiwc@sinux.com.cn>
+Date: Thu, 24 Nov 2022 16:50:05 +0800
+Subject: [PATCH 3/5] change NDK environment as SDK environment
+
+Signed-off-by: caiwc <caiwc@sinux.com.cn>
+---
+ mkspecs/common/oh-base-head.conf |  4 ++--
+ mkspecs/common/oh-base-tail.conf |  8 ++++----
+ mkspecs/oh-clang/qmake.conf      | 12 ++++++------
+ 3 files changed, 12 insertions(+), 12 deletions(-)
+
+diff --git a/mkspecs/common/oh-base-head.conf b/mkspecs/common/oh-base-head.conf
+index 4d2f5e59db..0e38045c7a 100644
+--- a/mkspecs/common/oh-base-head.conf
++++ b/mkspecs/common/oh-base-head.conf
+@@ -1,7 +1,7 @@
+ load(device_config)
+ 
+ 
+-NDK_ROOT = $$(OHOS_NDK_PATH)
++SDK_ROOT = $$(OHOS_SDK_PATH)
+ 
+ isEmpty(NDK_TOOLCHAIN_PREFIX) {
+     equals(OHOS_ARCH, arm64-v8a): NDK_TOOLCHAIN_PREFIX = aarch64-linux-ohos
+@@ -13,7 +13,7 @@ isEmpty(NDK_TOOLCHAIN_PREFIX) {
+ QMAKE_CFLAGS = -D__MUSL__
+ QMAKE_CFLAGS = -D_OPENHARMONY
+ 
+-CROSS_COMPILE = $$NDK_ROOT/native/llvm/bin
++CROSS_COMPILE = $$SDK_ROOT/native/llvm/bin
+ 
+ QMAKE_PCH_OUTPUT_EXT    = .gch
+ 
+diff --git a/mkspecs/common/oh-base-tail.conf b/mkspecs/common/oh-base-tail.conf
+index 7cf3d477d6..4217fabada 100644
+--- a/mkspecs/common/oh-base-tail.conf
++++ b/mkspecs/common/oh-base-tail.conf
+@@ -45,14 +45,14 @@ QMAKE_STRIP             =
+ QMAKE_RANLIB            = $${CROSS_COMPILE}/llvm-ranlib
+ 
+ QMAKE_INCDIR_POST       =
+-QMAKE_LIBDIR_POST       = $$NDK_ROOT/native/llvm/lib/$$NDK_TOOLCHAIN_PREFIX/c++
++QMAKE_LIBDIR_POST       = $$SDK_ROOT/native/llvm/lib/$$NDK_TOOLCHAIN_PREFIX/c++
+ QMAKE_INCDIR_X11        =
+ QMAKE_LIBDIR_X11        =
+ QMAKE_INCDIR_OPENGL     =
+ QMAKE_LIBDIR_OPENGL     =
+ 
+ QMAKE_LINK_SHLIB        = $$QMAKE_LINK
+-QMAKE_LFLAGS            = --sysroot=$$NDK_ROOT/native/sysroot
++QMAKE_LFLAGS            = --sysroot=$$SDK_ROOT/native/sysroot
+ QMAKE_LFLAGS_APP        = -Wl,--no-undefined -Wl,-z,noexecstack -shared
+ QMAKE_LFLAGS_SHLIB      = -Wl,--no-undefined -Wl,-z,noexecstack -shared
+ QMAKE_LFLAGS_PLUGIN     = $$QMAKE_LFLAGS_SHLIB
+@@ -68,6 +68,6 @@ QMAKE_LIBS_OPENGL       =
+ QMAKE_LIBS_OPENGL_ES2   = -lGLESv2
+ 
+ 
+-!exists($$NDK_ROOT): error("You need to set the OHOS_NDK_PATH environment variable to point to your Android NDK.")
++!exists($$SDK_ROOT): error("You need to set the OHOS_SDK_PATH environment variable to point to your OpenHarmony SDK.")
+ 
+-load(qt_config)
+\ No newline at end of file
++load(qt_config)
+diff --git a/mkspecs/oh-clang/qmake.conf b/mkspecs/oh-clang/qmake.conf
+index 15a6908db4..3cb2be7478 100644
+--- a/mkspecs/oh-clang/qmake.conf
++++ b/mkspecs/oh-clang/qmake.conf
+@@ -12,17 +12,17 @@ QMAKE_CC      = $$CROSS_COMPILE/clang
+ QMAKE_CXX     = $$CROSS_COMPILE/clang++
+ 
+ QMAKE_CFLAGS += -target $$NDK_TOOLCHAIN_PREFIX
+-QMAKE_CFLAGS += -gcc-toolchain $$NDK_ROOT/native/llvm -fno-limit-debug-info
++QMAKE_CFLAGS += -gcc-toolchain $$SDK_ROOT/native/llvm -fno-limit-debug-info
+ QMAKE_CFLAGS += -g -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -fno-addrsig -Wa,--noexecstack
+ QMAKE_CFLAGS += -Wno-error=format-security
+ 
+ QMAKE_LINK = $$QMAKE_CXX $$QMAKE_CFLAGS -Wl,--gc-sections
+-QMAKE_LINK += -Wl,--exclude-libs,$$NDK_ROOT/native/llvm/lib/$$NDK_TOOLCHAIN_PREFIX/libunwind.a
++QMAKE_LINK += -Wl,--exclude-libs,$$SDK_ROOT/native/llvm/lib/$$NDK_TOOLCHAIN_PREFIX/libunwind.a
+ 
+-QMAKE_CFLAGS += --sysroot=$$NDK_ROOT/native/sysroot \
+-                -isystem $$NDK_ROOT/native/sysroot/usr/include/$$NDK_TOOLCHAIN_PREFIX \
+-                -isystem $$NDK_ROOT/native/llvm/include/libcxx-ohos/include/c++/v1 \
+-                -isystem $$NDK_ROOT/native/sysroot/usr/include 
++QMAKE_CFLAGS += --sysroot=$$SDK_ROOT/native/sysroot \
++                -isystem $$SDK_ROOT/native/sysroot/usr/include/$$NDK_TOOLCHAIN_PREFIX \
++                -isystem $$SDK_ROOT/native/llvm/include/libcxx-ohos/include/c++/v1 \
++                -isystem $$SDK_ROOT/native/sysroot/usr/include 
+ 
+ QMAKE_CFLAGS_OPTIMIZE_SIZE = -Oz
+ 
+-- 
+2.25.1
+

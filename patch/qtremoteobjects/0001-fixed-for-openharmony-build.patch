@@ -1,0 +1,27 @@
+From 88132a00d80e559acc96c64a28132d2354c98d21 Mon Sep 17 00:00:00 2001
+From: caiwc <caiwc@sinux.com.cn>
+Date: Mon, 21 Nov 2022 14:04:53 +0800
+Subject: [PATCH] fixed for openharmony build
+
+Signed-off-by: caiwc <caiwc@sinux.com.cn>
+---
+ tests/auto/auto.pro | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/tests/auto/auto.pro b/tests/auto/auto.pro
+index 69ca9f1..dec6143 100644
+--- a/tests/auto/auto.pro
++++ b/tests/auto/auto.pro
+@@ -25,3 +25,8 @@ contains(QT_CONFIG, ssl): SUBDIRS += external_IODevice
+ 
+ qtHaveModule(qml): SUBDIRS += qml
+ qtConfig(process): SUBDIRS += integration_multiprocess proxy_multiprocess integration_external restart
++
++!qtHaveModule(gui): SUBDIRS -= modelview
++
++#TODO add remove
++SUBDIRS -= integration_external
+\ No newline at end of file
+-- 
+2.25.1
+

@@ -1,20 +1,47 @@
-# Directory Description
+# Contribution Note
+
+Since the Qt source code contains multiple Qt sub-module, following the requirements of community management, Qt For OpenHarmony contributes in the form of code patches.
+
+## SubModule
+
+The Gitee sub-repository only contains sub-repositories that need to be modified for Qt For OpenHarmony, and the main repository only stores code patches. In order to facilitate adaptation code version management and synchronization, the following sub-repositories are used to assist in the completion of adaptation code management.
+ 
+ - qtbase: https://gitee.com/cwc1987/qtbase
+- qtconnectivity：https://gitee.com/cwc1987/qtconnectivity
+- qtdeclarative：https://gitee.com/cwc1987/qtdeclarative
+- qtlocation：https://gitee.com/cwc1987/qtlocation
+- qtmultimedia：https://gitee.com/cwc1987/qtmultimedia
+- qtsensors：https://gitee.com/cwc1987/qtsensors
+- qtsystems：https://gitee.com/cwc1987/qtsystems
+- qtvirtualkeyboard：https://gitee.com/cwc1987/qtvirtualkeyboard
+- qtremoteobjects：https://gitee.com/cwc1987/qtremoteobjects
+
+## Code Patch Genearate
+
+Use the "git format-patch" command to generate a code patch, and submit the commits patch to the corresponding branch directory folder.
+
+> Each sub-module uses the naming method of xxxx-ohos to manage the code branch of the adaptation branch. For example, execute "git format-patch -M v5.12.12" in the qtbase sub-module directory to generate the corresponding commits code patch. After generating the code patch , follow the requirements of the OpenHarmony community and commit to the branch of the main repository.
+
+# Version Support Information
+
+Currently supports adaptation to Qt5.12.12 version, other versions are not yet available.
+
+# Catalog Description
 
 ```
 OpenHarmony - Qt
 │
-└───patch - Source patch documents
-│   │   qtbase.patch - qtbase submodule source patch
-|   |   qtconnectivity.patch - qtconnectivity submodule source patch
-|	|   qtdeclarative.patch - qtdeclarative submodule source patch
-|	|   qtlocation.patch - qtlocation submodule source patch
-|	|   qtmultimedia.patch - qtmultimedia submodule source patch
-|	|	qtsensors.patch - qtsensors submodule source patch
-|	|	qtsystems.patch - qtsystems submodule source patch
-|	|   qtvirtualkeyboard.patch - qtvirtualkeyboard submodule source patch
-└───init_env.sh - Environment initialized（download qt source code and OpenHarmony NDK）
-└───patch.sh - Git diff shell script for patch qt source code 
-└───build.sh - Cross build qt
+└───patch - Source patch folder
+│   │   qtbase - qtbase submodule code patch folder
+|   |   qtconnectivity - qtconnectivity submodule code patch folder
+|	|   qtdeclarative - qtdeclarative submodule code patch folder
+|	|   qtlocation - qtlocation submodule code patch folder
+|	|   qtmultimedia - qtmultimedia submodule code patch folder
+|	|	qtsensors - qtsensors submodule code patch folder
+|	|	qtsystems - qtsystems submodule code patch folder
+|	|   qtvirtualkeyboard - qtvirtualkeyboard submodule code patch folder
+|	|   qtremoteobjects - qtremoteobjects submodule code patch folder
+└───build.sh - Cross compile script
 └───LICENSE.FDL - GNU Free Documentation License
 └───LICENSE.GPLv2 - GNU GENERAL PUBLIC LICENSE Version 2
 └───LICENSE.GPLv3 - GNU GENERAL PUBLIC LICENSE Version 3
@@ -25,19 +52,19 @@ OpenHarmony - Qt
 └───README.en.md - English readme
 ```
 
-# Build Description
+# Compile Configuration Instructions
 
 ## Precondition
-1. Base on Ubuntu20.04，Download Link：https://releases.ubuntu.com/focal/ubuntu-20.04.5-desktop-amd64.iso
-2. Install git（sudo apt-get install git）
+1. Complete cross-compilation based on Ubuntu20.04 amd64 version, download link: https://releases.ubuntu.com/focal/ubuntu-20.04.5-desktop-amd64.iso
+2. Install Git tools (sudo apt-get install git)
+3. Install Curl tools (sudo apt-get install curl)
 
-## Compile Step
-1. Run init_env.sh
-2. Run patch.sh
-3. Run build.sh
+## Compilation Steps
+1. Execute the build.sh script to complete the qt5 source code, OpenHarmony NDK and code patch application, compilation and installation
+2. After the script is executed, the installation directory is generated as the bin directory of the current folder
 
-
-# Support Module
+# Qt5.12.12 Status
+## Support Module
 
 | module | description | support | status |
 | :----: | :---- | :----: | :----: |
@@ -103,7 +130,7 @@ OpenHarmony - Qt
 | Qt Virtual Keyboard | A framework for implementing different input methods as well as a QML virtual keyboard. Supports localized keyboard layouts and custom visual themes. | :white_large_square: | un-schedule |
 | Qt Quick WebGL | Provides a platform plugin that allows streaming Qt Quick user interfaces over the network using WebGL™. | :white_large_square: | un-schedule |
 
-# Support Features
+## Support Features(./configure -feature-list)
 
 | feature | description | support | status |
 | :----: | :---- | :----: | :----: |
