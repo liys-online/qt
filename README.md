@@ -1,26 +1,12 @@
 # 贡献说明
 
-由于Qt源码包含多个Qt子库，遵循社区管理要求，Qt For OpenHarmony采用代码补丁的方式进行贡献。
-
-## 子库地址
-
-Gitee子仓库只包含了Qt For OpenHarmony需要修改的子库，主仓库只存放代码补丁，为方便适配代码版本管理和同步，使用以下子库辅助完成适配代码管理。
-
-- qtbase: https://gitee.com/cwc1987/qtbase
-- qtconnectivity：https://gitee.com/cwc1987/qtconnectivity
-- qtdeclarative：https://gitee.com/cwc1987/qtdeclarative
-- qtlocation：https://gitee.com/cwc1987/qtlocation
-- qtmultimedia：https://gitee.com/cwc1987/qtmultimedia
-- qtsensors：https://gitee.com/cwc1987/qtsensors
-- qtsystems：https://gitee.com/cwc1987/qtsystems
-- qtvirtualkeyboard：https://gitee.com/cwc1987/qtvirtualkeyboard
-- qtremoteobjects：https://gitee.com/cwc1987/qtremoteobjects
+由于Qt源码包含多个Qt子库，遵循社区管理要求，Qt For OpenHarmony采用代码补丁与独立适配模块的方式进行贡献。
 
 ## 代码补丁生成
 
-使用"git format-patch"命令生成代码补丁，提交commits补丁到对应的分支目录文件夹下。
+使用"git diff"命令生成代码补丁，提交补丁到对应的Patch目录下。
 
-> 各子库使用xxxx-ohos的命名方式对适配分支进行代码分支管理，例如在qtbase子仓库目录下执行"git format-patch -M v5.12.12"可生成对应的commits代码补丁，生成代码补丁后，遵循OpenHarmony社区要求提交到主仓库分支。
+> 各子库使用"submodulename.patch"的命名方式对子库适配代码补丁进行管理，例如在qtbase子仓库目录下执行"git diff v5.12.12 > qtbase.patch"可生成对应的qtbase子模块代码补丁，生成代码补丁后，遵循OpenHarmony社区要求提交到主仓库分支。
 
 # 版本支持信息
 
@@ -31,16 +17,16 @@ Gitee子仓库只包含了Qt For OpenHarmony需要修改的子库，主仓库只
 ```
 OpenHarmony - Qt
 │
-└───patch - 源码补丁文件夹
-│   │   qtbase - qtbase子模块代码补丁文件夹
-|   |   qtconnectivity - qtconnectivity子模块代码补丁文件夹
-|	|   qtdeclarative - qtdeclarative子模块代码补丁文件夹
-|	|   qtlocation - qtlocation子模块代码补丁文件夹
-|	|   qtmultimedia - qtmultimedia子模块代码补丁文件夹
-|	|	qtsensors - qtsensors子模块代码补丁文件夹
-|	|	qtsystems - qtsystems子模块代码补丁文件夹
-|	|   qtvirtualkeyboard - qtvirtualkeyboard子模块代码补丁文件夹
-|	|   qtremoteobjects - qtremoteobjects子模块代码补丁文件夹
+└───patch - 源码补丁
+│   │   qtbase.patch - qtbase子模块代码补丁
+|   |   qtconnectivity.patch - qtconnectivity子模块代码补丁
+|	|   qtdeclarative.patch - qtdeclarative子模块代码补丁
+|	|   qtlocation.patch - qtlocation子模块代码补丁
+|	|   qtmultimedia.patch - qtmultimedia子模块代码补丁
+|	|	qtsensors.patch - qtsensors子模块代码补丁
+|	|	qtsystems.patch - qtsystems子模块代码补丁
+|	|   qtvirtualkeyboard.patch - qtvirtualkeyboard子模块代码补丁
+|	|   qtremoteobjects.patch - qtremoteobjects子模块代码补丁
 └───build.sh - 交叉编译脚本
 └───LICENSE.FDL - GNU Free Documentation License
 └───LICENSE.GPLv2 - GNU GENERAL PUBLIC LICENSE Version 2
