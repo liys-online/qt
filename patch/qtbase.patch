@@ -1,0 +1,701 @@
+diff --git a/mkspecs/common/oh-base-head.conf b/mkspecs/common/oh-base-head.conf
+new file mode 100644
+index 0000000000..0e38045c7a
+--- /dev/null
++++ b/mkspecs/common/oh-base-head.conf
+@@ -0,0 +1,23 @@
++load(device_config)
++
++
++SDK_ROOT = $$(OHOS_SDK_PATH)
++
++isEmpty(NDK_TOOLCHAIN_PREFIX) {
++    equals(OHOS_ARCH, arm64-v8a): NDK_TOOLCHAIN_PREFIX = aarch64-linux-ohos
++    else: equals(OHOS_ARCH, armeabi-v7a): NDK_TOOLCHAIN_PREFIX = arm-linux-ohos
++    else: equals(OHOS_ARCH, x86_64): NDK_TOOLCHAIN_PREFIX = x86_64-linux-ohos
++    else: NDK_TOOLCHAIN_PREFIX = arm-linux-ohos
++}
++
++QMAKE_CFLAGS = -D__MUSL__
++QMAKE_CFLAGS = -D_OPENHARMONY
++
++CROSS_COMPILE = $$SDK_ROOT/native/llvm/bin
++
++QMAKE_PCH_OUTPUT_EXT    = .gch
++
++QMAKE_CFLAGS_PRECOMPILE       = -x c-header -c ${QMAKE_PCH_INPUT} -o ${QMAKE_PCH_OUTPUT}
++QMAKE_CFLAGS_USE_PRECOMPILE   = -include ${QMAKE_PCH_OUTPUT_BASE}
++QMAKE_CXXFLAGS_PRECOMPILE     = -x c++-header -c ${QMAKE_PCH_INPUT} -o ${QMAKE_PCH_OUTPUT}
++QMAKE_CXXFLAGS_USE_PRECOMPILE = $$QMAKE_CFLAGS_USE_PRECOMPILE
+diff --git a/mkspecs/common/oh-base-tail.conf b/mkspecs/common/oh-base-tail.conf
+new file mode 100644
+index 0000000000..4217fabada
+--- /dev/null
++++ b/mkspecs/common/oh-base-tail.conf
+@@ -0,0 +1,73 @@
++
++equals(OHOS_ARCH, armeabi-v7a): \
++    QMAKE_CFLAGS += -march=armv7a
++else: equals(OHOS_ARCH, arm64-v8a): \
++    QMAKE_CFLAGS += -march=armv8a
++else: equals(OHOS_ARCH, x86_64): \
++    QMAKE_CFLAGS += -march=x86_64
++else: \
++    QMAKE_CFLAGS += -march=armv7a
++
++QMAKE_CFLAGS_SHLIB      = -fPIC
++QMAKE_CFLAGS_YACC       = -Wno-unused -Wno-parentheses
++QMAKE_CFLAGS_THREAD     = -D_REENTRANT
++QMAKE_CFLAGS_HIDESYMS   = -fvisibility=hidden
++QMAKE_CFLAGS_NEON       = -mfpu=neon
++
++QMAKE_CFLAGS_GNUC99     = -std=gnu99
++QMAKE_CFLAGS_GNUC11     = -std=gnu11
++QMAKE_CXXFLAGS_CXX11    = -std=c++11
++QMAKE_CXXFLAGS_CXX14    = -std=c++14
++QMAKE_CXXFLAGS_CXX1Z    = -std=c++1z
++QMAKE_CXXFLAGS_GNUCXX11 = -std=gnu++11
++QMAKE_CXXFLAGS_GNUCXX14 = -std=gnu++14
++QMAKE_CXXFLAGS_GNUCXX1Z = -std=gnu++1z
++
++QMAKE_CXXFLAGS          = $$QMAKE_CFLAGS
++QMAKE_CXXFLAGS_WARN_ON  = $$QMAKE_CFLAGS_WARN_ON
++QMAKE_CXXFLAGS_WARN_OFF = $$QMAKE_CFLAGS_WARN_OFF
++QMAKE_CXXFLAGS_RELEASE += $$QMAKE_CFLAGS_RELEASE
++QMAKE_CXXFLAGS_RELEASE_WITH_DEBUGINFO += $$QMAKE_CFLAGS_RELEASE_WITH_DEBUGINFO
++QMAKE_CXXFLAGS_DEBUG   += $$QMAKE_CFLAGS_DEBUG
++QMAKE_CXXFLAGS_SHLIB    = $$QMAKE_CFLAGS_SHLIB
++QMAKE_CXXFLAGS_YACC     = $$QMAKE_CFLAGS_YACC
++QMAKE_CXXFLAGS_THREAD   = $$QMAKE_CFLAGS_THREAD
++QMAKE_CXXFLAGS_HIDESYMS = $$QMAKE_CFLAGS_HIDESYMS -fvisibility-inlines-hidden
++
++# modifications to linux.conf
++QMAKE_AR                = $${CROSS_COMPILE}/llvm-ar cqs
++QMAKE_OBJCOPY           = $${CROSS_COMPILE}/llvm-objcopy
++QMAKE_NM                = $${CROSS_COMPILE}/llvm-nm -P
++
++QMAKE_STRIP             =
++#$${CROSS_COMPILE}strip
++
++QMAKE_RANLIB            = $${CROSS_COMPILE}/llvm-ranlib
++
++QMAKE_INCDIR_POST       =
++QMAKE_LIBDIR_POST       = $$SDK_ROOT/native/llvm/lib/$$NDK_TOOLCHAIN_PREFIX/c++
++QMAKE_INCDIR_X11        =
++QMAKE_LIBDIR_X11        =
++QMAKE_INCDIR_OPENGL     =
++QMAKE_LIBDIR_OPENGL     =
++
++QMAKE_LINK_SHLIB        = $$QMAKE_LINK
++QMAKE_LFLAGS            = --sysroot=$$SDK_ROOT/native/sysroot
++QMAKE_LFLAGS_APP        = -Wl,--no-undefined -Wl,-z,noexecstack -shared
++QMAKE_LFLAGS_SHLIB      = -Wl,--no-undefined -Wl,-z,noexecstack -shared
++QMAKE_LFLAGS_PLUGIN     = $$QMAKE_LFLAGS_SHLIB
++QMAKE_LFLAGS_NOUNDEF    = -Wl,--no-undefined
++QMAKE_LFLAGS_RPATH      = -Wl,-rpath=
++QMAKE_LFLAGS_RPATHLINK  = -Wl,-rpath-link=
++
++QMAKE_LIBS_PRIVATE      = -lc++ -lz -lm -ldl -lc -lhilog_ndk.z
++QMAKE_LIBS_X11          =
++QMAKE_LIBS_THREAD       =
++QMAKE_LIBS_EGL          = -lEGL
++QMAKE_LIBS_OPENGL       =
++QMAKE_LIBS_OPENGL_ES2   = -lGLESv2
++
++
++!exists($$SDK_ROOT): error("You need to set the OHOS_SDK_PATH environment variable to point to your OpenHarmony SDK.")
++
++load(qt_config)
+diff --git a/mkspecs/oh-clang/qmake.conf b/mkspecs/oh-clang/qmake.conf
+new file mode 100644
+index 0000000000..3cb2be7478
+--- /dev/null
++++ b/mkspecs/oh-clang/qmake.conf
+@@ -0,0 +1,29 @@
++# # qmake configuration for building with oh-clang
++MAKEFILE_GENERATOR      = UNIX
++QMAKE_PLATFORM          = openharmony
++QMAKE_COMPILER          = gcc clang llvm
++
++include(../common/linux.conf)
++include(../common/gcc-base-unix.conf)
++include(../common/clang.conf)
++include(../common/oh-base-head.conf)
++
++QMAKE_CC      = $$CROSS_COMPILE/clang
++QMAKE_CXX     = $$CROSS_COMPILE/clang++
++
++QMAKE_CFLAGS += -target $$NDK_TOOLCHAIN_PREFIX
++QMAKE_CFLAGS += -gcc-toolchain $$SDK_ROOT/native/llvm -fno-limit-debug-info
++QMAKE_CFLAGS += -g -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -fno-addrsig -Wa,--noexecstack
++QMAKE_CFLAGS += -Wno-error=format-security
++
++QMAKE_LINK = $$QMAKE_CXX $$QMAKE_CFLAGS -Wl,--gc-sections
++QMAKE_LINK += -Wl,--exclude-libs,$$SDK_ROOT/native/llvm/lib/$$NDK_TOOLCHAIN_PREFIX/libunwind.a
++
++QMAKE_CFLAGS += --sysroot=$$SDK_ROOT/native/sysroot \
++                -isystem $$SDK_ROOT/native/sysroot/usr/include/$$NDK_TOOLCHAIN_PREFIX \
++                -isystem $$SDK_ROOT/native/llvm/include/libcxx-ohos/include/c++/v1 \
++                -isystem $$SDK_ROOT/native/sysroot/usr/include 
++
++QMAKE_CFLAGS_OPTIMIZE_SIZE = -Oz
++
++include(../common/oh-base-tail.conf)
+\ No newline at end of file
+diff --git a/mkspecs/oh-clang/qplatformdefs.h b/mkspecs/oh-clang/qplatformdefs.h
+new file mode 100644
+index 0000000000..f405c91ecb
+--- /dev/null
++++ b/mkspecs/oh-clang/qplatformdefs.h
+@@ -0,0 +1,177 @@
++/****************************************************************************
++**
++** Copyright (C) 2017 The Qt Company Ltd.
++** Contact: https://www.qt.io/licensing/
++**
++** This file is part of the qmake spec of the Qt Toolkit.
++**
++** $QT_BEGIN_LICENSE:LGPL$
++** Commercial License Usage
++** Licensees holding valid commercial Qt licenses may use this file in
++** accordance with the commercial license agreement provided with the
++** Software or, alternatively, in accordance with the terms contained in
++** a written agreement between you and The Qt Company. For licensing terms
++** and conditions see https://www.qt.io/terms-conditions. For further
++** information use the contact form at https://www.qt.io/contact-us.
++**
++** GNU Lesser General Public License Usage
++** Alternatively, this file may be used under the terms of the GNU Lesser
++** General Public License version 3 as published by the Free Software
++** Foundation and appearing in the file LICENSE.LGPL3 included in the
++** packaging of this file. Please review the following information to
++** ensure the GNU Lesser General Public License version 3 requirements
++** will be met: https://www.gnu.org/licenses/lgpl-3.0.html.
++**
++** GNU General Public License Usage
++** Alternatively, this file may be used under the terms of the GNU
++** General Public License version 2.0 or (at your option) the GNU General
++** Public license version 3 or any later version approved by the KDE Free
++** Qt Foundation. The licenses are as published by the Free Software
++** Foundation and appearing in the file LICENSE.GPL2 and LICENSE.GPL3
++** included in the packaging of this file. Please review the following
++** information to ensure the GNU General Public License requirements will
++** be met: https://www.gnu.org/licenses/gpl-2.0.html and
++** https://www.gnu.org/licenses/gpl-3.0.html.
++**
++** $QT_END_LICENSE$
++**
++****************************************************************************/
++
++#ifndef QPLATFORMDEFS_H
++#define QPLATFORMDEFS_H
++
++// Get Qt defines/settings
++
++#include "qglobal.h"
++
++// Set any POSIX/XOPEN defines at the top of this file to turn on specific APIs
++
++// 1) need to reset default environment if _BSD_SOURCE is defined
++// 2) need to specify POSIX thread interfaces explicitly in glibc 2.0
++// 3) it seems older glibc need this to include the X/Open stuff
++
++#include <unistd.h>
++
++// We are hot - unistd.h should have turned on the specific APIs we requested
++
++#include <features.h>
++#include <pthread.h>
++#include <dirent.h>
++#include <fcntl.h>
++#include <grp.h>
++#include <pwd.h>
++#include <signal.h>
++#include <dlfcn.h>
++
++#include <sys/types.h>
++#include <sys/ioctl.h>
++#include <sys/ipc.h>
++#include <sys/time.h>
++#include <sys/socket.h>
++#include <sys/stat.h>
++#include <sys/wait.h>
++
++#ifndef _GNU_SOURCE
++#  define _GNU_SOURCE
++#endif
++
++#ifdef QT_LARGEFILE_SUPPORT
++#define QT_STATBUF              struct stat64
++#define QT_STATBUF4TSTAT        struct stat64
++#define QT_STAT                 ::stat64
++#define QT_FSTAT                ::fstat64
++#define QT_LSTAT                ::lstat64
++#define QT_OPEN                 ::open64
++#define QT_TRUNCATE             ::truncate64
++#define QT_FTRUNCATE            ::ftruncate64
++#define QT_LSEEK                ::lseek64
++#else
++#define QT_STATBUF              struct stat
++#define QT_STATBUF4TSTAT        struct stat
++#define QT_STAT                 ::stat
++#define QT_FSTAT                ::fstat
++#define QT_LSTAT                ::lstat
++#define QT_OPEN                 ::open
++#define QT_TRUNCATE             ::truncate
++#define QT_FTRUNCATE            ::ftruncate
++#define QT_LSEEK                ::lseek
++#endif
++
++#ifdef QT_LARGEFILE_SUPPORT
++#define QT_FOPEN                ::fopen64
++#define QT_FSEEK                ::fseeko64
++#define QT_FTELL                ::ftello64
++#define QT_FGETPOS              ::fgetpos64
++#define QT_FSETPOS              ::fsetpos64
++#define QT_MMAP                 ::mmap64
++#define QT_FPOS_T               fpos64_t
++#define QT_OFF_T                off64_t
++#else
++#define QT_FOPEN                ::fopen
++#define QT_FSEEK                ::fseek
++#define QT_FTELL                ::ftell
++#define QT_FGETPOS              ::fgetpos
++#define QT_FSETPOS              ::fsetpos
++#define QT_MMAP                 ::mmap
++#define QT_FPOS_T               fpos_t
++#define QT_OFF_T                long
++#endif
++
++#define QT_STAT_REG             S_IFREG
++#define QT_STAT_DIR             S_IFDIR
++#define QT_STAT_MASK            S_IFMT
++#define QT_STAT_LNK             S_IFLNK
++#define QT_SOCKET_CONNECT       ::connect
++#define QT_SOCKET_BIND          ::bind
++#define QT_FILENO               fileno
++#define QT_CLOSE                ::close
++#define QT_READ                 ::read
++#define QT_WRITE                ::write
++#define QT_ACCESS               ::access
++#define QT_GETCWD               ::getcwd
++#define QT_CHDIR                ::chdir
++#define QT_MKDIR                ::mkdir
++#define QT_RMDIR                ::rmdir
++#define QT_OPEN_LARGEFILE       O_LARGEFILE
++#define QT_OPEN_RDONLY          O_RDONLY
++#define QT_OPEN_WRONLY          O_WRONLY
++#define QT_OPEN_RDWR            O_RDWR
++#define QT_OPEN_CREAT           O_CREAT
++#define QT_OPEN_TRUNC           O_TRUNC
++#define QT_OPEN_APPEND          O_APPEND
++#define QT_OPEN_EXCL            O_EXCL
++
++// Directory iteration
++#define QT_DIR                  DIR
++
++#define QT_OPENDIR              ::opendir
++#define QT_CLOSEDIR             ::closedir
++
++#if defined(QT_LARGEFILE_SUPPORT) \
++        && defined(QT_USE_XOPEN_LFS_EXTENSIONS) \
++        && !defined(QT_NO_READDIR64)
++#define QT_DIRENT               struct dirent64
++#define QT_READDIR              ::readdir64
++#define QT_READDIR_R            ::readdir64_r
++#else
++#define QT_DIRENT               struct dirent
++#define QT_READDIR              ::readdir
++#define QT_READDIR_R            ::readdir_r
++#endif
++
++#define QT_SOCKET_CONNECT       ::connect
++#define QT_SOCKET_BIND          ::bind
++
++
++#define QT_SIGNAL_RETTYPE       void
++#define QT_SIGNAL_ARGS          int
++#define QT_SIGNAL_IGNORE        SIG_IGN
++
++#define QT_SOCKLEN_T            socklen_t
++
++#if defined(_XOPEN_SOURCE) && (_XOPEN_SOURCE >= 500)
++#define QT_SNPRINTF             ::snprintf
++#define QT_VSNPRINTF            ::vsnprintf
++#endif
++
++#endif // QPLATFORMDEFS_H
+diff --git a/src/corelib/global/qsystemdetection.h b/src/corelib/global/qsystemdetection.h
+index d87e181e5c..998be34739 100644
+--- a/src/corelib/global/qsystemdetection.h
++++ b/src/corelib/global/qsystemdetection.h
+@@ -111,6 +111,9 @@
+ #elif defined(__ANDROID__) || defined(ANDROID)
+ #  define Q_OS_ANDROID
+ #  define Q_OS_LINUX
++#elif defined(_OPENHARMONY)
++#  define Q_OS_OPENHARMONY
++#  define Q_OS_LINUX
+ #elif defined(__CYGWIN__)
+ #  define Q_OS_CYGWIN
+ #elif !defined(SAG_COM) && (!defined(WINAPI_FAMILY) || WINAPI_FAMILY==WINAPI_FAMILY_DESKTOP_APP) && (defined(WIN64) || defined(_WIN64) || defined(__WIN64__))
+diff --git a/src/corelib/thread/qthread_unix.cpp b/src/corelib/thread/qthread_unix.cpp
+index 695d45d8e7..b10617fdaa 100644
+--- a/src/corelib/thread/qthread_unix.cpp
++++ b/src/corelib/thread/qthread_unix.cpp
+@@ -312,7 +312,7 @@ static void setCurrentThreadName(const char *name)
+ 
+ void *QThreadPrivate::start(void *arg)
+ {
+-#if !defined(Q_OS_ANDROID)
++#if !defined(Q_OS_ANDROID) && !defined(Q_OS_OPENHARMONY)
+     pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+ #endif
+     pthread_cleanup_push(QThreadPrivate::finish, arg);
+@@ -354,7 +354,7 @@ void *QThreadPrivate::start(void *arg)
+ #endif
+ 
+         emit thr->started(QThread::QPrivateSignal());
+-#if !defined(Q_OS_ANDROID)
++#if !defined(Q_OS_ANDROID) && !defined(Q_OS_OPENHARMONY)
+         pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
+         pthread_testcancel();
+ #endif
+@@ -751,7 +751,7 @@ void QThread::start(Priority priority)
+ 
+ void QThread::terminate()
+ {
+-#if !defined(Q_OS_ANDROID)
++#if !defined(Q_OS_ANDROID) && !defined(Q_OS_OPENHARMONY)
+     Q_D(QThread);
+     QMutexLocker locker(&d->mutex);
+ 
+@@ -793,7 +793,7 @@ void QThread::setTerminationEnabled(bool enabled)
+                "Current thread was not started with QThread.");
+ 
+     Q_UNUSED(thr)
+-#if defined(Q_OS_ANDROID)
++#if defined(Q_OS_ANDROID) || defined(Q_OS_OPENHARMONY)
+     Q_UNUSED(enabled);
+ #else
+     pthread_setcancelstate(enabled ? PTHREAD_CANCEL_ENABLE : PTHREAD_CANCEL_DISABLE, NULL);
+diff --git a/tests/auto/corelib/kernel/qmetatype/tst_qmetatype.cpp b/tests/auto/corelib/kernel/qmetatype/tst_qmetatype.cpp
+index e6fac74ccc..ca6e8f3c45 100644
+--- a/tests/auto/corelib/kernel/qmetatype/tst_qmetatype.cpp
++++ b/tests/auto/corelib/kernel/qmetatype/tst_qmetatype.cpp
+@@ -365,7 +365,7 @@ protected:
+             const QByteArray name = "Bar" + QByteArray::number(i) + postFix;
+             const char *nm = name.constData();
+             int tp = qRegisterMetaType<Bar>(nm);
+-#if defined(Q_OS_LINUX) && !defined(Q_OS_ANDROID)
++#if defined(Q_OS_LINUX) && !defined(Q_OS_ANDROID) && !defined(Q_OS_OPENHARMONY)
+             pthread_yield();
+ #endif
+             QMetaType info(tp);
+diff --git a/tests/auto/corelib/plugin/qpluginloader/almostplugin/almostplugin.cpp b/tests/auto/corelib/plugin/qpluginloader/almostplugin/almostplugin.cpp
+index 75806dd285..0d3da67f95 100644
+--- a/tests/auto/corelib/plugin/qpluginloader/almostplugin/almostplugin.cpp
++++ b/tests/auto/corelib/plugin/qpluginloader/almostplugin/almostplugin.cpp
+@@ -34,3 +34,8 @@ QString AlmostPlugin::pluginName() const
+     unresolvedSymbol();
+     return QLatin1String("Plugin ok");
+ }
++
++void AlmostPlugin::unresolvedSymbol() const
++{
++    
++}
+\ No newline at end of file
+diff --git a/tests/auto/corelib/serialization/serialization.pro b/tests/auto/corelib/serialization/serialization.pro
+index 9638178cdc..f4a5a3c5b1 100644
+--- a/tests/auto/corelib/serialization/serialization.pro
++++ b/tests/auto/corelib/serialization/serialization.pro
+@@ -11,7 +11,8 @@ SUBDIRS = \
+     qxmlstream
+ 
+ !qtHaveModule(gui): SUBDIRS -= \
+-    qdatastream
++    qdatastream \
++    qdatastream_core_pixmap
+ 
+ !qtHaveModule(network): SUBDIRS -= \
+     qtextstream
+diff --git a/tests/auto/corelib/tools/qdatetime/tst_qdatetime.cpp b/tests/auto/corelib/tools/qdatetime/tst_qdatetime.cpp
+index 42347d6788..36a4c29d0a 100644
+--- a/tests/auto/corelib/tools/qdatetime/tst_qdatetime.cpp
++++ b/tests/auto/corelib/tools/qdatetime/tst_qdatetime.cpp
+@@ -656,6 +656,7 @@ void tst_QDateTime::setMSecsSinceEpoch_data()
+ 
+ void tst_QDateTime::setMSecsSinceEpoch()
+ {
++#if QT_CONFIG(timezone)
+     QFETCH(qint64, msecs);
+     QFETCH(QDateTime, utc);
+     QFETCH(QDateTime, cet);
+@@ -729,6 +730,7 @@ void tst_QDateTime::setMSecsSinceEpoch()
+ 
+     QDateTime reference(QDate(1970, 1, 1), QTime(), Qt::UTC);
+     QCOMPARE(dt, reference.addMSecs(msecs));
++#endif //timezone
+ }
+ 
+ void tst_QDateTime::fromMSecsSinceEpoch_data()
+@@ -914,6 +916,7 @@ void tst_QDateTime::toString_textDate()
+ 
+ void tst_QDateTime::toString_textDate_extra()
+ {
++#if QT_CONFIG(timezone)
+     QLatin1String GMT("GMT");
+     QDateTime dt = QDateTime::fromMSecsSinceEpoch(0, Qt::LocalTime);
+     QVERIFY(!dt.toString().endsWith(GMT));
+@@ -923,7 +926,6 @@ void tst_QDateTime::toString_textDate_extra()
+         QVERIFY(dt.toString() != QLatin1String("Thu Jan 1 00:00:00 1970"));
+     else
+         QCOMPARE(dt.toString(), QLatin1String("Thu Jan 1 00:00:00 1970"));
+-#if QT_CONFIG(timezone)
+ # if defined Q_OS_UNIX && !defined Q_OS_DARWIN && !defined Q_OS_ANDROID
+ #  define CORRECT_ZONE_ABBREV
+ # endif // QTBUG-57320, QTBUG-57298, QTBUG-68833
+@@ -954,9 +956,9 @@ void tst_QDateTime::toString_textDate_extra()
+     } else {
+         qDebug("Missed zone test: no Europe/Berlin zone available");
+     }
+-#endif // timezone
+     dt = QDateTime::fromMSecsSinceEpoch(0, Qt::UTC);
+     QVERIFY(dt.toString().endsWith(GMT));
++#endif // timezone
+ }
+ 
+ void tst_QDateTime::toString_rfcDate_data()
+@@ -2519,6 +2521,7 @@ void tst_QDateTime::fromStringToStringLocale()
+ 
+ void tst_QDateTime::offsetFromUtc()
+ {
++#if QT_CONFIG(timezone)
+     /* Check default value. */
+     QCOMPARE(QDateTime().offsetFromUtc(), 0);
+ 
+@@ -2550,6 +2553,7 @@ void tst_QDateTime::offsetFromUtc()
+ 
+     QDateTime dt6(QDate(2013, 6, 1), QTime(0, 0, 0), QTimeZone("Pacific/Auckland"));
+     QCOMPARE(dt6.offsetFromUtc(), 43200);
++#endif //timezone
+ }
+ 
+ void tst_QDateTime::setOffsetFromUtc()
+@@ -2705,6 +2709,7 @@ void tst_QDateTime::zoneAtTime_data()
+ 
+ void tst_QDateTime::zoneAtTime()
+ {
++#if QT_CONFIG(timezone)
+     QFETCH(QByteArray, ianaID);
+     QFETCH(QDate, date);
+     QFETCH(int, offset);
+@@ -2717,6 +2722,7 @@ void tst_QDateTime::zoneAtTime()
+         QCOMPARE(zone.standardTimeOffset(QDateTime(date, noon, zone)), offset);
+     else // zone.offsetFromUtc *does* include DST, even before epoch
+         QCOMPARE(zone.offsetFromUtc(QDateTime(date, noon, zone)), offset);
++#endif //timezone
+ }
+ 
+ void tst_QDateTime::timeZoneAbbreviation()
+@@ -2758,6 +2764,7 @@ void tst_QDateTime::timeZoneAbbreviation()
+     const QString cest(QStringLiteral("CEST"));
+ #endif
+ 
++#if QT_CONFIG(timezone)
+     QDateTime dt5(QDate(2013, 1, 1), QTime(0, 0, 0), QTimeZone("Europe/Berlin"));
+ #ifdef Q_OS_WIN
+     QEXPECT_FAIL("", "Windows only reports long names (QTBUG-32759)", Continue);
+@@ -2768,6 +2775,7 @@ void tst_QDateTime::timeZoneAbbreviation()
+     QEXPECT_FAIL("", "Windows only reports long names (QTBUG-32759)", Continue);
+ #endif
+     QCOMPARE(dt6.timeZoneAbbreviation(), cest);
++#endif /timezone
+ }
+ 
+ void tst_QDateTime::getDate()
+@@ -3239,6 +3247,7 @@ void tst_QDateTime::daylightTransitions() const
+ 
+ void tst_QDateTime::timeZones() const
+ {
++#if QT_CONFIG(timezone)
+     QTimeZone invalidTz = QTimeZone("Vulcan/ShiKahr");
+     QCOMPARE(invalidTz.isValid(), false);
+     QDateTime invalidDateTime = QDateTime(QDate(2000, 1, 1), QTime(0, 0, 0), invalidTz);
+@@ -3431,6 +3440,7 @@ void tst_QDateTime::timeZones() const
+     QDateTime future(QDate(2015, 1, 1), QTime(0, 0, 0), sgt);
+     QVERIFY(future.isValid());
+     QCOMPARE(future.offsetFromUtc(), 28800);
++#endif //timezone
+ }
+ 
+ #if defined(Q_OS_UNIX)
+@@ -3452,6 +3462,7 @@ static void setTimeZone(const QByteArray &tz)
+ 
+ void tst_QDateTime::systemTimeZoneChange() const
+ {
++#if QT_CONFIG(timezone)
+     struct ResetTZ {
+         QByteArray original;
+         ResetTZ() : original(qgetenv("TZ")) {}
+@@ -3480,11 +3491,13 @@ void tst_QDateTime::systemTimeZoneChange() const
+     QCOMPARE(utcDate.toMSecsSinceEpoch(), utcMsecs);
+     QCOMPARE(tzDate, QDateTime(QDate(2012, 6, 1), QTime(2, 15, 30), QTimeZone("Australia/Brisbane")));
+     QCOMPARE(tzDate.toMSecsSinceEpoch(), tzMsecs);
++#endif //timezone
+ }
+ #endif
+ 
+ void tst_QDateTime::invalid() const
+ {
++#if QT_CONFIG(timezone)
+     QDateTime invalidDate = QDateTime(QDate(0, 0, 0), QTime(-1, -1, -1));
+     QCOMPARE(invalidDate.isValid(), false);
+     QCOMPARE(invalidDate.timeSpec(), Qt::LocalTime);
+@@ -3500,6 +3513,7 @@ void tst_QDateTime::invalid() const
+     QDateTime tzDate = invalidDate.toTimeZone(QTimeZone("Europe/Oslo"));
+     QCOMPARE(tzDate.isValid(), false);
+     QCOMPARE(tzDate.timeSpec(), Qt::TimeZone);
++#endif //timezone
+ }
+ 
+ void tst_QDateTime::macTypes()
+diff --git a/tests/auto/corelib/tools/qlocale/tst_qlocale.cpp b/tests/auto/corelib/tools/qlocale/tst_qlocale.cpp
+index 230ae4d8aa..33ebc80f00 100644
+--- a/tests/auto/corelib/tools/qlocale/tst_qlocale.cpp
++++ b/tests/auto/corelib/tools/qlocale/tst_qlocale.cpp
+@@ -46,7 +46,7 @@
+ #include <private/qlocale_tools_p.h>
+ #include <qnumeric.h>
+ 
+-#if defined(Q_OS_LINUX) && !defined(__UCLIBC__)
++#if defined(Q_OS_LINUX) && !defined(__UCLIBC__) && !defined(Q_OS_OPENHARMONY)
+ #    define QT_USE_FENV
+ #endif
+ 
+@@ -1726,6 +1726,7 @@ void tst_QLocale::formatDateTime()
+ 
+ void tst_QLocale::formatTimeZone()
+ {
++#if QT_CONFIG(timezone)
+     QLocale enUS("en_US");
+ 
+     QDateTime dt1(QDate(2013, 1, 1), QTime(1, 0, 0), Qt::OffsetFromUTC, 60 * 60);
+@@ -1786,6 +1787,7 @@ void tst_QLocale::formatTimeZone()
+     // Time on its own will always be current local time zone
+     QCOMPARE(enUS.toString(QTime(1, 2, 3), "t"),
+              QDateTime::currentDateTime().timeZoneAbbreviation());
++#endif //timezone
+ }
+ 
+ void tst_QLocale::toDateTime_data()
+diff --git a/tests/auto/corelib/tools/tools.pro b/tests/auto/corelib/tools/tools.pro
+index f28cf21b8b..b9b499909e 100644
+--- a/tests/auto/corelib/tools/tools.pro
++++ b/tests/auto/corelib/tools/tools.pro
+@@ -68,4 +68,4 @@ SUBDIRS=\
+     qvector_strictiterators \
+     qversionnumber
+ 
+-darwin: SUBDIRS += qmacautoreleasepool
++darwin: SUBDIRS += qmacautoreleasepool
+\ No newline at end of file
+diff --git a/tests/auto/network/access/access.pro b/tests/auto/network/access/access.pro
+index b140b5e9f2..ecf4de171e 100644
+--- a/tests/auto/network/access/access.pro
++++ b/tests/auto/network/access/access.pro
+@@ -23,3 +23,7 @@ SUBDIRS=\
+           hpack \
+           http2 \
+           hsts
++
++#TODO support http
++SUBDIRS -= qnetworkreply \
++           spdy
+\ No newline at end of file
+diff --git a/tests/auto/network/kernel/kernel.pro b/tests/auto/network/kernel/kernel.pro
+index 42df80dfa1..f454e4efd9 100644
+--- a/tests/auto/network/kernel/kernel.pro
++++ b/tests/auto/network/kernel/kernel.pro
+@@ -20,5 +20,4 @@ osx: SUBDIRS -= \ # QTBUG-41847
+ 
+ !qtConfig(private_tests): SUBDIRS -= \
+     qauthenticator \
+-    qhostinfo \
+-
++    qhostinfo \
+\ No newline at end of file
+diff --git a/tests/auto/network/kernel/qhostaddress/tst_qhostaddress.cpp b/tests/auto/network/kernel/qhostaddress/tst_qhostaddress.cpp
+index 224e4d61a9..12b0fa4f4c 100644
+--- a/tests/auto/network/kernel/qhostaddress/tst_qhostaddress.cpp
++++ b/tests/auto/network/kernel/qhostaddress/tst_qhostaddress.cpp
+@@ -43,7 +43,7 @@
+ #  endif
+ #endif
+ 
+-#ifdef Q_OS_ANDROID
++#if defined(Q_OS_ANDROID) || defined(Q_OS_OPENHARMONY)
+ #  include <netinet/in.h>
+ #endif
+ 
+@@ -382,7 +382,7 @@ void tst_QHostAddress::assignment()
+     QCOMPARE(address, QHostAddress("::1"));
+ 
+     // WinRT does not support sockaddr_in
+-#ifndef Q_OS_WINRT
++#if !defined(Q_OS_WINRT)
+     QHostAddress addr("4.2.2.1");
+     sockaddr_in sockAddr;
+     sockAddr.sin_family = AF_INET;
+diff --git a/tests/auto/other/toolsupport/tst_toolsupport.cpp b/tests/auto/other/toolsupport/tst_toolsupport.cpp
+index f31a755f9e..1cb8f94e55 100644
+--- a/tests/auto/other/toolsupport/tst_toolsupport.cpp
++++ b/tests/auto/other/toolsupport/tst_toolsupport.cpp
+@@ -140,8 +140,10 @@ void tst_toolsupport::offsets_data()
+             << pmm_to_offsetof(&QDateTimePrivate::m_status) << 8 << 8;
+         QTest::newRow("QDateTimePrivate::m_offsetFromUtc")
+             << pmm_to_offsetof(&QDateTimePrivate::m_offsetFromUtc) << 12 << 12;
++#if QT_CONFIG(timezone)
+         QTest::newRow("QDateTimePrivate::m_timeZone")
+             << pmm_to_offsetof(&QDateTimePrivate::m_timeZone) << 20 << 24;
++#endif //timezone
+     }
+ #endif // RUN_MEMBER_OFFSET_TEST
+ }
+diff --git a/tests/auto/sql/kernel/qsqlquery/tst_qsqlquery.cpp b/tests/auto/sql/kernel/qsqlquery/tst_qsqlquery.cpp
+index 710f26b72d..d77e95db9e 100644
+--- a/tests/auto/sql/kernel/qsqlquery/tst_qsqlquery.cpp
++++ b/tests/auto/sql/kernel/qsqlquery/tst_qsqlquery.cpp
+@@ -4124,6 +4124,7 @@ void tst_QSqlQuery::QTBUG_2192()
+ 
+ void tst_QSqlQuery::QTBUG_36211()
+ {
++#if QT_CONFIG(timezone)
+     QFETCH( QString, dbName );
+     QSqlDatabase db = QSqlDatabase::database( dbName );
+     CHECK_DATABASE( db );
+@@ -4159,6 +4160,7 @@ void tst_QSqlQuery::QTBUG_36211()
+             }
+         }
+     }
++#endif //timezone
+ }
+ 
+ void tst_QSqlQuery::QTBUG_53969()
+@@ -4632,6 +4634,7 @@ void tst_QSqlQuery::QTBUG_57138()
+ 
+ void tst_QSqlQuery::dateTime_data()
+ {
++#if QT_CONFIG(timezone)
+     QTest::addColumn<QString>("dbName");
+     QTest::addColumn<QString>("tableName");
+     QTest::addColumn<QString>("createTableString");
+@@ -4680,6 +4683,7 @@ void tst_QSqlQuery::dateTime_data()
+                         << dbName << tableNameDate << QStringLiteral(" (dt DATE)")
+                         << dateTimes << expectedDateTimes;
+     }
++#endif //timezone
+ }
+ 
+ void tst_QSqlQuery::dateTime()

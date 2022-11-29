@@ -1,26 +1,12 @@
 # Contribution Note
 
-Since the Qt source code contains multiple Qt sub-module, following the requirements of community management, Qt For OpenHarmony contributes in the form of code patches.
-
-## SubModule
-
-The Gitee sub-repository only contains sub-repositories that need to be modified for Qt For OpenHarmony, and the main repository only stores code patches. In order to facilitate adaptation code version management and synchronization, the following sub-repositories are used to assist in the completion of adaptation code management.
- 
- - qtbase: https://gitee.com/cwc1987/qtbase
-- qtconnectivity：https://gitee.com/cwc1987/qtconnectivity
-- qtdeclarative：https://gitee.com/cwc1987/qtdeclarative
-- qtlocation：https://gitee.com/cwc1987/qtlocation
-- qtmultimedia：https://gitee.com/cwc1987/qtmultimedia
-- qtsensors：https://gitee.com/cwc1987/qtsensors
-- qtsystems：https://gitee.com/cwc1987/qtsystems
-- qtvirtualkeyboard：https://gitee.com/cwc1987/qtvirtualkeyboard
-- qtremoteobjects：https://gitee.com/cwc1987/qtremoteobjects
+Since the Qt source code contains multiple Qt sub-libraries, following the requirements of community management, Qt For OpenHarmony contributes in the form of code patches and independent adaptation modules.
 
 ## Code Patch Genearate
 
-Use the "git format-patch" command to generate a code patch, and submit the commits patch to the corresponding branch directory folder.
+Use the "git diff" command to generate a code patch, and submit the patch to the corresponding Patch directory.
 
-> Each sub-module uses the naming method of xxxx-ohos to manage the code branch of the adaptation branch. For example, execute "git format-patch -M v5.12.12" in the qtbase sub-module directory to generate the corresponding commits code patch. After generating the code patch , follow the requirements of the OpenHarmony community and commit to the branch of the main repository.
+> Each sub-module uses the naming method of "submodulename.patch" to manage sub-module adaptation code patches. For example, execute "git diff v5.12.12 > qtbase.patch" in the qtbase sub-submodule directory to generate the corresponding qtbase sub-module code patch , after generating the code patch, follow the requirements of the OpenHarmony community and submit it to the main repository branch.
 
 # Version Support Information
 
@@ -32,15 +18,15 @@ Currently supports adaptation to Qt5.12.12 version, other versions are not yet a
 OpenHarmony - Qt
 │
 └───patch - Source patch folder
-│   │   qtbase - qtbase submodule code patch folder
-|   |   qtconnectivity - qtconnectivity submodule code patch folder
-|	|   qtdeclarative - qtdeclarative submodule code patch folder
-|	|   qtlocation - qtlocation submodule code patch folder
-|	|   qtmultimedia - qtmultimedia submodule code patch folder
-|	|	qtsensors - qtsensors submodule code patch folder
-|	|	qtsystems - qtsystems submodule code patch folder
-|	|   qtvirtualkeyboard - qtvirtualkeyboard submodule code patch folder
-|	|   qtremoteobjects - qtremoteobjects submodule code patch folder
+│   │   qtbase.patch - qtbase submodule patch
+|   |   qtconnectivity.patch - qtconnectivity submodule patch
+|	|   qtdeclarative.patch - qtdeclarative submodule patch
+|	|   qtlocation.patch - qtlocation submodule patch
+|	|   qtmultimedia.patch - qtmultimedia submodule patch
+|	|	qtsensors.patch - qtsensors submodule patch
+|	|	qtsystems.patch - qtsystems submodule patch
+|	|   qtvirtualkeyboard.patch - qtvirtualkeyboard submodule patch
+|	|   qtremoteobjects.patch - qtremoteobjects submodule patch
 └───build.sh - Cross compile script
 └───LICENSE.FDL - GNU Free Documentation License
 └───LICENSE.GPLv2 - GNU GENERAL PUBLIC LICENSE Version 2

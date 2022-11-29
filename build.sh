@@ -86,19 +86,17 @@ fi
 echo "Apply QtBase Patch......"
 cd $ROOT_DIR/qt5/qtbase
 git reset --hard origin/5.12.12
-git apply --check $ROOT_DIR/patch/qtbase/*.patch
-git apply --stat $ROOT_DIR/patch/qtbase/*.patch
-git am --abort
-git am $ROOT_DIR/patch/qtbase/*.patch
+git apply --check $ROOT_DIR/patch/qtbase.patch
+git apply --stat $ROOT_DIR/patch/qtbase.patch
+git apply $ROOT_DIR/patch/qtbase.patch
 cd $ROOT_DIR
 
 echo "Apply QtRemoteObjects Patch......"
 cd $ROOT_DIR/qt5/qtremoteobjects
 git reset --hard origin/5.12.12
-git apply --check $ROOT_DIR/patch/qtremoteobjects/*.patch
-git apply --stat $ROOT_DIR/patch/qtremoteobjects/*.patch
-git am --abort
-git am $ROOT_DIR/patch/qtremoteobjects/*.patch
+git apply --check $ROOT_DIR/patch/qtremoteobjects.patch
+git apply --stat $ROOT_DIR/patch/qtremoteobjects.patch
+git apply $ROOT_DIR/patch/qtremoteobjects.patch
 cd $ROOT_DIR
 
 echo "Build Qt......"
