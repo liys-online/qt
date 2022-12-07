@@ -1,15 +1,14 @@
 diff --git a/mkspecs/common/oh-base-head.conf b/mkspecs/common/oh-base-head.conf
 new file mode 100644
-index 0000000000..0e38045c7a
+index 0000000000..9cedf64bb3
 --- /dev/null
 +++ b/mkspecs/common/oh-base-head.conf
-@@ -0,0 +1,23 @@
+@@ -0,0 +1,24 @@
 +load(device_config)
-+
 +
 +SDK_ROOT = $$(OHOS_SDK_PATH)
 +
-+isEmpty(NDK_TOOLCHAIN_PREFIX) {
++isEmpty(NDK_TOOLCHAIN_PREFIX) {    
 +    equals(OHOS_ARCH, arm64-v8a): NDK_TOOLCHAIN_PREFIX = aarch64-linux-ohos
 +    else: equals(OHOS_ARCH, armeabi-v7a): NDK_TOOLCHAIN_PREFIX = arm-linux-ohos
 +    else: equals(OHOS_ARCH, x86_64): NDK_TOOLCHAIN_PREFIX = x86_64-linux-ohos
@@ -17,9 +16,11 @@ index 0000000000..0e38045c7a
 +}
 +
 +QMAKE_CFLAGS = -D__MUSL__
++QMAKE_CXXFLAGS = -D__MUSL__
 +QMAKE_CFLAGS = -D_OPENHARMONY
++QMAKE_CXXFLAGS = -D_OPENHARMONY
 +
-+CROSS_COMPILE = $$SDK_ROOT/native/llvm/bin
++CROSS_COMPILE = $$SDK_ROOT/native/llvm/bin/
 +
 +QMAKE_PCH_OUTPUT_EXT    = .gch
 +
@@ -29,19 +30,24 @@ index 0000000000..0e38045c7a
 +QMAKE_CXXFLAGS_USE_PRECOMPILE = $$QMAKE_CFLAGS_USE_PRECOMPILE
 diff --git a/mkspecs/common/oh-base-tail.conf b/mkspecs/common/oh-base-tail.conf
 new file mode 100644
-index 0000000000..4217fabada
+index 0000000000..da447c3e69
 --- /dev/null
 +++ b/mkspecs/common/oh-base-tail.conf
-@@ -0,0 +1,73 @@
-+
+@@ -0,0 +1,76 @@
 +equals(OHOS_ARCH, armeabi-v7a): \
-+    QMAKE_CFLAGS += -march=armv7a
++    QMAKE_CFLAGS += -march=armv7a -mfloat-abi=hard -mfpu=vfp -fno-builtin-memmove
 +else: equals(OHOS_ARCH, arm64-v8a): \
-+    QMAKE_CFLAGS += -march=armv8a
++    QMAKE_CFLAGS += -march=armv8a -mfloat-abi=hard -mfpu=vfp -fno-builtin-memmove
 +else: equals(OHOS_ARCH, x86_64): \
 +    QMAKE_CFLAGS += -march=x86_64
 +else: \
-+    QMAKE_CFLAGS += -march=armv7a
++    QMAKE_CFLAGS += -march=armv7a -mfloat-abi=hard -mfpu=vfp -fno-builtin-memmove
++
++
++equals(OHOS_ARCH, armeabi-v7a) | equals(OHOS_ARCH, armeabi) {
++    CONFIG += optimize_size
++    QMAKE_CFLAGS_DEBUG = -g -marm -O0
++}
 +
 +QMAKE_CFLAGS_SHLIB      = -fPIC
 +QMAKE_CFLAGS_YACC       = -Wno-unused -Wno-parentheses
@@ -70,17 +76,16 @@ index 0000000000..4217fabada
 +QMAKE_CXXFLAGS_HIDESYMS = $$QMAKE_CFLAGS_HIDESYMS -fvisibility-inlines-hidden
 +
 +# modifications to linux.conf
-+QMAKE_AR                = $${CROSS_COMPILE}/llvm-ar cqs
-+QMAKE_OBJCOPY           = $${CROSS_COMPILE}/llvm-objcopy
-+QMAKE_NM                = $${CROSS_COMPILE}/llvm-nm -P
++QMAKE_AR                = $${CROSS_COMPILE}llvm-ar cqs
++QMAKE_OBJCOPY           = $${CROSS_COMPILE}llvm-objcopy
++QMAKE_NM                = $${CROSS_COMPILE}llvm-nm -P
 +
 +QMAKE_STRIP             =
-+#$${CROSS_COMPILE}strip
 +
-+QMAKE_RANLIB            = $${CROSS_COMPILE}/llvm-ranlib
++QMAKE_RANLIB            = $${CROSS_COMPILE}llvm-ranlib
 +
-+QMAKE_INCDIR_POST       =
-+QMAKE_LIBDIR_POST       = $$SDK_ROOT/native/llvm/lib/$$NDK_TOOLCHAIN_PREFIX/c++
++QMAKE_INCDIR_POST       = $$SDK_ROOT/native/sysroot/usr/include/$${NDK_TOOLCHAIN_PREFIX}
++QMAKE_LIBDIR_POST       = $$SDK_ROOT/native/sysroot/usr/lib/$${NDK_TOOLCHAIN_PREFIX}
 +QMAKE_INCDIR_X11        =
 +QMAKE_LIBDIR_X11        =
 +QMAKE_INCDIR_OPENGL     =
@@ -88,7 +93,7 @@ index 0000000000..4217fabada
 +
 +QMAKE_LINK_SHLIB        = $$QMAKE_LINK
 +QMAKE_LFLAGS            = --sysroot=$$SDK_ROOT/native/sysroot
-+QMAKE_LFLAGS_APP        = -Wl,--no-undefined -Wl,-z,noexecstack -shared
++QMAKE_LFLAGS_APP        = -Wl,--gc-sections
 +QMAKE_LFLAGS_SHLIB      = -Wl,--no-undefined -Wl,-z,noexecstack -shared
 +QMAKE_LFLAGS_PLUGIN     = $$QMAKE_LFLAGS_SHLIB
 +QMAKE_LFLAGS_NOUNDEF    = -Wl,--no-undefined
@@ -100,48 +105,85 @@ index 0000000000..4217fabada
 +QMAKE_LIBS_THREAD       =
 +QMAKE_LIBS_EGL          = -lEGL
 +QMAKE_LIBS_OPENGL       =
-+QMAKE_LIBS_OPENGL_ES2   = -lGLESv2
++QMAKE_LIBS_OPENGL_ES2   = -lGLESv3
 +
-+
-+!exists($$SDK_ROOT): error("You need to set the OHOS_SDK_PATH environment variable to point to your OpenHarmony SDK.")
++!exists($$SDK_ROOT): error("You need to set the OHOS_SDK_PATH environment variable to point to your Harmony NDK.")
 +
 +load(qt_config)
+diff --git a/mkspecs/features/qt_configure.prf b/mkspecs/features/qt_configure.prf
+index 850ee98057..8c92306173 100644
+--- a/mkspecs/features/qt_configure.prf
++++ b/mkspecs/features/qt_configure.prf
+@@ -777,6 +777,7 @@ defineTest(qtConfLibrary_inline) {
+ # this source type cannot fail.
+ defineTest(qtConfLibrary_makeSpec) {
+     spec = $$eval($${1}.spec)
++
+     isEmpty(spec): \
+         error("makeSpec source in library '$$eval($${1}.library)' does not specify 'spec'.")
+ 
+@@ -1233,6 +1234,7 @@ defineTest(qtConfPrepareCompileTestSource) {
+ defineTest(qtConfTest_compile) {
+     test = $$eval($${1}.test)
+     host = $$eval($${1}.host)
++
+     isEmpty(host): host = false
+ 
+     test_base_out_dir = $$OUT_PWD/$$basename(QMAKE_CONFIG_TESTS_DIR)
+@@ -2135,8 +2137,7 @@ defineTest(qtConfOutput_publicFeature) {
+     name = "$$eval($${1}.name)"
+     isEmpty(name): \
+         name = $$eval($${1}.feature)
+-    feature = $$replace(name, [-+.], _)
+-
++    feature = $$replace(name, [-+.], _)    
+     $${2} {
+         qtConfExtendVar("publicPro", "QT.$${currentModule}.enabled_features", $$name)
+         QT.$${currentModule}.enabled_features += $$name
 diff --git a/mkspecs/oh-clang/qmake.conf b/mkspecs/oh-clang/qmake.conf
 new file mode 100644
-index 0000000000..3cb2be7478
+index 0000000000..96eac24a1d
 --- /dev/null
 +++ b/mkspecs/oh-clang/qmake.conf
-@@ -0,0 +1,29 @@
-+# # qmake configuration for building with oh-clang
+@@ -0,0 +1,38 @@
++# qmake configuration for building with oh-clang
 +MAKEFILE_GENERATOR      = UNIX
 +QMAKE_PLATFORM          = openharmony
 +QMAKE_COMPILER          = gcc clang llvm
++
++CONFIG                 += unversioned_soname unversioned_libname plugin_with_soname
 +
 +include(../common/linux.conf)
 +include(../common/gcc-base-unix.conf)
 +include(../common/clang.conf)
 +include(../common/oh-base-head.conf)
 +
-+QMAKE_CC      = $$CROSS_COMPILE/clang
-+QMAKE_CXX     = $$CROSS_COMPILE/clang++
++NDK_LLVM_PATH = $$SDK_ROOT/native/llvm
++QMAKE_CC      = $${CROSS_COMPILE}clang
++QMAKE_CXX     = $${CROSS_COMPILE}clang++
 +
-+QMAKE_CFLAGS += -target $$NDK_TOOLCHAIN_PREFIX
-+QMAKE_CFLAGS += -gcc-toolchain $$SDK_ROOT/native/llvm -fno-limit-debug-info
-+QMAKE_CFLAGS += -g -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -fno-addrsig -Wa,--noexecstack
-+QMAKE_CFLAGS += -Wno-error=format-security
++equals(OHOS_ARCH, armeabi-v7a): \
++        QMAKE_CFLAGS += -target arm-linux-ohos
++else:equals(OHOS_ARCH,arm64-v8a): \
++        QMAKE_CFLAGS += -target aarch64-linux-ohos
++else:equals(OHOS_ARCH,x86-64): \
++        QMAKE_CFLAGS += -target x86_64-linux-ohos
 +
-+QMAKE_LINK = $$QMAKE_CXX $$QMAKE_CFLAGS -Wl,--gc-sections
++#QMAKE_CFLAGS+=--gcc-toolchain=$$NDK_LLVM_PATH
 +QMAKE_LINK += -Wl,--exclude-libs,$$SDK_ROOT/native/llvm/lib/$$NDK_TOOLCHAIN_PREFIX/libunwind.a
++QMAKE_CFLAGS += -isysroot=$$SDK_ROOT/native/sysroot \
++                -isystem=$$SDK_ROOT/native/sysroot\
++                -isystem=$$SDK_ROOT/native/sysroot/usr/include \
++                -isystem=$$SDK_ROOT/native/llvm/include/libcxx-ohos/include/c++/v1
 +
-+QMAKE_CFLAGS += --sysroot=$$SDK_ROOT/native/sysroot \
-+                -isystem $$SDK_ROOT/native/sysroot/usr/include/$$NDK_TOOLCHAIN_PREFIX \
-+                -isystem $$SDK_ROOT/native/llvm/include/libcxx-ohos/include/c++/v1 \
-+                -isystem $$SDK_ROOT/native/sysroot/usr/include 
++
++QMAKE_CLFAGS += -g -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -fno-addrsig -Wa,--noexecstack -Wformat -Werror=format-security
++
++QMAKE_LINK    = $$QMAKE_CXX $$QMAKE_CFLAGS
 +
 +QMAKE_CFLAGS_OPTIMIZE_SIZE = -Oz
 +
 +include(../common/oh-base-tail.conf)
-\ No newline at end of file
 diff --git a/mkspecs/oh-clang/qplatformdefs.h b/mkspecs/oh-clang/qplatformdefs.h
 new file mode 100644
 index 0000000000..f405c91ecb
@@ -379,6 +421,3326 @@ index 695d45d8e7..b10617fdaa 100644
      Q_UNUSED(enabled);
  #else
      pthread_setcancelstate(enabled ? PTHREAD_CANCEL_ENABLE : PTHREAD_CANCEL_DISABLE, NULL);
+diff --git a/src/gui/configure.json b/src/gui/configure.json
+index 6dd6f5b16c..65d59f07be 100644
+--- a/src/gui/configure.json
++++ b/src/gui/configure.json
+@@ -1313,7 +1313,7 @@
+             "label": "OpenGL ES 2.0",
+             "enable": "input.opengl == 'es2'",
+             "disable": "input.opengl == 'desktop' || input.opengl == 'dynamic' || input.opengl == 'no'",
+-            "condition": "config.win32 || (!config.watchos && !features.opengl-desktop && libs.opengl_es2)",
++            "condition": "config.openharmony || config.win32 || (!config.watchos && !features.opengl-desktop && libs.opengl_es2)",
+             "output": [
+                 "publicFeature",
+                 "publicQtConfig",
+@@ -1323,7 +1323,7 @@
+         },
+         "opengles3": {
+             "label": "OpenGL ES 3.0",
+-            "condition": "features.opengles2 && !features.angle && tests.opengles3 && !config.wasm",
++            "condition": "features.opengles2 && !features.angle && !config.wasm",
+             "output": [
+                 "publicFeature",
+                 { "type": "define", "name": "QT_OPENGL_ES_3" }
+diff --git a/src/gui/configure.pri b/src/gui/configure.pri
+index 1b95449a10..b409140a2d 100644
+--- a/src/gui/configure.pri
++++ b/src/gui/configure.pri
+@@ -66,6 +66,7 @@ defineTest(qtConfTest_qpaDefaultPlatform) {
+     else: integrity: name = integrityfb
+     else: haiku: name = haiku
+     else: wasm: name = wasm
++    else: openharmony: name = openharmony
+     else: name = xcb
+ 
+     $${1}.value = $$name
+diff --git a/src/platformsupport/input/evdevkeyboard/qevdevkeyboardhandler.cpp b/src/platformsupport/input/evdevkeyboard/qevdevkeyboardhandler.cpp
+index ad134a825f..dcbefde499 100644
+--- a/src/platformsupport/input/evdevkeyboard/qevdevkeyboardhandler.cpp
++++ b/src/platformsupport/input/evdevkeyboard/qevdevkeyboardhandler.cpp
+@@ -149,10 +149,14 @@ void QEvdevKeyboardHandler::switchLed(int led, bool state)
+     qCDebug(qLcEvdevKey) << "switchLed" << led << state;
+ 
+     struct ::input_event led_ie;
++#if __BITS_PER_LONG != 32 || !defined(__USE_TIME_BITS64)
+     ::gettimeofday(&led_ie.time, 0);
+-    led_ie.type = EV_LED;
+-    led_ie.code = led;
+-    led_ie.value = state;
++#else
++    struct timeval tv;
++    ::gettimeofday(&tv, 0);
++    led_ie.__sec = tv.tv_sec;
++    led_ie.__usec = tv.tv_usec;
++#endif
+ 
+     qt_safe_write(m_fd.get(), &led_ie, sizeof(led_ie));
+ }
+diff --git a/src/platformsupport/input/evdevtouch/qevdevtouchhandler.cpp b/src/platformsupport/input/evdevtouch/qevdevtouchhandler.cpp
+index 70271c7fd6..1634094364 100644
+--- a/src/platformsupport/input/evdevtouch/qevdevtouchhandler.cpp
++++ b/src/platformsupport/input/evdevtouch/qevdevtouchhandler.cpp
+@@ -568,7 +568,11 @@ void QEvdevTouchScreenData::processInputEvent(input_event *data)
+ 
+         // update timestamps
+         m_lastTimeStamp = m_timeStamp;
++#if __BITS_PER_LONG != 32 || !defined(__USE_TIME_BITS64)
+         m_timeStamp = data->time.tv_sec + data->time.tv_usec / 1000000.0;
++#else
++        m_timeStamp = data->__sec +  data->__usec / 1000000.0 ;
++#endif
+ 
+         m_lastTouchPoints = m_touchPoints;
+         m_touchPoints.clear();
+diff --git a/src/plugins/platforms/openharmony/openharmony.json b/src/plugins/platforms/openharmony/openharmony.json
+new file mode 100644
+index 0000000000..886625295c
+--- /dev/null
++++ b/src/plugins/platforms/openharmony/openharmony.json
+@@ -0,0 +1,3 @@
++{
++    "Keys": [ "openharmony" ]
++}
+diff --git a/src/plugins/platforms/openharmony/openharmony.pro b/src/plugins/platforms/openharmony/openharmony.pro
+new file mode 100644
+index 0000000000..b793e6ad3d
+--- /dev/null
++++ b/src/plugins/platforms/openharmony/openharmony.pro
+@@ -0,0 +1,51 @@
++TARGET = qopenharmony
++
++LIBS += -lEGL -lace_napi.z -lace_ndk.z
++
++QT += \
++    core-private gui-private egl_support-private \
++    eventdispatcher_support-private fontdatabase_support-private
++
++
++OTHER_FILES += $$PWD/openharmony.json
++
++HEADERS += $$PWD/qopenharmonyplatformintegration.h \
++    $$PWD/qopenharmonyplatformwindow.h \
++    $$PWD/qopenharmonyplatformopenglwindow.h \
++    $$PWD/qopenharmonyplatformforeignwindow.h \
++    $$PWD/qopenharmonyplatformscreen.h \
++    $$PWD/qopenharmonyplatformbackingstore.h \
++    $$PWD/qopenharmonydefines.h \
++    $$PWD/qopenharmonysurface.h \
++    $$PWD/qopenharmonyplatformopenglcontext.h \
++    $$PWD/qopenharmonyeventdispatcher.h \
++    $$PWD/qopenharmonyplatformoffscreensurface.h \
++    $$PWD/qopenharmonyeglcore.h \
++    $$PWD/qopenharmonyplatformfontdatabase.h \
++    $$PWD/qopenharmonyplatforminputcontext.h
++
++SOURCES += $$PWD/qopenharmonyplatformplugin.cpp \
++    $$PWD/qopenharmonyplatformwindow.cpp \
++    $$PWD/qopenharmonyplatformintegration.cpp \
++    $$PWD/qopenharmonyplatformopenglwindow.cpp \
++    $$PWD/qopenharmonyplatformforeignwindow.cpp \
++    $$PWD/qopenharmonyplatformscreen.cpp \
++    $$PWD/qopenharmonyplatformbackingstore.cpp \
++    $$PWD/qopenharmonyplatformopenglcontext.cpp \
++    $$PWD/qopenharmonyplatformoffscreensurface.cpp \
++    $$PWD/qopenharmonymian.cpp \
++    $$PWD/qopenharmonysurface.cpp \
++    $$PWD/qopenharmonyeventdispatcher.cpp \
++    $$PWD/qopenharmonyeglcore.cpp \
++    $$PWD/qopenharmonyplatformfontdatabase.cpp \
++    $$PWD/qopenharmonyplatforminputcontext.cpp
++
++
++PLUGIN_TYPE = platforms
++
++PLUGIN_CLASS_NAME = QOpenHarmonyPlatformIntegrationPlugin
++!equals(TARGET, $$QT_DEFAULT_QPA_PLUGIN): PLUGIN_EXTENDS = -
++
++#load(qt_plugin)
++INCLUDEPATH += C:\Users\wanglz.SINUX\AppData\Local\OpenHarmony\Sdk\9\native\sysroot\usr\include
++
+diff --git a/src/plugins/platforms/openharmony/qopenharmonydefines.h b/src/plugins/platforms/openharmony/qopenharmonydefines.h
+new file mode 100644
+index 0000000000..3d51c980d9
+--- /dev/null
++++ b/src/plugins/platforms/openharmony/qopenharmonydefines.h
+@@ -0,0 +1,94 @@
++#ifndef QOPENHARMONYDEFINES_H
++#define QOPENHARMONYDEFINES_H
++#include <hilog/log.h>
++
++#define GET_AND_THROW_LAST_ERROR(env)                                                                   \
++    do {                                                                                                \
++        const napi_extended_error_info* errorInfo = nullptr;                                            \
++        napi_get_last_error_info((env), &errorInfo);                                                    \
++        bool isPending = false;                                                                         \
++        napi_is_exception_pending((env), &isPending);                                                   \
++        if (!isPending && errorInfo != nullptr) {                                                       \
++            const char* errorMessage =                                                                  \
++                errorInfo->error_message != nullptr ? errorInfo->error_message : "empty error message"; \
++            napi_throw_error((env), nullptr, errorMessage);                                             \
++        }                                                                                               \
++    } while (0)
++
++#define NAPI_ASSERT_BASE(env, assertion, message, retVal)                                    \
++    do {                                                                                     \
++        if (!(assertion)) {                                                                  \
++            napi_throw_error((env), nullptr, "assertion (" #assertion ") failed: " message); \
++            return retVal;                                                                   \
++        }                                                                                    \
++    } while (0)
++
++#define NAPI_ASSERT(env, assertion, message) NAPI_ASSERT_BASE(env, assertion, message, nullptr)
++
++#define NAPI_ASSERT_RETURN_VOID(env, assertion, message) NAPI_ASSERT_BASE(env, assertion, message, NAPI_RETVAL_NOTHING)
++
++#define NAPI_CALL_BASE(env, theCall, retVal) \
++    do {                                     \
++        if ((theCall) != napi_ok) {          \
++            GET_AND_THROW_LAST_ERROR((env)); \
++            return retVal;                   \
++        }                                    \
++    } while (0)
++
++#define NAPI_CALL(env, theCall) NAPI_CALL_BASE(env, theCall, nullptr)
++
++#define NAPI_CALL_RETURN_VOID(env, theCall) NAPI_CALL_BASE(env, theCall, NAPI_RETVAL_NOTHING)
++
++#define DECLARE_NAPI_PROPERTY(name, val)                                       \
++    {                                                                          \
++        (name), nullptr, nullptr, nullptr, nullptr, val, napi_default, nullptr \
++    }
++
++#define DECLARE_NAPI_STATIC_PROPERTY(name, val)                               \
++    {                                                                         \
++        (name), nullptr, nullptr, nullptr, nullptr, val, napi_static, nullptr \
++    }
++
++#define DECLARE_NAPI_FUNCTION(name, func)                                         \
++    {                                                                             \
++        (name), nullptr, (func), nullptr, nullptr, nullptr, napi_default, nullptr \
++    }
++
++#define DECLARE_NAPI_FUNCTION_WITH_DATA(name, func, data)                         \
++    {                                                                             \
++        (name), nullptr, (func), nullptr, nullptr, nullptr, napi_default, data    \
++    }
++
++#define DECLARE_NAPI_STATIC_FUNCTION(name, func)                                 \
++    {                                                                            \
++        (name), nullptr, (func), nullptr, nullptr, nullptr, napi_static, nullptr \
++    }
++
++#define DECLARE_NAPI_GETTER(name, getter)                                           \
++    {                                                                               \
++        (name), nullptr, nullptr, (getter), nullptr, nullptr, napi_default, nullptr \
++    }
++
++#define DECLARE_NAPI_SETTER(name, setter)                                           \
++    {                                                                               \
++        (name), nullptr, nullptr, nullptr, (setter), nullptr, napi_default, nullptr \
++    }
++
++#define DECLARE_NAPI_GETTER_SETTER(name, getter, setter)                             \
++    {                                                                                \
++        (name), nullptr, nullptr, (getter), (setter), nullptr, napi_default, nullptr \
++    }
++
++#define DECLARE_NAPI_FUNCTION(name, func)                                         \
++    {                                                                             \
++        (name), nullptr, (func), nullptr, nullptr, nullptr, napi_default, nullptr \
++    }
++
++#define APP_LOG_DOMAIN 0x0002
++#define APP_LOG_TAG "QtOpenHarmony"
++#define LOGI(...) ((void)OH_LOG_Print(LOG_APP, LOG_INFO, APP_LOG_DOMAIN, APP_LOG_TAG, __VA_ARGS__))
++#define LOGD(...) ((void)OH_LOG_Print(LOG_APP, LOG_DEBUG, APP_LOG_DOMAIN, APP_LOG_TAG, __VA_ARGS__))
++#define LOGW(...) ((void)OH_LOG_Print(LOG_APP, LOG_WARN, APP_LOG_DOMAIN, APP_LOG_TAG, __VA_ARGS__))
++#define LOGE(...) ((void)OH_LOG_Print(LOG_APP, LOG_ERROR, APP_LOG_DOMAIN, APP_LOG_TAG, __VA_ARGS__))
++
++#endif // QOPENHARMONYDEFINES_H
+diff --git a/src/plugins/platforms/openharmony/qopenharmonyeglcore.cpp b/src/plugins/platforms/openharmony/qopenharmonyeglcore.cpp
+new file mode 100644
+index 0000000000..2a7f920ae6
+--- /dev/null
++++ b/src/plugins/platforms/openharmony/qopenharmonyeglcore.cpp
+@@ -0,0 +1,296 @@
++#include "qopenharmonyeglcore.h"
++#include <EGL/egl.h>
++#include <GLES3/gl3.h>
++#include <QImage>
++#include "qopenharmonydefines.h"
++
++
++static char vertextShader[] =
++        "#version 300 es\n"
++        "layout (location = 0) in vec4 a_position;\n"
++        "layout (location = 1) in vec2 a_textCoord;\n"
++        "out vec2 v_texCoord;\n"
++        "void main() { \n"
++        "     gl_Position  = a_position;\n"
++        "     v_texCoord = a_textCoord;\n"
++        "}\n";
++
++static char fragmentShader[] =
++        "#version 300 es\n"
++        "precision mediump float;\n"
++        "in vec2 v_texCoord;\n"
++        "layout(location = 0) out vec4 outColor;\n"
++        "uniform sampler2D s_TextureMap;\n"
++        "void main() {\n"
++        "     outColor = texture(s_TextureMap,v_texCoord);\n"
++        "}\n";
++
++QOpenHarmonyEGLCore::QOpenHarmonyEGLCore()
++{
++    m_eglDisplay = eglGetDisplay(EGL_DEFAULT_DISPLAY);
++    if (Q_UNLIKELY(m_eglDisplay == EGL_NO_DISPLAY)) {
++        LOGE("Could not open egl display");
++        return;
++    }
++
++    EGLint major, minor;
++    if (Q_UNLIKELY(!eglInitialize(m_eglDisplay, &major, &minor))) {
++        m_eglDisplay = EGL_NO_DISPLAY;
++        LOGE("Could not initialize egl display");
++    }
++
++    if (Q_UNLIKELY(!eglBindAPI(EGL_OPENGL_ES_API))) {
++        LOGE("Could not bind GL_ES API");
++        return;
++    }
++
++    m_eglConfig = initConfig();
++    if (m_eglConfig == nullptr) {
++        LOGE("init config error");
++        return;
++    }
++    m_valid = true;
++}
++
++bool QOpenHarmonyEGLCore::valid() const
++{
++    return m_valid;
++}
++
++EGLConfig QOpenHarmonyEGLCore::initConfig(int version) {
++    int attribList[] = {
++        EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
++        EGL_RED_SIZE, 8,
++        EGL_GREEN_SIZE, 8,
++        EGL_BLUE_SIZE, 8,
++        EGL_ALPHA_SIZE, 8,
++        EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
++        EGL_NONE
++    };
++    EGLConfig configs = NULL;
++    int configsNum;
++    eglChooseConfig(m_eglDisplay, attribList, &configs, 1, &configsNum);
++    return configs;
++}
++
++void QOpenHarmonyEGLCore::init(EGLNativeWindowType window, int w, int h)
++{
++    LOGE("QOpenHarmonyEGLCore::init window = %{public}p, w = %{public}d, h = %{public}d.", window, w, h);
++    m_width = w;
++    m_height = h;
++    m_eglWindow = window;
++    // 1. Create EGL Surface from Native Window
++    // Todo 配置修改
++    EGLint winAttribs[] = {EGL_GL_COLORSPACE_KHR, EGL_GL_COLORSPACE_SRGB_KHR, EGL_NONE};
++    if (m_eglWindow) {
++        m_eglSurface = eglCreateWindowSurface(m_eglDisplay, m_eglConfig, m_eglWindow, winAttribs);
++        if (m_eglSurface == nullptr) {
++            LOGE("EGLCore::eglCreateContext eglSurface is null");
++            return;
++        }
++    }
++
++    // 2. Create EGLContext from
++    int attrib3_list[] = {
++        EGL_CONTEXT_CLIENT_VERSION, 2,
++        EGL_NONE
++    };
++
++    m_eglContext = eglCreateContext(m_eglDisplay, m_eglConfig, m_sharedEGLContext, attrib3_list);
++
++    if (!eglMakeCurrent(m_eglDisplay, m_eglSurface, m_eglSurface, m_eglContext)) {
++        LOGE("EGLCore::eglMakeCurrent error = %{public}d", eglGetError());
++    }
++    m_program = CreateProgram(vertextShader, fragmentShader);
++    if (!m_program) {
++        LOGE("Could not create CreateProgram");
++        return;
++    } else {
++        m_samplerLoc = glGetUniformLocation(m_program, "s_TextureMap");
++    }
++
++    createTexture();
++}
++
++bool QOpenHarmonyEGLCore::inited(EGLNativeWindowType window) const
++{
++    return m_eglWindow == window;
++}
++
++void QOpenHarmonyEGLCore::createTexture()
++{
++    //create RGBA texture 设置激活的纹理单元（texture unit）
++    glActiveTexture(GL_TEXTURE0);
++    // 绑定纹理目标(一个或多个)到纹理单元
++    glGenTextures(1, &m_TextureId);
++    glBindTexture(GL_TEXTURE_2D, m_TextureId);
++    //设置纹理 S 轴（横轴）的拉伸方式为截取
++    glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
++    glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
++    //设置纹理采样方式
++    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
++    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
++
++}
++
++void QOpenHarmonyEGLCore::drawImage(const QImage &image)
++{
++    glViewport(0, 0, m_width, m_height);
++    glClearColor(0.0, 0.0, 0.0, 1.0);
++    glClear(GL_COLOR_BUFFER_BIT);
++
++    //设置激活的纹理单元
++    glActiveTexture(GL_TEXTURE0);
++    //将纹理 m_TextureId 绑定到类型 GL_TEXTURE_2D 纹理
++    glBindTexture(GL_TEXTURE_2D, m_TextureId);
++    //加载 RGBA 格式的图像数据
++    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image.width(), image.height(), 0, GL_RGBA, GL_UNSIGNED_BYTE, image.bits());
++    glBindTexture(GL_TEXTURE_2D, GL_NONE);
++
++    static GLfloat verticesCoords[] = {
++        -1.0f,  1.0f, 0.0f,  // Position 0
++        -1.0f, -1.0f, 0.0f,  // Position 1
++        1.0f, -1.0f, 0.0f,  // Position 2
++        1.0f,  1.0f, 0.0f,  // Position 3
++    };
++    // 4 个纹理坐标分别为
++    static GLfloat textureCoords[] = {
++        0.0f,  0.0f,        // TexCoord 0
++        0.0f,  1.0f,        // TexCoord 1
++        1.0f,  1.0f,        // TexCoord 2
++        1.0f,  0.0f         // TexCoord 3
++    };
++
++    // render container
++    glUseProgram(m_program);
++    // Load the vertex position 加载顶点的位置
++    glVertexAttribPointer (0, 3, GL_FLOAT,
++                           GL_FALSE, 3 * sizeof (GLfloat), verticesCoords);
++    // Load the texture coordinate 加载纹理坐标
++    glVertexAttribPointer (1, 2, GL_FLOAT,
++                           GL_FALSE, 2 * sizeof (GLfloat), textureCoords);
++
++    glEnableVertexAttribArray (0);
++    glEnableVertexAttribArray (1);
++
++    // Bind the RGBA map
++    glActiveTexture(GL_TEXTURE0);
++    glBindTexture(GL_TEXTURE_2D, m_TextureId);
++
++    // Set the RGBA map sampler to texture unit to 0
++    glUniform1i(m_samplerLoc, 0);
++    static GLushort indices[] = { 0, 1, 2, 0, 2, 3 };
++    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_SHORT, indices);
++    update();
++}
++
++void QOpenHarmonyEGLCore::update()
++{
++    eglSwapBuffers(m_eglDisplay, m_eglSurface);
++}
++
++GLuint QOpenHarmonyEGLCore::loadShader(GLenum type, const char *shaderSrc)
++{
++    GLuint shader;
++    GLint compiled;
++
++    shader = glCreateShader(type);
++    if (shader == 0) {
++        LOGE("LoadShader shader error");
++        return 0;
++    }
++
++    glShaderSource(shader, 1, &shaderSrc, nullptr);
++    glCompileShader(shader);
++
++    glGetShaderiv(shader, GL_COMPILE_STATUS, &compiled);
++
++    if (!compiled) {
++        GLint infoLen = 0;
++        glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &infoLen);
++
++        if (infoLen > 1) {
++            char *infoLog = (char*)malloc(sizeof(char) * infoLen);
++            glGetShaderInfoLog(shader, infoLen, nullptr, infoLog);
++            LOGE("Error compiling shader:\n%s\n",infoLog);
++            free(infoLog);
++        }
++        glDeleteShader(shader);
++        return 0;
++    }
++    return shader;
++}
++
++GLuint QOpenHarmonyEGLCore::CreateProgram(const char *vertexShader, const char *fragShader)
++{
++    GLuint vertex;
++    GLuint fragment;
++    GLuint program;
++    GLint linked;
++
++    vertex = loadShader(GL_VERTEX_SHADER, vertexShader);
++    if (vertex == 0) {
++        LOGE("CreateProgram vertex error");
++        return 0;
++    }
++
++    fragment = loadShader(GL_FRAGMENT_SHADER, fragShader);
++    if (fragment == 0) {
++        LOGE("CreateProgram fragment error");
++        glDeleteShader(vertex);
++        return 0;
++    }
++
++    program = glCreateProgram();
++    if (program == 0) {
++        LOGE("CreateProgram program error");
++        glDeleteShader(vertex);
++        glDeleteShader(fragment);
++        return 0;
++    }
++
++    glAttachShader(program, vertex);
++    glAttachShader(program, fragment);
++    glLinkProgram(program);
++    glGetProgramiv(program, GL_LINK_STATUS, &linked);
++    if (!linked) {
++        LOGE("CreateProgram linked error");
++        GLint infoLen = 0;
++        glGetProgramiv(program, GL_INFO_LOG_LENGTH, &infoLen);
++        if (infoLen > 1) {
++            char *infoLog = (char *)malloc(sizeof(char) * infoLen);
++            glGetProgramInfoLog(program, infoLen, nullptr, infoLog);
++            LOGE("Error linking program:\n%s\n",infoLog);
++            free(infoLog);
++        }
++        glDeleteShader(vertex);
++        glDeleteShader(fragment);
++        glDeleteProgram(program);
++        return 0;
++    }
++    glDeleteShader(vertex);
++    glDeleteShader(fragment);
++
++    return program;
++}
++
++EGLConfig QOpenHarmonyEGLCore::eglConfig() const
++{
++    return m_eglConfig;
++}
++
++EGLDisplay QOpenHarmonyEGLCore::eglDisplay() const
++{
++    return m_eglDisplay;
++}
++
++bool QOpenHarmonyEGLCore::checkGlError(const char* op)
++{
++    LOGE("EGL ERROR CODE = %{public}x", eglGetError());
++    GLint error;
++    for (error = glGetError(); error; error = glGetError()) {
++        LOGE("ERROR: %{public}s, ERROR CODE = %{public}x", op, error);
++        return true;
++    }
++    return false;
++}
+diff --git a/src/plugins/platforms/openharmony/qopenharmonyeglcore.h b/src/plugins/platforms/openharmony/qopenharmonyeglcore.h
+new file mode 100644
+index 0000000000..221d0ee9ba
+--- /dev/null
++++ b/src/plugins/platforms/openharmony/qopenharmonyeglcore.h
+@@ -0,0 +1,46 @@
++#ifndef QOPENHARMONYEGLCORE_H
++#define QOPENHARMONYEGLCORE_H
++
++#include <GLES3/gl3.h>
++#include <EGL/egl.h>
++#include <EGL/eglext.h>
++class QImage;
++class QOpenHarmonyEGLCore
++{
++public:
++    QOpenHarmonyEGLCore();
++    bool valid() const;
++    void init(EGLNativeWindowType window, int w, int h);
++
++    bool inited(EGLNativeWindowType window) const;
++    void drawImage(const QImage &image);
++
++public:
++    EGLDisplay eglDisplay() const;
++
++    EGLConfig eglConfig() const;
++
++private:
++    EGLConfig initConfig(int version = 3);
++    void update();
++    bool checkGlError(const char* op);
++    GLuint loadShader(GLenum type, const char *shaderSrc);
++    GLuint CreateProgram(const char *vertexShader, const char *fragShader);
++    void createTexture();
++
++    EGLNativeWindowType m_eglWindow = 0;
++    EGLDisplay m_eglDisplay = EGL_NO_DISPLAY;
++    EGLConfig m_eglConfig = nullptr;
++    EGLContext m_eglContext = EGL_NO_CONTEXT;
++    EGLContext m_sharedEGLContext = EGL_NO_CONTEXT;
++    EGLSurface m_eglSurface = nullptr;
++    GLuint m_program;
++    GLuint m_TextureId;
++    GLint m_samplerLoc;
++    int m_width;
++    int m_height;
++    bool m_valid = false;
++
++};
++
++#endif // QOPENHARMONYEGLCORE_H
+diff --git a/src/plugins/platforms/openharmony/qopenharmonyeventdispatcher.cpp b/src/plugins/platforms/openharmony/qopenharmonyeventdispatcher.cpp
+new file mode 100644
+index 0000000000..a13261b509
+--- /dev/null
++++ b/src/plugins/platforms/openharmony/qopenharmonyeventdispatcher.cpp
+@@ -0,0 +1,102 @@
++#include "qopenharmonyeventdispatcher.h"
++
++QOpenHarmonyEventDispatcher::QOpenHarmonyEventDispatcher(QObject *parent) :
++    QUnixEventDispatcherQPA(parent)
++{
++
++}
++
++QOpenHarmonyEventDispatcher::~QOpenHarmonyEventDispatcher()
++{
++
++}
++
++enum States {Running = 0, StopRequest = 1, Stopping = 2};
++
++void QOpenHarmonyEventDispatcher::start()
++{
++    int prevState = m_stopRequest.fetchAndStoreAcquire(Running);
++    if (prevState == Stopping) {
++        m_semaphore.release();
++        wakeUp();
++    } else if (prevState == Running) {
++        qWarning("Error: start without corresponding stop");
++    }
++    //else if prevState == StopRequest, no action needed
++}
++
++void QOpenHarmonyEventDispatcher::stop()
++{
++    if (m_stopRequest.testAndSetAcquire(Running, StopRequest))
++        wakeUp();
++    else
++        qWarning("Error: start/stop out of sync");
++}
++
++void QOpenHarmonyEventDispatcher::goingToStop(bool stop)
++{
++    m_goingToStop.store(stop ? 1 : 0);
++    if (!stop)
++        wakeUp();
++}
++
++bool QOpenHarmonyEventDispatcher::processEvents(QEventLoop::ProcessEventsFlags flags)
++{
++//    if (m_goingToStop.load())
++//        flags |= QEventLoop::ExcludeSocketNotifiers | QEventLoop::X11ExcludeTimers;
++
++//    {
++//        DeadlockProtector protector;
++//        if (protector.acquire() && m_stopRequest.testAndSetAcquire(StopRequest, Stopping)) {
++//            m_semaphore.acquire();
++//            wakeUp();
++//        }
++//    }
++
++    return QUnixEventDispatcherQPA::processEvents(flags);
++}
++
++QOpenHarmonyEventDispatcherStopper *QOpenHarmonyEventDispatcherStopper::instance()
++{
++    static QOpenHarmonyEventDispatcherStopper openharmonyEventDispatcherStopper;
++    return &openharmonyEventDispatcherStopper;
++}
++
++void QOpenHarmonyEventDispatcherStopper::startAll()
++{
++    QMutexLocker lock(&m_mutex);
++    if (!m_started.testAndSetOrdered(0, 1))
++        return;
++
++    for (QOpenHarmonyEventDispatcher *d : qAsConst(m_dispatchers))
++        d->start();
++}
++
++void QOpenHarmonyEventDispatcherStopper::stopAll()
++{
++    QMutexLocker lock(&m_mutex);
++    if (!m_started.testAndSetOrdered(1, 0))
++        return;
++
++    for (QOpenHarmonyEventDispatcher *d : qAsConst(m_dispatchers))
++        d->stop();
++}
++
++void QOpenHarmonyEventDispatcherStopper::addEventDispatcher(QOpenHarmonyEventDispatcher *dispatcher)
++{
++    QMutexLocker lock(&m_mutex);
++    m_dispatchers.push_back(dispatcher);
++}
++
++void QOpenHarmonyEventDispatcherStopper::removeEventDispatcher(QOpenHarmonyEventDispatcher *dispatcher)
++{
++    QMutexLocker lock(&m_mutex);
++    m_dispatchers.erase(std::find(m_dispatchers.begin(), m_dispatchers.end(), dispatcher));
++}
++
++void QOpenHarmonyEventDispatcherStopper::goingToStop(bool stop)
++{
++    QMutexLocker lock(&m_mutex);
++    for (QOpenHarmonyEventDispatcher *d : qAsConst(m_dispatchers))
++        d->goingToStop(stop);
++}
+diff --git a/src/plugins/platforms/openharmony/qopenharmonyeventdispatcher.h b/src/plugins/platforms/openharmony/qopenharmonyeventdispatcher.h
+new file mode 100644
+index 0000000000..51fe72e96e
+--- /dev/null
++++ b/src/plugins/platforms/openharmony/qopenharmonyeventdispatcher.h
+@@ -0,0 +1,46 @@
++#ifndef QOPENHARMONYEVENTDISPATCHER_H
++#define QOPENHARMONYEVENTDISPATCHER_H
++
++#include <QtCore/QMutex>
++#include <QtCore/QSemaphore>
++#include <QtEventDispatcherSupport/private/qunixeventdispatcher_qpa_p.h>
++
++class QOpenHarmonyEventDispatcher : public QUnixEventDispatcherQPA
++{
++    Q_OBJECT
++public:
++    explicit QOpenHarmonyEventDispatcher(QObject *parent = 0);
++    ~QOpenHarmonyEventDispatcher();
++    void start();
++    void stop();
++
++    void goingToStop(bool stop);
++
++protected:
++    bool processEvents(QEventLoop::ProcessEventsFlags flags) override;
++
++private:
++    QAtomicInt m_stopRequest;
++    QAtomicInt m_goingToStop;
++    QSemaphore m_semaphore;
++};
++
++class QOpenHarmonyEventDispatcherStopper
++{
++public:
++    static QOpenHarmonyEventDispatcherStopper *instance();
++    static bool stopped() {return !instance()->m_started.load(); }
++    void startAll();
++    void stopAll();
++    void addEventDispatcher(QOpenHarmonyEventDispatcher *dispatcher);
++    void removeEventDispatcher(QOpenHarmonyEventDispatcher *dispatcher);
++    void goingToStop(bool stop);
++
++private:
++    QMutex m_mutex;
++    QAtomicInt m_started = 1;
++    QVector<QOpenHarmonyEventDispatcher *> m_dispatchers;
++};
++
++
++#endif // QOPENHARMONYEVENTDISPATCHER_H
+diff --git a/src/plugins/platforms/openharmony/qopenharmonymanager.cpp b/src/plugins/platforms/openharmony/qopenharmonymanager.cpp
+new file mode 100644
+index 0000000000..8ec48d1fd5
+--- /dev/null
++++ b/src/plugins/platforms/openharmony/qopenharmonymanager.cpp
+@@ -0,0 +1,201 @@
++#include "qopenharmonymanager.h"
++#include <QGlobalStatic>
++
++#include <ace/xcomponent/native_interface_xcomponent.h>
++
++Q_GLOBAL_STATIC(QOpenHarmonyManager, manager)
++
++QOpenHarmonyManager::QOpenHarmonyManager()
++{
++
++}
++
++QOpenHarmonyManager *QOpenHarmonyManager::instance()
++{
++    return manager();
++}
++
++napi_value QOpenHarmonyManager::GetContext(napi_env env, napi_callback_info info)
++{
++    napi_status status;
++    napi_value exports;
++    size_t argc = 1;
++    napi_value args[1];
++    NAPI_CALL(env, napi_get_cb_info(env, info, &argc, args, nullptr, nullptr));
++
++    if (argc != 1) {
++        napi_throw_type_error(env, NULL, "Wrong number of arguments");
++        return nullptr;
++    }
++
++    napi_valuetype valuetype;
++    status = napi_typeof(env, args[0], &valuetype);
++    if (status != napi_ok) {
++        return nullptr;
++    }
++    if (valuetype != napi_number) {
++        napi_throw_type_error(env, NULL, "Wrong arguments");
++        return nullptr;
++    }
++
++    int64_t value;
++    NAPI_CALL(env, napi_get_value_int64(env, args[0], &value));
++
++    NAPI_CALL(env, napi_create_object(env, &exports));
++
++    switch (value) {
++        case APP_LIFECYCLE:
++            {
++                /**** AppInit 对应 app.ets中的应用生命周期 onCreate, onShow, onHide, onDestroy ******/
++                LOGD("GetContext APP_LIFECYCLE");
++                /**** Register App Lifecycle  ******/
++                napi_property_descriptor desc[] = {
++                    DECLARE_NAPI_FUNCTION("onCreate", QOpenHarmonyManager::napiOnCreate),
++                    DECLARE_NAPI_FUNCTION("onShow", QOpenHarmonyManager::napiOnShow),
++                    DECLARE_NAPI_FUNCTION("onHide", QOpenHarmonyManager::napiOnHide),
++                    DECLARE_NAPI_FUNCTION("onDestroy", QOpenHarmonyManager::napiOnDestroy),
++                };
++                NAPI_CALL(env, napi_define_properties(env, exports, sizeof(desc) / sizeof(desc[0]), desc));
++            }
++
++            break;
++        case JS_PAGE_LIFECYCLE:
++            {
++                LOGD("GetContext JS_PAGE_LIFECYCLE");
++                napi_property_descriptor desc[] = {
++                    DECLARE_NAPI_FUNCTION("onPageShow", QOpenHarmonyManager::napiOnPageShow),
++                    DECLARE_NAPI_FUNCTION("onPageHide", QOpenHarmonyManager::napiOnPageHide),
++                };
++                NAPI_CALL(env, napi_define_properties(env, exports, sizeof(desc) / sizeof(desc[0]), desc));
++
++            }
++            break;
++        default:
++            LOGE("unknown type");
++    }
++    return exports;
++}
++
++bool QOpenHarmonyManager::napiExport(napi_env env, napi_value exports)
++{
++    napi_status status;
++    napi_value exportInstance = nullptr;
++    OH_NativeXComponent *nativeXComponent = nullptr;
++    int32_t ret;
++    char idStr[OH_XCOMPONENT_ID_LEN_MAX + 1] = { };
++    uint64_t idSize = OH_XCOMPONENT_ID_LEN_MAX + 1;
++
++    status = napi_get_named_property(env, exports, OH_NATIVE_XCOMPONENT_OBJ, &exportInstance);
++    if (status != napi_ok) {
++        return false;
++    }
++
++    status = napi_unwrap(env, exportInstance, reinterpret_cast<void**>(&nativeXComponent));
++    if (status != napi_ok) {
++        return false;
++    }
++
++    ret = OH_NativeXComponent_GetXComponentId(nativeXComponent, idStr, &idSize);
++    if (ret != OH_NATIVEXCOMPONENT_RESULT_SUCCESS) {
++        return false;
++    }
++
++    std::string id(idStr);
++    auto context = QOpenHarmonyManager::GetInstance();
++    if (context) {
++        context->SetNativeXComponent(id, nativeXComponent);
++        auto render = context->GetRender(id);
++        render->SetNativeXComponent(nativeXComponent);
++        render->Export(env, exports);
++        return true;
++    }
++
++    return false;
++}
++
++void QOpenHarmonyManager::setNativeXComponent(const QString &id, OH_NativeXComponent* nativeXComponent)
++{
++    nativeXComponentMap[id] = nativeXComponent;
++}
++
++OH_NativeXComponent* QOpenHarmonyManager::GetNativeXComponent(std::string& id)
++{
++    return nativeXComponentMap.value(id);
++}
++
++
++void QOpenHarmonyManager::mainOnMessage(const uv_async_t* req)
++{
++    LOGD("MainOnMessage Triggered");
++}
++napi_value QOpenHarmonyManager::napiOnCreate(napi_env env, napi_callback_info info)
++{
++    LOGD("QOpenHarmonyManager::NapiOnCreate");
++    uv_loop_t* loop = nullptr;
++    uv_check_t* check = new uv_check_t;
++    NAPI_CALL(env, napi_get_uv_event_loop(env, &loop));
++    QOpenHarmonyManager::GetInstance()->OnCreateNative(env, loop);
++    return nullptr;
++}
++
++napi_value QOpenHarmonyManager::napiOnShow(napi_env env, napi_callback_info info)
++{
++    QOpenHarmonyManager::instance()->onShowNative();
++    return nullptr;
++}
++
++napi_value QOpenHarmonyManager::NapiOnHide(napi_env env, napi_callback_info info)
++{
++    QOpenHarmonyManager::instance()->onHideNative();
++    return nullptr;
++}
++
++napi_value QOpenHarmonyManager::NapiOnDestroy(napi_env env, napi_callback_info info)
++{
++    QOpenHarmonyManager::instance()->onDestroyNative();
++    return nullptr;
++}
++
++void QOpenHarmonyManager::onCreateNative(napi_env env, uv_loop_t* loop)
++{
++    mainEnv = env;
++    mainLoop = loop;
++    if (mainLoop_) {
++        uv_async_init(mainLoop_, &mainOnMessageSignal_, reinterpret_cast<uv_async_cb>(QOpenHarmonyManager::mainOnMessage));
++    }
++}
++
++void QOpenHarmonyManager::onShowNative()
++{
++    LOGD("QOpenHarmonyManager::OnShowNative");
++}
++void QOpenHarmonyManager::onHideNative()
++{
++    LOGD("QOpenHarmonyManager::OnHideNative");
++}
++void QOpenHarmonyManager::onDestroyNative()
++{
++    LOGD("QOpenHarmonyManager::OnDestroyNative");
++}
++
++napi_value QOpenHarmonyManager::napiOnPageShow(napi_env env, napi_callback_info info)
++{
++    LOGD("QOpenHarmonyManager::NapiOnPageShow");
++    return nullptr;
++}
++
++napi_value QOpenHarmonyManager::napiOnPageHide(napi_env env, napi_callback_info info)
++{
++    LOGD("QOpenHarmonyManager::NapiOnPageHide");
++    return nullptr;
++}
++
++void QOpenHarmonyManager::onPageShowNative()
++{
++    LOGD("QOpenHarmonyManager::OnPageShowNative");
++}
++
++void QOpenHarmonyManager::onPageHideNative()
++{
++    LOGD("QOpenHarmonyManager::OnPageHideNative");
++}
+diff --git a/src/plugins/platforms/openharmony/qopenharmonymanager.h b/src/plugins/platforms/openharmony/qopenharmonymanager.h
+new file mode 100644
+index 0000000000..4dda963679
+--- /dev/null
++++ b/src/plugins/platforms/openharmony/qopenharmonymanager.h
+@@ -0,0 +1,56 @@
++#ifndef QOPENHARMONYMANAGER_H
++#define QOPENHARMONYMANAGER_H
++
++#include <QtCore/QString>
++#include <QtCore/QMap>
++#include
++
++struct OH_NativeXComponent;
++
++class QOpenHarmonyManager
++{
++public:
++    QOpenHarmonyManager();
++    ~QOpenHarmonyManager() {}
++
++    static QOpenHarmonyManager* instance();
++
++    static napi_value getContext(napi_env env, napi_callback_info info);
++
++    /******************************APP Lifecycle******************************/
++    static napi_value napiOnCreate(napi_env env, napi_callback_info info);
++    static napi_value napiOnShow(napi_env env, napi_callback_info info);
++    static napi_value napiOnHide(napi_env env, napi_callback_info info);
++    static napi_value napiOnDestroy(napi_env env, napi_callback_info info);
++
++    void onCreateNative(napi_env env, uv_loop_t* loop);
++    void onShowNative();
++    void onHideNative();
++    void onDestroyNative();
++    /*********************************************************************/
++
++    static napi_value mapiOnPageShow(napi_env env, napi_callback_info info);
++    static napi_value mapiOnPageHide(napi_env env, napi_callback_info info);
++    void onPageShowNative();
++    void onPageHideNative();
++    /*************************************************************************/
++
++    OH_NativeXComponent* getNativeXComponent(const QString &id);
++    void setNativeXComponent(const QString &id, OH_NativeXComponent* nativeXComponent);
++
++public:
++    // Napi export
++    bool napiExport(napi_env env, napi_value exports);
++private:
++    static void mainOnMessage(const uv_async_t* req);
++
++    QString id;
++    QMap<QString, OH_NativeXComponent*> nativeXComponentMap;
++
++public:
++    napi_env mainEnv = nullptr;
++    uv_loop_t* mainLoop = nullptr;
++    uv_async_t mainOnMessageSignal {};
++};
++
++#endif // QOPENHARMONYMANAGER_H
+diff --git a/src/plugins/platforms/openharmony/qopenharmonymian.cpp b/src/plugins/platforms/openharmony/qopenharmonymian.cpp
+new file mode 100644
+index 0000000000..447e488caf
+--- /dev/null
++++ b/src/plugins/platforms/openharmony/qopenharmonymian.cpp
+@@ -0,0 +1,237 @@
++#include <memory>
++#include <dlfcn.h>
++#include <pthread.h>
++#include <napi/native_api.h>
++#include <ace/xcomponent/native_interface_xcomponent.h>
++
++#include <QHash>
++#include <QGuiApplication>
++#include <QDir>
++#include <QDebug>
++
++#include "qopenharmonysurface.h"
++
++#include "qopenharmonydefines.h"
++extern "C" typedef int (*Main)(int, char **); //use the standard main method to start the application
++static Main m_main = nullptr;
++static void *m_mainLibraryHnd = nullptr;
++pthread_t m_qtAppThread = 0;
++static sem_t m_exitSemaphore, m_terminateSemaphore;
++
++static OH_NativeXComponent *m_nativeXComponent = nullptr;
++static QHash<OH_NativeXComponent *, QOpenHarmonySurface *> m_surfaces;
++
++namespace QtOpenHarmony {
++}
++
++static napi_value initSurface(napi_env env, napi_callback_info info)
++{
++    napi_value exportInstance;
++    napi_value thisArg;
++    napi_status status;
++    OH_NativeXComponent *nativeXComponent = nullptr;
++    int32_t ret;
++    char idStr[OH_XCOMPONENT_ID_LEN_MAX + 1] = {};
++    uint64_t idSize = OH_XCOMPONENT_ID_LEN_MAX + 1;
++
++    // napi_value thisArg;
++    NAPI_CALL(env, napi_get_cb_info(env, info, NULL, NULL, &thisArg, NULL));
++
++    status = napi_get_named_property(env, thisArg, OH_NATIVE_XCOMPONENT_OBJ, &exportInstance);
++    if (status != napi_ok) {
++        return nullptr;
++    };
++
++    status = napi_unwrap(env, exportInstance, reinterpret_cast<void**>(&nativeXComponent));
++    if (status != napi_ok) {
++        return nullptr;
++    }
++
++    ret = OH_NativeXComponent_GetXComponentId(nativeXComponent, idStr, &idSize);
++    if (ret != OH_NATIVEXCOMPONENT_RESULT_SUCCESS) {
++        return nullptr;
++    }
++    new QOpenHarmonySurface(nativeXComponent);
++    LOGE("init qpa finish");
++
++    return nullptr;
++}
++
++
++static void *startMainMethod(void */*data*/)
++{
++    QVarLengthArray<const char *> params(1);
++    QByteArray p = "/data/storage/el1/bundle/libs/arm/libQtForHarmony.so";
++    params[0] = static_cast<const char *>(p.constData());
++
++    int ret = m_main(1, const_cast<char **>(params.data()));
++
++    if (m_mainLibraryHnd) {
++        int res = dlclose(m_mainLibraryHnd);
++        if (res < 0)
++            qWarning() << "dlclose failed:" << dlerror();
++    }
++
++
++    sem_post(&m_terminateSemaphore);
++    sem_wait(&m_exitSemaphore);
++    sem_destroy(&m_exitSemaphore);
++
++    // We must call exit() to ensure that all global objects will be destructed
++    exit(ret);
++    return 0;
++}
++
++static napi_value startQtApplication(napi_env env, napi_callback_info info)
++{
++    if (::setenv("QT_QPA_PLATFORM_PLUGIN_PATH", "/data/storage/el1/bundle/libs/arm", 1) != 0) {
++         qWarning() << "Can't set environment for QT_PLUGIN_PATH";
++    }
++    napi_status status;
++    size_t argc = 2;
++    napi_value args[2];
++    NAPI_CALL(env, napi_get_cb_info(env, info, &argc, args, nullptr, nullptr));
++
++    if (argc != 2) {
++        napi_throw_type_error(env, NULL, "Wrong number of arguments");
++        return nullptr;
++    }
++
++    napi_valuetype valuetype;
++    status = napi_typeof(env, args[0], &valuetype);
++    if (status != napi_ok) {
++        return nullptr;
++    }
++    if (valuetype != napi_string) {
++        napi_throw_type_error(env, NULL, "Wrong arguments");
++        return nullptr;
++    }
++
++    size_t strLen = 0;
++    NAPI_CALL(env, napi_get_value_string_utf8(env, args[0], nullptr, -1, &strLen));
++
++    size_t bufLen = strLen + 1;
++    std::unique_ptr<char[]> str = std::make_unique<char[]>(bufLen);
++    NAPI_CALL(env, napi_get_value_string_utf8(env, args[0], str.get(), bufLen, &strLen));
++
++    status = napi_typeof(env, args[1], &valuetype);
++    if (status != napi_ok) {
++        return nullptr;
++    }
++    if (valuetype != napi_string) {
++        napi_throw_type_error(env, NULL, "Wrong arguments");
++        return nullptr;
++    }
++
++    strLen = 0;
++    NAPI_CALL(env, napi_get_value_string_utf8(env, args[1], nullptr, -1, &strLen));
++
++    bufLen = strLen + 1;
++    std::unique_ptr<char[]> str1 = std::make_unique<char[]>(bufLen);
++    NAPI_CALL(env, napi_get_value_string_utf8(env, args[1], str1.get(), bufLen, &strLen));
++
++    m_mainLibraryHnd = nullptr;
++
++    //look for main()
++    // Obtain a handle to the main library (the library that contains the main() function).
++    // This library already be loaded, and calling dlopen() will just return a reference to it.
++    m_mainLibraryHnd = dlopen(str1.get(), 0);
++    if (Q_UNLIKELY(!m_mainLibraryHnd)) {
++        QString error = QString("dlopen failed: %1").arg(dlerror());
++        napi_throw_type_error(env, NULL, error.toUtf8().constData());
++        return nullptr;
++    }
++    m_main = (Main)dlsym(m_mainLibraryHnd, "main");
++
++    if (Q_UNLIKELY(!m_main)) {
++        QString error = QString("dlsym failed: %1, Could not find main method.").arg(dlerror());
++        napi_throw_type_error(env, NULL, error.toUtf8().constData());
++        return nullptr;
++    }
++    if (sem_init(&m_exitSemaphore, 0, 0) == -1)
++        return nullptr;
++
++    if (sem_init(&m_terminateSemaphore, 0, 0) == -1)
++        return nullptr;
++
++    pthread_create(&m_qtAppThread, nullptr, startMainMethod, nullptr);
++    return nullptr;
++}
++
++static napi_value quitQtApplication(napi_env env, napi_callback_info info)
++{
++    qApp->quit();
++    return nullptr;
++}
++
++static void openHarmonyMessageOutput(QtMsgType type, const QMessageLogContext &context, const QString &msg)
++{
++    QByteArray localMsg = msg.toLocal8Bit();
++    LOGE("Fatal: %{public}s (%{public}s:%{public}u, %{public}s)", localMsg.constData(), context.file, context.line, context.function);
++}
++
++/*
++ * function for module exports
++ */
++EXTERN_C_START
++static napi_value Init(napi_env env, napi_value exports)
++{
++    LOGE("Init qt harmony env");
++    napi_property_descriptor desc[] ={
++        DECLARE_NAPI_FUNCTION("startQtApplication", startQtApplication),
++        DECLARE_NAPI_FUNCTION("quitQtApplication", quitQtApplication),
++        DECLARE_NAPI_FUNCTION("initSurface", initSurface)
++    };
++    NAPI_CALL(env, napi_define_properties(env, exports, sizeof(desc) / sizeof(desc[0]), desc));
++
++    qInstallMessageHandler(openHarmonyMessageOutput);
++
++    napi_status status;
++    napi_value exportInstance = nullptr;
++    OH_NativeXComponent *nativeXComponent = nullptr;
++    int32_t ret;
++    char idStr[OH_XCOMPONENT_ID_LEN_MAX + 1] = { };
++    uint64_t idSize = OH_XCOMPONENT_ID_LEN_MAX + 1;
++
++    status = napi_get_named_property(env, exports, OH_NATIVE_XCOMPONENT_OBJ, &exportInstance);
++    LOGE("tttttttttttttttttttttttttttttttt %{public}d", status);
++    if (status != napi_ok) {
++        return exports;
++    }
++
++    status = napi_unwrap(env, exportInstance, reinterpret_cast<void**>(&nativeXComponent));
++    LOGE("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx %{public}d", status);
++    if (status != napi_ok) {
++        return exports;
++    }
++
++    LOGE("ttttttttttttttttttttttttttttttttttt");
++    ret = OH_NativeXComponent_GetXComponentId(nativeXComponent, idStr, &idSize);
++    if (ret != OH_NATIVEXCOMPONENT_RESULT_SUCCESS) {
++        return exports;
++    }
++    new QOpenHarmonySurface(nativeXComponent);
++
++    return exports;
++}
++EXTERN_C_END
++
++/*
++ * Napi Module define
++ */
++static napi_module openharmonyPluginModule = {
++    .nm_version = 1,
++    .nm_flags = 0,
++    .nm_filename = nullptr,
++    .nm_register_func = Init,
++    .nm_modname = "qopenharmony",
++    .nm_priv = ((void*)0),
++    .reserved = { 0 },
++};
++/*
++ * Module register function
++ */
++extern "C" __attribute__((constructor)) void RegisterModule(void)
++{
++    napi_module_register(&openharmonyPluginModule);
++}
+diff --git a/src/plugins/platforms/openharmony/qopenharmonyplatformbackingstore.cpp b/src/plugins/platforms/openharmony/qopenharmonyplatformbackingstore.cpp
+new file mode 100644
+index 0000000000..a6a9c436fe
+--- /dev/null
++++ b/src/plugins/platforms/openharmony/qopenharmonyplatformbackingstore.cpp
+@@ -0,0 +1,48 @@
++#include "qopenharmonyplatformbackingstore.h"
++#include "qopenharmonyplatformscreen.h"
++#include "qopenharmonyplatformwindow.h"
++#include <qpa/qplatformscreen.h>
++
++QT_BEGIN_NAMESPACE
++
++QOpenHarmonyPlatformBackingStore::QOpenHarmonyPlatformBackingStore(QWindow *window)
++    : QPlatformBackingStore(window)
++{
++    if (window->handle())
++        setBackingStore(window);
++}
++
++QPaintDevice *QOpenHarmonyPlatformBackingStore::paintDevice()
++{
++    return &m_image;
++}
++
++void QOpenHarmonyPlatformBackingStore::flush(QWindow *window, const QRegion &region, const QPoint &offset)
++{
++    Q_UNUSED(offset);
++
++    if (!m_backingStoreSet)
++        setBackingStore(window);
++
++    (static_cast<QOpenHarmonyPlatformWindow *>(window->handle()))->repaint(region);
++}
++
++void QOpenHarmonyPlatformBackingStore::resize(const QSize &size, const QRegion &staticContents)
++{
++    Q_UNUSED(staticContents);
++
++    if (m_image.size() != size)
++        m_image = QImage(size, window()->screen()->handle()->format());
++}
++
++void QOpenHarmonyPlatformBackingStore::setBackingStore(QWindow *window)
++{
++    if (window->surfaceType() == QSurface::RasterSurface || window->surfaceType() == QSurface::RasterGLSurface) {
++        (static_cast<QOpenHarmonyPlatformWindow *>(window->handle()))->setBackingStore(this);
++        m_backingStoreSet = true;
++    } else {
++        qWarning("QOpenHarmonyPlatformBackingStore does not support OpenGL-only windows.");
++    }
++}
++
++QT_END_NAMESPACE
+diff --git a/src/plugins/platforms/openharmony/qopenharmonyplatformbackingstore.h b/src/plugins/platforms/openharmony/qopenharmonyplatformbackingstore.h
+new file mode 100644
+index 0000000000..db75831b39
+--- /dev/null
++++ b/src/plugins/platforms/openharmony/qopenharmonyplatformbackingstore.h
+@@ -0,0 +1,25 @@
++#ifndef QOPENHARMONYPLATFORMBACKINGSTORE_H
++#define QOPENHARMONYPLATFORMBACKINGSTORE_H
++
++#include <qpa/qplatformbackingstore.h>
++#include <qpa/qwindowsysteminterface.h>
++
++QT_BEGIN_NAMESPACE
++
++class QOpenHarmonyPlatformBackingStore : public QPlatformBackingStore
++{
++public:
++    explicit QOpenHarmonyPlatformBackingStore(QWindow *window);
++    QPaintDevice *paintDevice() override;
++    void flush(QWindow *window, const QRegion &region, const QPoint &offset) override;
++    void resize(const QSize &size, const QRegion &staticContents) override;
++    QImage toImage() const override { return m_image; }
++    void setBackingStore(QWindow *window);
++protected:
++    QImage m_image;
++    bool m_backingStoreSet = false;
++};
++
++QT_END_NAMESPACE
++
++#endif // QOPENHARMONYPLATFORMBACKINGSTORE_H
+diff --git a/src/plugins/platforms/openharmony/qopenharmonyplatformfontdatabase.cpp b/src/plugins/platforms/openharmony/qopenharmonyplatformfontdatabase.cpp
+new file mode 100644
+index 0000000000..86da3824a5
+--- /dev/null
++++ b/src/plugins/platforms/openharmony/qopenharmonyplatformfontdatabase.cpp
+@@ -0,0 +1,35 @@
++#include <QDir>
++
++#include "qopenharmonyplatformfontdatabase.h"
++
++QT_BEGIN_NAMESPACE
++
++QString QOpenHarmonyPlatformFontDatabase::fontDir() const
++{
++    return QLatin1String("/system/fonts");
++}
++
++void QOpenHarmonyPlatformFontDatabase::populateFontDatabase()
++{
++    QString fontpath = fontDir();
++    QDir dir(fontpath);
++
++    if (Q_UNLIKELY(!dir.exists())) {
++        qFatal("QFontDatabase: Cannot find font directory %s - is Qt installed correctly?",
++               qPrintable(fontpath));
++    }
++
++    QStringList nameFilters;
++    nameFilters << QLatin1String("*.ttf")
++                << QLatin1String("*.otf")
++                << QLatin1String("*.ttc");
++
++    const auto entries = dir.entryInfoList(nameFilters, QDir::Files);
++    for (const QFileInfo &fi : entries) {
++        const QByteArray file = QFile::encodeName(fi.absoluteFilePath());
++        QFreeTypeFontDatabase::addTTFile(QByteArray(), file);
++    }
++}
++
++
++QT_END_NAMESPACE
+diff --git a/src/plugins/platforms/openharmony/qopenharmonyplatformfontdatabase.h b/src/plugins/platforms/openharmony/qopenharmonyplatformfontdatabase.h
+new file mode 100644
+index 0000000000..3e38d4f853
+--- /dev/null
++++ b/src/plugins/platforms/openharmony/qopenharmonyplatformfontdatabase.h
+@@ -0,0 +1,17 @@
++#ifndef QOPENHARMONYPLATFORMFONTDATABASE_H
++#define QOPENHARMONYPLATFORMFONTDATABASE_H
++
++#include <QtFontDatabaseSupport/private/qfreetypefontdatabase_p.h>
++
++QT_BEGIN_NAMESPACE
++
++class QOpenHarmonyPlatformFontDatabase: public QFreeTypeFontDatabase
++{
++public:
++    QString fontDir() const override;
++    void populateFontDatabase() override;
++};
++
++QT_END_NAMESPACE
++
++#endif // QOPENHARMONYPLATFORMFONTDATABASE_H
+diff --git a/src/plugins/platforms/openharmony/qopenharmonyplatformforeignwindow.cpp b/src/plugins/platforms/openharmony/qopenharmonyplatformforeignwindow.cpp
+new file mode 100644
+index 0000000000..38c5c0ae04
+--- /dev/null
++++ b/src/plugins/platforms/openharmony/qopenharmonyplatformforeignwindow.cpp
+@@ -0,0 +1,54 @@
++#include "qopenharmonyplatformforeignwindow.h"
++#include <QtCore/qvariant.h>
++#include <qpa/qwindowsysteminterface.h>
++
++QT_BEGIN_NAMESPACE
++
++QOpenHarmonyPlatformForeignWindow::QOpenHarmonyPlatformForeignWindow(QWindow *window, WId nativeHandle)
++    : QOpenHarmonyPlatformWindow(window),
++      m_surfaceId(-1)
++{
++
++}
++
++QOpenHarmonyPlatformForeignWindow::~QOpenHarmonyPlatformForeignWindow()
++{
++
++}
++
++void QOpenHarmonyPlatformForeignWindow::lower()
++{
++    if (m_surfaceId == -1)
++        return;
++
++    QOpenHarmonyPlatformWindow::lower();
++}
++
++void QOpenHarmonyPlatformForeignWindow::raise()
++{
++    if (m_surfaceId == -1)
++        return;
++
++    QOpenHarmonyPlatformWindow::raise();
++}
++
++void QOpenHarmonyPlatformForeignWindow::setGeometry(const QRect &rect)
++{
++    QOpenHarmonyPlatformWindow::setGeometry(rect);
++}
++
++void QOpenHarmonyPlatformForeignWindow::setVisible(bool visible)
++{
++}
++
++void QOpenHarmonyPlatformForeignWindow::applicationStateChanged(Qt::ApplicationState state)
++{
++    QOpenHarmonyPlatformWindow::applicationStateChanged(state);
++}
++
++void QOpenHarmonyPlatformForeignWindow::setParent(const QPlatformWindow *window)
++{
++    Q_UNUSED(window);
++}
++
++QT_END_NAMESPACE
+diff --git a/src/plugins/platforms/openharmony/qopenharmonyplatformforeignwindow.h b/src/plugins/platforms/openharmony/qopenharmonyplatformforeignwindow.h
+new file mode 100644
+index 0000000000..7676f9fa31
+--- /dev/null
++++ b/src/plugins/platforms/openharmony/qopenharmonyplatformforeignwindow.h
+@@ -0,0 +1,28 @@
++#ifndef QOPENHARMONYPLATFORMFOREIGNWINDOW_H
++#define QOPENHARMONYPLATFORMFOREIGNWINDOW_H
++
++#include "qopenharmonyplatformwindow.h"
++
++QT_BEGIN_NAMESPACE
++
++class QOpenHarmonyPlatformForeignWindow : public QOpenHarmonyPlatformWindow
++{
++public:
++    explicit QOpenHarmonyPlatformForeignWindow(QWindow *window, WId nativeHandle);
++    ~QOpenHarmonyPlatformForeignWindow() override;
++    void lower() override;
++    void raise() override;
++    void setGeometry(const QRect &rect) override;
++    void setVisible(bool visible) override;
++    void applicationStateChanged(Qt::ApplicationState state) override;
++    void setParent(const QPlatformWindow *window) override;
++    bool isForeignWindow() const override { return true; }
++
++private:
++    int m_surfaceId;
++//    QJNIObjectPrivate m_view;
++};
++
++QT_END_NAMESPACE
++
++#endif // QOPENHARMONYPLATFORMFOREIGNWINDOW_H
+diff --git a/src/plugins/platforms/openharmony/qopenharmonyplatforminputcontext.cpp b/src/plugins/platforms/openharmony/qopenharmonyplatforminputcontext.cpp
+new file mode 100644
+index 0000000000..9fadf550d2
+--- /dev/null
++++ b/src/plugins/platforms/openharmony/qopenharmonyplatforminputcontext.cpp
+@@ -0,0 +1,161 @@
++#include "qopenharmonyplatforminputcontext.h"
++#include "qopenharmonyplatformscreen.h"
++#include "qopenharmonyplatformintegration.h"
++
++#include <QDebug>
++#include <qevent.h>
++#include <qguiapplication.h>
++#include <qsharedpointer.h>
++#include <qthread.h>
++#include <qinputmethod.h>
++#include <qwindow.h>
++#include <private/qhighdpiscaling_p.h>
++
++#include <QTextCharFormat>
++#include <QTextBoundaryFinder>
++
++#include <QDebug>
++#include <qpa/qwindowsysteminterface.h>
++#include <qpa/qplatformintegration.h>
++
++QT_BEGIN_NAMESPACE
++
++static QOpenHarmonyPlatformInputContext *m_openHarmonyInputContext = 0;
++
++QOpenHarmonyPlatformInputContext::QOpenHarmonyPlatformInputContext()
++    : QPlatformInputContext()
++{
++    m_openHarmonyInputContext = this;
++}
++
++QOpenHarmonyPlatformInputContext::~QOpenHarmonyPlatformInputContext()
++{
++    m_openHarmonyInputContext = 0;
++}
++
++QOpenHarmonyPlatformInputContext *QOpenHarmonyPlatformInputContext::openHarmonyInputContext()
++{
++    return m_openHarmonyInputContext;
++}
++
++void QOpenHarmonyPlatformInputContext::setPlatformIntegration(QOpenHarmonyPlatformIntegration *integration)
++{
++    m_integration = integration;
++}
++
++void QOpenHarmonyPlatformInputContext::clear()
++{
++    m_integration = nullptr;
++    m_ignoreMouseEvents = false;
++}
++
++void QOpenHarmonyPlatformInputContext::touchBegin()
++{
++    m_touchPoints.clear();
++}
++
++void QOpenHarmonyPlatformInputContext::touchAdd(int id, int action, float force, float x, float y)
++{
++    if (m_integration == nullptr)
++        return;
++
++    Qt::TouchPointState state = Qt::TouchPointStationary;
++    switch (action) {
++    case 0:
++        state = Qt::TouchPointPressed;
++        break;
++    case 1:
++        state = Qt::TouchPointReleased;
++        break;
++    case 2:
++        state = Qt::TouchPointMoved;
++        break;
++    case 3:
++//        state = Qt::TouchPointStationary;
++        break;
++    default:
++        break;
++    }
++
++    QRect rc = m_integration->screen()->availableGeometry();
++
++    const int dw = rc.width();
++    const int dh = rc.height();
++    QWindowSystemInterface::TouchPoint touchPoint;
++    touchPoint.id = id;
++    touchPoint.pressure = static_cast<qreal>(force);
++//    touchPoint.rotation = qRadiansToDegrees(rotation);
++    touchPoint.normalPosition = QPointF(double(x / dw), double(y / dh));
++    touchPoint.state = state;
++
++    float minor = 10;
++    float major = 10;
++
++    touchPoint.area = QRectF(x - minor,
++                             y - major,
++                             double(minor * 2),
++                             double(major * 2));
++    m_touchPoints.push_back(touchPoint);
++
++    if (state == Qt::TouchPointPressed) {
++        touchDown(x, y);
++    }
++}
++
++void QOpenHarmonyPlatformInputContext::touchEnd(int id)
++{
++    Q_UNUSED(id)
++    if ((m_integration == nullptr) || m_touchPoints.isEmpty())
++        return;
++
++    QTouchDevice *touchDevice = m_integration->touchDevice();
++    if (touchDevice == nullptr) {
++        touchDevice = new QTouchDevice;
++        touchDevice->setType(QTouchDevice::TouchScreen);
++        touchDevice->setCapabilities(QTouchDevice::Position
++//                                     | QTouchDevice::Area
++                                     | QTouchDevice::Pressure
++                                     | QTouchDevice::NormalizedPosition);
++        QWindowSystemInterface::registerTouchDevice(touchDevice);
++        m_integration->setTouchDevice(touchDevice);
++    }
++
++    QWindow *window = m_integration->screen()->topLevelAt(m_touchPoints.at(0).normalPosition.toPoint());
++    qDebug() << "touch window 33333333333333333333" << window;
++    QWindowSystemInterface::handleTouchEvent(window, touchDevice, m_touchPoints);
++}
++
++void QOpenHarmonyPlatformInputContext::mousePress(float x, float y)
++{
++    if ((m_integration == nullptr) || m_ignoreMouseEvents)
++        return;
++
++    QPoint globalPos(x,y);
++    QWindow *tlw = m_integration->screen()->topLevelAt(globalPos);
++//    m_mouseGrabber = tlw;
++    QPoint localPos = tlw ? (globalPos - tlw->position()) : globalPos;
++    QWindowSystemInterface::handleMouseEvent(tlw, localPos, globalPos,
++                                             Qt::MouseButtons(Qt::LeftButton),
++                                             Qt::LeftButton, QEvent::MouseButtonPress);
++}
++
++void QOpenHarmonyPlatformInputContext::mouseRelease(float x, float y)
++{
++    if ((m_integration == nullptr) || m_ignoreMouseEvents)
++        return;
++
++    QPoint globalPos(x,y);
++    QWindow *tlw = m_integration->screen()->topLevelAt(globalPos);
++//    m_mouseGrabber = tlw;
++    QPoint localPos = tlw ? (globalPos - tlw->position()) : globalPos;
++    QWindowSystemInterface::handleMouseEvent(tlw, localPos, globalPos,
++                                             Qt::MouseButtons(Qt::LeftButton),
++                                             Qt::LeftButton, QEvent::MouseButtonPress);
++}
++
++void QOpenHarmonyPlatformInputContext::touchDown(float x, float y)
++{
++
++}
++
++QT_END_NAMESPACE
+diff --git a/src/plugins/platforms/openharmony/qopenharmonyplatforminputcontext.h b/src/plugins/platforms/openharmony/qopenharmonyplatforminputcontext.h
+new file mode 100644
+index 0000000000..048cb84968
+--- /dev/null
++++ b/src/plugins/platforms/openharmony/qopenharmonyplatforminputcontext.h
+@@ -0,0 +1,47 @@
++#ifndef QOPENHARMONYPLATFORMINPUTCONTEXT_H
++#define QOPENHARMONYPLATFORMINPUTCONTEXT_H
++
++#include <qpa/qplatforminputcontext.h>
++#include <qpa/qwindowsysteminterface.h>
++#include <functional>
++#include <QTimer>
++
++QT_BEGIN_NAMESPACE
++class QOpenHarmonyPlatformIntegration;
++
++class QOpenHarmonyPlatformInputContext: public QPlatformInputContext
++{
++    Q_OBJECT
++
++public:
++    QOpenHarmonyPlatformInputContext();
++    ~QOpenHarmonyPlatformInputContext() override;
++    static QOpenHarmonyPlatformInputContext * openHarmonyInputContext();
++
++    void setPlatformIntegration(QOpenHarmonyPlatformIntegration *integration);
++
++    void clear();
++
++    bool isValid() const override { return true; }
++
++    // for touch
++    void touchBegin();
++
++    void touchAdd(int id, int action, float force, float x, float y);
++
++    void touchEnd(int id);
++
++public slots:
++    void mousePress(float x, float y);
++    void mouseRelease(float x, float y);
++    void touchDown(float x, float y);
++
++private:
++    bool m_ignoreMouseEvents = false;
++    QOpenHarmonyPlatformIntegration *m_integration = nullptr;
++    QList<QWindowSystemInterface::TouchPoint> m_touchPoints;
++};
++
++QT_END_NAMESPACE
++
++#endif // QOPENHARMONYPLATFORMINPUTCONTEXT_H
+diff --git a/src/plugins/platforms/openharmony/qopenharmonyplatformintegration.cpp b/src/plugins/platforms/openharmony/qopenharmonyplatformintegration.cpp
+new file mode 100644
+index 0000000000..09fc9d6853
+--- /dev/null
++++ b/src/plugins/platforms/openharmony/qopenharmonyplatformintegration.cpp
+@@ -0,0 +1,231 @@
++#include "qopenharmonyplatformintegration.h"
++
++#include <QtGui/private/qguiapplication_p.h>
++#include <QGuiApplication>
++#include <QOpenGLContext>
++#include <QThread>
++#include <QOffscreenSurface>
++
++#include <QtEglSupport/private/qeglpbuffer_p.h>
++#include <qpa/qwindowsysteminterface.h>
++#include <qpa/qplatformwindow.h>
++#include <qpa/qplatformoffscreensurface.h>
++
++#include "qabstracteventdispatcher.h"
++#include "qopenharmonyeventdispatcher.h"
++#include "qopenharmonyplatformbackingstore.h"
++#include "qopenharmonyplatformforeignwindow.h"
++#include "qopenharmonyplatformopenglcontext.h"
++#include "qopenharmonyplatformopenglwindow.h"
++#include "qopenharmonyplatformscreen.h"
++#include "qopenharmonyplatformfontdatabase.h"
++#include "qopenharmonyplatformoffscreensurface.h"
++#include "qopenharmonyplatforminputcontext.h"
++#include "qopenharmonydefines.h"
++#include "qopenharmonyeglcore.h"
++
++#include <QtGui/qpa/qplatforminputcontextfactory_p.h>
++#include <QtPlatformHeaders/QEGLNativeContext>
++
++QT_BEGIN_NAMESPACE
++
++int QOpenHarmonyPlatformIntegration::m_defaultGeometryWidth = 705;
++int QOpenHarmonyPlatformIntegration::m_defaultGeometryHeight = 1163;
++int QOpenHarmonyPlatformIntegration::m_defaultScreenWidth = 705;
++int QOpenHarmonyPlatformIntegration::m_defaultScreenHeight = 1163;
++int QOpenHarmonyPlatformIntegration::m_defaultPhysicalSizeWidth = 68;
++int QOpenHarmonyPlatformIntegration::m_defaultPhysicalSizeHeight = 121;
++
++Qt::ScreenOrientation QOpenHarmonyPlatformIntegration::m_orientation = Qt::PrimaryOrientation;
++Qt::ScreenOrientation QOpenHarmonyPlatformIntegration::m_nativeOrientation = Qt::PrimaryOrientation;
++
++bool QOpenHarmonyPlatformIntegration::m_showPasswordEnabled = false;
++
++
++QOpenHarmonyPlatformIntegration::QOpenHarmonyPlatformIntegration(const QStringList &paramList)
++{
++    Q_UNUSED(paramList);
++
++    m_eglCore = new QOpenHarmonyEGLCore;
++    if (!m_eglCore->valid())
++        return;
++
++    m_eglDisplay = m_eglCore->eglDisplay();
++
++    m_harmonyFontDatabase.reset(new QOpenHarmonyPlatformFontDatabase);
++
++    m_primaryScreen.reset(new QOpenHarmonyPlatformScreen(m_eglCore));
++    QWindowSystemInterface::handleScreenAdded(m_primaryScreen.data());
++    m_primaryScreen->setPhysicalSize(QSize(m_defaultPhysicalSizeWidth, m_defaultPhysicalSizeHeight));
++    m_primaryScreen->setSize(QSize(m_defaultScreenWidth, m_defaultScreenHeight));
++    m_primaryScreen->setAvailableGeometry(QRect(0, 0, m_defaultGeometryWidth, m_defaultGeometryHeight));
++
++    m_mainThread = QThread::currentThread();
++}
++
++
++bool QOpenHarmonyPlatformIntegration::hasCapability(Capability cap) const
++{
++    return true;
++}
++
++QPlatformBackingStore *QOpenHarmonyPlatformIntegration::createPlatformBackingStore(QWindow *window) const
++{
++    return new QOpenHarmonyPlatformBackingStore(window);
++}
++
++#ifndef QT_NO_OPENGL
++QPlatformOpenGLContext *QOpenHarmonyPlatformIntegration::createPlatformOpenGLContext(QOpenGLContext *context) const
++{
++    LOGE("create open harmony opengl context");
++    QSurfaceFormat format(context->format());
++    format.setAlphaBufferSize(8);
++    format.setRedBufferSize(8);
++    format.setGreenBufferSize(8);
++    format.setBlueBufferSize(8);
++    auto ctx = new QOpenHarmonyPlatformOpenGLContext(format, context->shareHandle(), m_eglDisplay, context->nativeHandle());
++    context->setNativeHandle(QVariant::fromValue<QEGLNativeContext>(QEGLNativeContext(ctx->eglContext(), m_eglDisplay)));
++    return ctx;
++}
++#endif
++
++QPlatformOffscreenSurface *QOpenHarmonyPlatformIntegration::createPlatformOffscreenSurface(QOffscreenSurface *surface) const
++{
++    QSurfaceFormat format(surface->requestedFormat());
++    format.setAlphaBufferSize(8);
++    format.setRedBufferSize(8);
++    format.setGreenBufferSize(8);
++    format.setBlueBufferSize(8);
++
++    if (surface->nativeHandle()) {
++        return new QOpenHarmonyPlatformOffscreenSurface(m_eglDisplay, format, surface);
++    }
++
++    return new QEGLPbuffer(m_eglDisplay, format, surface);
++}
++
++QPlatformWindow *QOpenHarmonyPlatformIntegration::createPlatformWindow(QWindow *window) const
++{
++    return new QOpenHarmonyPlatformOpenGLWindow(window, m_eglDisplay);
++}
++
++QPlatformWindow *QOpenHarmonyPlatformIntegration::createForeignWindow(QWindow *window, WId nativeHandle) const
++{
++    return new QOpenHarmonyPlatformForeignWindow(window, nativeHandle);
++}
++
++QAbstractEventDispatcher *QOpenHarmonyPlatformIntegration::createEventDispatcher() const
++{
++    return new QOpenHarmonyEventDispatcher;
++}
++
++QOpenHarmonyPlatformIntegration::~QOpenHarmonyPlatformIntegration()
++{
++    if (m_eglDisplay != EGL_NO_DISPLAY)
++        eglTerminate(m_eglDisplay);
++
++    QOpenHarmonyPlatformInputContext *context = qobject_cast<QOpenHarmonyPlatformInputContext *>(m_platformInputContext.data());
++    if (context != nullptr)
++        context->clear();
++}
++
++void QOpenHarmonyPlatformIntegration::initialize()
++{
++    const QString icStr = QPlatformInputContextFactory::requested();
++    if (icStr.isNull()) {
++        QOpenHarmonyPlatformInputContext *context = new QOpenHarmonyPlatformInputContext;
++        context->setPlatformIntegration(this);
++        m_platformInputContext.reset(context);
++    }
++    else
++        m_platformInputContext.reset(QPlatformInputContextFactory::create(icStr));
++}
++
++QPlatformInputContext *QOpenHarmonyPlatformIntegration::inputContext() const
++{
++    return m_platformInputContext.data();
++}
++
++QVariant QOpenHarmonyPlatformIntegration::styleHint(StyleHint hint) const
++{
++    switch (hint) {
++    case PasswordMaskDelay:
++        return m_showPasswordEnabled ? 1500 : 0;
++    case ShowIsMaximized:
++        return true;
++    default:
++        return QPlatformIntegration::styleHint(hint);
++    }
++}
++
++Qt::WindowState QOpenHarmonyPlatformIntegration::defaultWindowState(Qt::WindowFlags flags) const
++{
++    // Don't maximize dialogs on OpenHarmony
++    if (flags & Qt::Dialog & ~Qt::Window) {
++        return Qt::WindowNoState;
++    }
++    return QPlatformIntegration::defaultWindowState(flags);
++}
++
++static const QLatin1String openharmonyThemeName("openharmony");
++QStringList QOpenHarmonyPlatformIntegration::themeNames() const
++{
++    return QStringList(QString(openharmonyThemeName));
++}
++
++void QOpenHarmonyPlatformIntegration::setDefaultDisplayMetrics(int gw, int gh, int sw, int sh, int screenWidth, int screenHeight)
++{
++    m_defaultGeometryWidth = gw;
++    m_defaultGeometryHeight = gh;
++    m_defaultPhysicalSizeWidth = sw;
++    m_defaultPhysicalSizeHeight = sh;
++    m_defaultScreenWidth = screenWidth;
++    m_defaultScreenHeight = screenHeight;
++}
++
++void QOpenHarmonyPlatformIntegration::setDefaultDesktopSize(int gw, int gh)
++{
++    m_defaultGeometryWidth = gw;
++    m_defaultGeometryHeight = gh;
++}
++
++void QOpenHarmonyPlatformIntegration::setScreenOrientation(Qt::ScreenOrientation currentOrientation,
++                                                       Qt::ScreenOrientation nativeOrientation)
++{
++    m_orientation = currentOrientation;
++    m_nativeOrientation = nativeOrientation;
++}
++
++void QOpenHarmonyPlatformIntegration::flushPendingUpdates()
++{
++//    m_primaryScreen->setPhysicalSize(QSize(m_defaultPhysicalSizeWidth,
++//                                           m_defaultPhysicalSizeHeight));
++//    m_primaryScreen->setSize(QSize(m_defaultScreenWidth, m_defaultScreenHeight));
++//    m_primaryScreen->setAvailableGeometry(QRect(0, 0, m_defaultGeometryWidth, m_defaultGeometryHeight));
++}
++
++void QOpenHarmonyPlatformIntegration::setDesktopSize(int width, int height)
++{
++    if (m_primaryScreen.isNull())
++        return;
++    m_primaryScreen->setAvailableGeometry(QRect(0,0,width, height));
++}
++
++void QOpenHarmonyPlatformIntegration::setDisplayMetrics(int width, int height)
++{
++//    if (m_primaryScreen)
++//        QMetaObject::invokeMethod(m_primaryScreen, "setPhysicalSize", Qt::AutoConnection, Q_ARG(QSize, QSize(width, height)));
++}
++
++void QOpenHarmonyPlatformIntegration::setScreenSize(int width, int height)
++{
++//    if (m_primaryScreen)
++    //        QMetaObject::invokeMethod(m_primaryScreen, "setSize", Qt::AutoConnection, Q_ARG(QSize, QSize(width, height)));
++}
++
++QPlatformFontDatabase *QOpenHarmonyPlatformIntegration::fontDatabase() const
++{
++    return m_harmonyFontDatabase.data();
++}
++
++QT_END_NAMESPACE
+diff --git a/src/plugins/platforms/openharmony/qopenharmonyplatformintegration.h b/src/plugins/platforms/openharmony/qopenharmonyplatformintegration.h
+new file mode 100644
+index 0000000000..7a17f1e11d
+--- /dev/null
++++ b/src/plugins/platforms/openharmony/qopenharmonyplatformintegration.h
+@@ -0,0 +1,114 @@
++#ifndef QOPENHARMONYPLATFORMINTERATION_H
++#define QOPENHARMONYPLATFORMINTERATION_H
++
++#include <QtGui/qtguiglobal.h>
++
++#include <qpa/qplatformintegration.h>
++#include <qpa/qplatformmenu.h>
++#include <qpa/qplatformnativeinterface.h>
++
++#include <EGL/egl.h>
++
++#include <memory>
++#include <QScopedPointer>
++
++QT_BEGIN_NAMESPACE
++
++class QDesktopWidget;
++class QPlatformAccessibility;
++class QOpenHarmonyPlatformScreen;
++class QOpenHarmonyEGLCore;
++class QOpenHarmonyPlatformFontDatabase;
++class QOpenHarmonyPlatformInputContext;
++class QTouchDevice;
++
++class QOpenHarmonyPlatformIntegration : public QPlatformIntegration
++{
++    friend class QOpenHarmonyPlatformScreen;
++
++public:
++    QOpenHarmonyPlatformIntegration(const QStringList &paramList);
++    ~QOpenHarmonyPlatformIntegration() override;
++
++    void initialize() override;
++
++    bool hasCapability(QPlatformIntegration::Capability cap) const override;
++
++    QPlatformWindow *createPlatformWindow(QWindow *window) const override;
++    QPlatformWindow *createForeignWindow(QWindow *window, WId nativeHandle) const override;
++    QPlatformBackingStore *createPlatformBackingStore(QWindow *window) const override;
++#ifndef QT_NO_OPENGL
++    QPlatformOpenGLContext *createPlatformOpenGLContext(QOpenGLContext *context) const override;
++#endif
++    QAbstractEventDispatcher *createEventDispatcher() const override;
++    QOpenHarmonyPlatformScreen *screen() { return m_primaryScreen.data(); }
++    QPlatformOffscreenSurface *createPlatformOffscreenSurface(QOffscreenSurface *surface) const override;
++
++    virtual void setDesktopSize(int width, int height);
++    virtual void setDisplayMetrics(int width, int height);
++    void setScreenSize(int width, int height);
++    bool isVirtualDesktop() { return true; }
++
++    QPlatformFontDatabase *fontDatabase() const override;
++
++//#ifndef QT_NO_CLIPBOARD
++//    QPlatformClipboard *clipboard() const override;
++//#endif
++
++    QPlatformInputContext *inputContext() const override;
++//    QPlatformNativeInterface *nativeInterface() const override;
++//    QPlatformServices *services() const override;
++
++//#ifndef QT_NO_ACCESSIBILITY
++//    virtual QPlatformAccessibility *accessibility() const override;
++//#endif
++
++    QVariant styleHint(StyleHint hint) const override;
++    Qt::WindowState defaultWindowState(Qt::WindowFlags flags) const override;
++
++    QStringList themeNames() const override;
++//    QPlatformTheme *createPlatformTheme(const QString &name) const override;
++
++    static void setDefaultDisplayMetrics(int gw, int gh, int sw, int sh, int width, int height);
++    static void setDefaultDesktopSize(int gw, int gh);
++    static void setScreenOrientation(Qt::ScreenOrientation currentOrientation,
++                                     Qt::ScreenOrientation nativeOrientation);
++
++    static QSize defaultDesktopSize()
++    {
++        return QSize(m_defaultGeometryWidth, m_defaultGeometryHeight);
++    }
++
++    QTouchDevice *touchDevice() const { return m_touchDevice; }
++    void setTouchDevice(QTouchDevice *touchDevice) { m_touchDevice = touchDevice; }
++
++    void flushPendingUpdates();
++
++private:
++    QOpenHarmonyEGLCore *m_eglCore;
++    EGLDisplay m_eglDisplay;
++    QTouchDevice *m_touchDevice;
++
++    QScopedPointer<QOpenHarmonyPlatformScreen> m_primaryScreen;
++
++    QThread *m_mainThread;
++
++    static int m_defaultGeometryWidth;
++    static int m_defaultGeometryHeight;
++    static int m_defaultPhysicalSizeWidth;
++    static int m_defaultPhysicalSizeHeight;
++    static int m_defaultScreenWidth;
++    static int m_defaultScreenHeight;
++
++    static Qt::ScreenOrientation m_orientation;
++    static Qt::ScreenOrientation m_nativeOrientation;
++    static bool m_showPasswordEnabled;
++
++    QScopedPointer<QOpenHarmonyPlatformFontDatabase> m_harmonyFontDatabase;
++
++    QScopedPointer<QPlatformInputContext> m_platformInputContext;
++};
++
++QT_END_NAMESPACE
++
++#endif
+diff --git a/src/plugins/platforms/openharmony/qopenharmonyplatformoffscreensurface.cpp b/src/plugins/platforms/openharmony/qopenharmonyplatformoffscreensurface.cpp
+new file mode 100644
+index 0000000000..def46c762e
+--- /dev/null
++++ b/src/plugins/platforms/openharmony/qopenharmonyplatformoffscreensurface.cpp
+@@ -0,0 +1,32 @@
++#include "qopenharmonyplatformoffscreensurface.h"
++
++#include <QtGui/QOffscreenSurface>
++#include <QtEglSupport/private/qeglconvenience_p.h>
++
++QT_BEGIN_NAMESPACE
++
++QOpenHarmonyPlatformOffscreenSurface::QOpenHarmonyPlatformOffscreenSurface(EGLDisplay display, const QSurfaceFormat &format, QOffscreenSurface *offscreenSurface)
++    : QPlatformOffscreenSurface(offscreenSurface)
++    , m_format(format)
++    , m_display(display)
++    , m_surface(EGL_NO_SURFACE)
++{
++    // Get native handle
++    EGLNativeWindowType surfaceTexture = (EGLNativeWindowType)offscreenSurface->nativeHandle();
++
++    EGLConfig config = q_configFromGLFormat(m_display, m_format, false);
++    if (config) {
++        const EGLint attributes[] = {
++            EGL_NONE
++        };
++        m_surface = eglCreateWindowSurface(m_display, config, surfaceTexture, attributes);
++    }
++}
++
++QOpenHarmonyPlatformOffscreenSurface::~QOpenHarmonyPlatformOffscreenSurface()
++{
++    eglDestroySurface(m_display, m_surface);
++}
++
++QT_END_NAMESPACE
++
+diff --git a/src/plugins/platforms/openharmony/qopenharmonyplatformoffscreensurface.h b/src/plugins/platforms/openharmony/qopenharmonyplatformoffscreensurface.h
+new file mode 100644
+index 0000000000..0b4009d140
+--- /dev/null
++++ b/src/plugins/platforms/openharmony/qopenharmonyplatformoffscreensurface.h
+@@ -0,0 +1,28 @@
++#ifndef QOPENHARMONYPLATFORMOFFSCREENSURFACETEXTURE_H
++#define QOPENHARMONYPLATFORMOFFSCREENSURFACETEXTURE_H
++
++#include <qpa/qplatformoffscreensurface.h>
++#include <QtEglSupport/private/qeglplatformcontext_p.h>
++
++QT_BEGIN_NAMESPACE
++class QOffscreenSurface;
++class QOpenHarmonyPlatformOffscreenSurface : public QPlatformOffscreenSurface
++{
++public:
++    QOpenHarmonyPlatformOffscreenSurface(EGLDisplay display, const QSurfaceFormat &format,
++                                            QOffscreenSurface *offscreenSurface);
++    ~QOpenHarmonyPlatformOffscreenSurface();
++
++    QSurfaceFormat format() const override { return m_format; }
++    bool isValid() const override { return m_surface != EGL_NO_SURFACE; }
++
++    EGLSurface surface() const { return m_surface; }
++private:
++    QSurfaceFormat m_format;
++    EGLDisplay m_display;
++    EGLSurface m_surface;
++};
++
++QT_END_NAMESPACE
++
++#endif // QOPENHARMONYPLATFORMOFFSCREENSURFACETEXTURE_H
+diff --git a/src/plugins/platforms/openharmony/qopenharmonyplatformopenglcontext.cpp b/src/plugins/platforms/openharmony/qopenharmonyplatformopenglcontext.cpp
+new file mode 100644
+index 0000000000..9953d6f0b5
+--- /dev/null
++++ b/src/plugins/platforms/openharmony/qopenharmonyplatformopenglcontext.cpp
+@@ -0,0 +1,50 @@
++#include "qopenharmonyplatformopenglcontext.h"
++#include "qopenharmonyplatformopenglwindow.h"
++#include "qopenharmonyplatformintegration.h"
++#include "qopenharmonydefines.h"
++
++#include <QtEglSupport/private/qeglpbuffer_p.h>
++
++#include <QSurface>
++#include <QtGui/private/qopenglcontext_p.h>
++#include <QtGui/QOffscreenSurface>
++
++QT_BEGIN_NAMESPACE
++
++QOpenHarmonyPlatformOpenGLContext::QOpenHarmonyPlatformOpenGLContext(const QSurfaceFormat &format, QPlatformOpenGLContext *share, EGLDisplay display,
++                                                             const QVariant &nativeHandle)
++    :QEGLPlatformContext(format, share, display, nullptr, nativeHandle)
++{
++}
++
++void QOpenHarmonyPlatformOpenGLContext::swapBuffers(QPlatformSurface *surface)
++{
++    if (surface->surface()->surfaceClass() == QSurface::Window &&
++            static_cast<QOpenHarmonyPlatformOpenGLWindow *>(surface)->checkNativeSurface(eglConfig())) {
++        QEGLPlatformContext::makeCurrent(surface);
++    }
++
++    QEGLPlatformContext::swapBuffers(surface);
++}
++
++bool QOpenHarmonyPlatformOpenGLContext::makeCurrent(QPlatformSurface *surface)
++{
++    return QEGLPlatformContext::makeCurrent(surface);
++}
++
++EGLSurface QOpenHarmonyPlatformOpenGLContext::eglSurfaceForPlatformSurface(QPlatformSurface *surface)
++{
++    LOGE("iiiiiiiiiiiiiiiiiiiiiiiiii %{public}d", surface->surface()->surfaceClass());
++    if (surface->surface()->surfaceClass() == QSurface::Window) {
++        return static_cast<QOpenHarmonyPlatformOpenGLWindow *>(surface)->eglSurface(eglConfig());
++    } else {
++        auto platformOffscreenSurface = static_cast<QPlatformOffscreenSurface*>(surface);
++        if (platformOffscreenSurface->offscreenSurface()->nativeHandle())
++            return 0;
++//            return static_cast<QOpenHarmonyPlatformOffscreenSurface *>(surface)->surface();
++        else
++            return static_cast<QEGLPbuffer *>(surface)->pbuffer();
++    }
++}
++
++QT_END_NAMESPACE
+diff --git a/src/plugins/platforms/openharmony/qopenharmonyplatformopenglcontext.h b/src/plugins/platforms/openharmony/qopenharmonyplatformopenglcontext.h
+new file mode 100644
+index 0000000000..e1516bbc5d
+--- /dev/null
++++ b/src/plugins/platforms/openharmony/qopenharmonyplatformopenglcontext.h
+@@ -0,0 +1,22 @@
++#ifndef QOPENHARMONYPLATFORMOPENGLCONTEXT_H
++#define QOPENHARMONYPLATFORMOPENGLCONTEXT_H
++
++#include <QtEglSupport/private/qeglplatformcontext_p.h>
++
++QT_BEGIN_NAMESPACE
++
++class QOpenHarmonyPlatformOpenGLContext : public QEGLPlatformContext
++{
++public:
++    QOpenHarmonyPlatformOpenGLContext(const QSurfaceFormat &format, QPlatformOpenGLContext *share, EGLDisplay display, const QVariant &nativeHandle);
++    void swapBuffers(QPlatformSurface *surface) override;
++    bool makeCurrent(QPlatformSurface *surface) override;
++
++private:
++    EGLSurface eglSurfaceForPlatformSurface(QPlatformSurface *surface) override;
++
++};
++
++QT_END_NAMESPACE
++
++#endif // QOPENHARMONYPLATFORMOPENGLCONTEXT_H
+diff --git a/src/plugins/platforms/openharmony/qopenharmonyplatformopenglwindow.cpp b/src/plugins/platforms/openharmony/qopenharmonyplatformopenglwindow.cpp
+new file mode 100644
+index 0000000000..ca7c6daa7e
+--- /dev/null
++++ b/src/plugins/platforms/openharmony/qopenharmonyplatformopenglwindow.cpp
+@@ -0,0 +1,144 @@
++#include "qopenharmonyplatformopenglwindow.h"
++#include "qopenharmonysurface.h"
++#include "qopenharmonyplatformscreen.h"
++#include "qopenharmonydefines.h"
++
++#include <QSurfaceFormat>
++#include <QtGui/private/qwindow_p.h>
++#include <QtGui/qguiapplication.h>
++
++#include <qpa/qwindowsysteminterface.h>
++#include <qpa/qplatformscreen.h>
++#include <QtEglSupport/private/qeglconvenience_p.h>
++
++QT_BEGIN_NAMESPACE
++
++QOpenHarmonyPlatformOpenGLWindow::QOpenHarmonyPlatformOpenGLWindow(QWindow *window, EGLDisplay display)
++    :QOpenHarmonyPlatformWindow(window), m_eglDisplay(display)
++{
++    LOGE("create openharmony opengl window");
++}
++
++QOpenHarmonyPlatformOpenGLWindow::~QOpenHarmonyPlatformOpenGLWindow()
++{
++    m_surfaceWaitCondition.wakeOne();
++    clearEgl();
++}
++
++void QOpenHarmonyPlatformOpenGLWindow::repaint(const QRegion &region)
++{
++    // This is only for real raster top-level windows. Stop in all other cases.
++    if ((window()->surfaceType() == QSurface::RasterGLSurface && qt_window_private(window())->compositing)
++        || window()->surfaceType() == QSurface::OpenGLSurface
++        || QOpenHarmonyPlatformWindow::parent())
++        return;
++
++    QRect currentGeometry = geometry();
++
++    QRect dirtyClient = region.boundingRect();
++    QRect dirtyRegion(currentGeometry.left() + dirtyClient.left(),
++                      currentGeometry.top() + dirtyClient.top(),
++                      dirtyClient.width(),
++                      dirtyClient.height());
++    QRect mOldGeometryLocal = m_oldGeometry;
++    m_oldGeometry = currentGeometry;
++    // If this is a move, redraw the previous location
++    if (mOldGeometryLocal != currentGeometry)
++        platformScreen()->setDirty(mOldGeometryLocal);
++    platformScreen()->setDirty(dirtyRegion);
++}
++
++void QOpenHarmonyPlatformOpenGLWindow::setGeometry(const QRect &rect)
++{
++    if (rect == geometry())
++        return;
++
++    m_oldGeometry = geometry();
++
++    QOpenHarmonyPlatformWindow::setGeometry(rect);
++
++    QRect availableGeometry = screen()->availableGeometry();
++    if (m_oldGeometry.width() == 0
++            && m_oldGeometry.height() == 0
++            && rect.width() > 0
++            && rect.height() > 0
++            && availableGeometry.width() > 0
++            && availableGeometry.height() > 0) {
++        QWindowSystemInterface::handleExposeEvent(window(), QRect(QPoint(0, 0), rect.size()));
++    }
++
++    if (rect.topLeft() != m_oldGeometry.topLeft())
++        repaint(QRegion(rect));
++}
++
++EGLSurface QOpenHarmonyPlatformOpenGLWindow::eglSurface(EGLConfig config)
++{
++    if (QGuiApplication::applicationState() == Qt::ApplicationSuspended)
++        return m_eglSurface;
++
++    if (m_eglSurface == EGL_NO_SURFACE) {
++        checkNativeSurface(config);
++    }
++    return m_eglSurface;
++}
++
++bool QOpenHarmonyPlatformOpenGLWindow::checkNativeSurface(EGLConfig config)
++{
++    createEgl(config);
++    // we've create another surface, the window should be repainted
++    QRect availableGeometry = screen()->availableGeometry();
++    if (geometry().width() > 0 && geometry().height() > 0 && availableGeometry.width() > 0 && availableGeometry.height() > 0)
++        QWindowSystemInterface::handleExposeEvent(window(), QRegion(QRect(QPoint(), geometry().size())));
++    return true; // makeCurrent is needed!
++}
++
++void QOpenHarmonyPlatformOpenGLWindow::applicationStateChanged(Qt::ApplicationState state)
++{
++    QOpenHarmonyPlatformWindow::applicationStateChanged(state);
++    if (state <=  Qt::ApplicationHidden) {
++        clearEgl();
++    }
++}
++
++void QOpenHarmonyPlatformOpenGLWindow::createEgl(EGLConfig config)
++{
++    clearEgl();
++    m_nativeWindow = QOpenHarmonySurface::instance()->nativeWindow();
++//    EGLint winAttribs[] = {EGL_GL_COLORSPACE_KHR, EGL_GL_COLORSPACE_SRGB_KHR, EGL_NONE};
++    m_eglSurface = eglCreateWindowSurface(m_eglDisplay, config, m_nativeWindow, NULL);
++    m_format = q_glFormatFromConfig(m_eglDisplay, config, window()->requestedFormat());
++    LOGE("111111111111111111111111111111 %{public}p %{public}p", m_nativeWindow, m_eglSurface);
++    if (Q_UNLIKELY(m_eglSurface == EGL_NO_SURFACE)) {
++        EGLint error = eglGetError();
++        eglTerminate(m_eglDisplay);
++        qFatal("EGL Error : Could not create the egl surface: error = 0x%x\n", error);
++    }
++}
++
++QSurfaceFormat QOpenHarmonyPlatformOpenGLWindow::format() const
++{
++    if (m_nativeWindow == 0)
++        return window()->requestedFormat();
++    else
++        return m_format;
++}
++
++void QOpenHarmonyPlatformOpenGLWindow::clearEgl()
++{
++    if (m_eglSurface != EGL_NO_SURFACE) {
++        eglMakeCurrent(m_eglDisplay, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
++        eglDestroySurface(m_eglDisplay, m_eglSurface);
++        m_eglSurface = EGL_NO_SURFACE;
++    }
++
++    if (m_nativeWindow) {
++        m_nativeWindow = 0;
++    }
++}
++
++EGLDisplay QOpenHarmonyPlatformOpenGLWindow::eglDisplay() const
++{
++    return m_eglDisplay;
++}
++
++QT_END_NAMESPACE
+diff --git a/src/plugins/platforms/openharmony/qopenharmonyplatformopenglwindow.h b/src/plugins/platforms/openharmony/qopenharmonyplatformopenglwindow.h
+new file mode 100644
+index 0000000000..f72018fa69
+--- /dev/null
++++ b/src/plugins/platforms/openharmony/qopenharmonyplatformopenglwindow.h
+@@ -0,0 +1,46 @@
++#ifndef QOPENHARMONYPLATFORMOPENGLWINDOW_H
++#define QOPENHARMONYPLATFORMOPENGLWINDOW_H
++
++#include <EGL/egl.h>
++#include <QWaitCondition>
++
++#include "qopenharmonyplatformwindow.h"
++
++QT_BEGIN_NAMESPACE
++
++class QOpenHarmonyPlatformOpenGLWindow : public QOpenHarmonyPlatformWindow
++{
++public:
++    explicit QOpenHarmonyPlatformOpenGLWindow(QWindow *window, EGLDisplay display);
++    ~QOpenHarmonyPlatformOpenGLWindow() override;
++
++    void setGeometry(const QRect &rect) override;
++    EGLSurface eglSurface(EGLConfig config);
++    QSurfaceFormat format() const override;
++
++    bool checkNativeSurface(EGLConfig config);
++
++    void applicationStateChanged(Qt::ApplicationState) override;
++
++    void repaint(const QRegion &region) override;
++
++    EGLDisplay eglDisplay() const;
++
++protected:
++    //    void surfaceChanged(JNIEnv *jniEnv, jobject surface, int w, int h) override;
++    void createEgl(EGLConfig config);
++    void clearEgl();
++
++private:
++    EGLDisplay m_eglDisplay = EGL_NO_DISPLAY;
++    EGLSurface m_eglSurface = EGL_NO_SURFACE;
++    EGLNativeWindowType m_nativeWindow;
++
++    int m_nativeSurfaceId = -1;
++    QWaitCondition m_surfaceWaitCondition;
++    QSurfaceFormat m_format;
++    QRect m_oldGeometry;
++};
++
++QT_END_NAMESPACE
++#endif // QOPENHARMONYPLATFORMOPENGLWINDOW_H
+diff --git a/src/plugins/platforms/openharmony/qopenharmonyplatformplugin.cpp b/src/plugins/platforms/openharmony/qopenharmonyplatformplugin.cpp
+new file mode 100644
+index 0000000000..c4cb6257c3
+--- /dev/null
++++ b/src/plugins/platforms/openharmony/qopenharmonyplatformplugin.cpp
+@@ -0,0 +1,26 @@
++#include <qpa/qplatformintegrationplugin.h>
++#include "qopenharmonyplatformintegration.h"
++#include "qopenharmonydefines.h"
++
++QT_BEGIN_NAMESPACE
++
++class QOpenHarmonyPlatformIntegrationPlugin: public QPlatformIntegrationPlugin
++{
++    Q_OBJECT
++    Q_PLUGIN_METADATA(IID QPlatformIntegrationFactoryInterface_iid FILE "openharmony.json")
++public:
++    QPlatformIntegration *create(const QString &key, const QStringList &paramList) override;
++};
++
++
++QPlatformIntegration *QOpenHarmonyPlatformIntegrationPlugin::create(const QString &key, const QStringList &paramList)
++{
++    Q_UNUSED(paramList);
++    if (!key.compare(QLatin1String("openharmony"), Qt::CaseInsensitive))
++        return new QOpenHarmonyPlatformIntegration(paramList);
++    return 0;
++}
++
++QT_END_NAMESPACE
++#include "qopenharmonyplatformplugin.moc"
++
+diff --git a/src/plugins/platforms/openharmony/qopenharmonyplatformscreen.cpp b/src/plugins/platforms/openharmony/qopenharmonyplatformscreen.cpp
+new file mode 100644
+index 0000000000..207ec4ca30
+--- /dev/null
++++ b/src/plugins/platforms/openharmony/qopenharmonyplatformscreen.cpp
+@@ -0,0 +1,311 @@
++#include <QDebug>
++#include <QTime>
++
++#include <qpa/qwindowsysteminterface.h>
++
++#include "qopenharmonyplatformscreen.h"
++#include "qopenharmonyplatformbackingstore.h"
++#include "qopenharmonyplatformintegration.h"
++#include "qopenharmonyplatformwindow.h"
++#include "qopenharmonyplatformopenglwindow.h"
++#include "qopenharmonydefines.h"
++#include "qopenharmonysurface.h"
++
++#include <qguiapplication.h>
++
++#include <QtGui/QGuiApplication>
++#include <QtGui/QWindow>
++#include <QtGui/private/qwindow_p.h>
++#include <QtEglSupport/private/qt_egl_p.h>
++#include "qopenharmonyeglcore.h"
++
++#include <vector>
++
++QT_BEGIN_NAMESPACE
++
++
++QOpenHarmonyPlatformScreen::QOpenHarmonyPlatformScreen(QOpenHarmonyEGLCore *eglCore)
++    : QObject(), QPlatformScreen(), m_eglCore(eglCore)
++{
++    m_availableGeometry = QRect(0, 0, QOpenHarmonyPlatformIntegration::m_defaultGeometryWidth, QOpenHarmonyPlatformIntegration::m_defaultGeometryHeight);
++    m_size = QSize(QOpenHarmonyPlatformIntegration::m_defaultScreenWidth, QOpenHarmonyPlatformIntegration::m_defaultScreenHeight);
++
++    m_format = QImage::Format_ARGB32_Premultiplied;
++    m_depth = 32;
++    m_physicalSize.setHeight(QOpenHarmonyPlatformIntegration::m_defaultPhysicalSizeHeight);
++    m_physicalSize.setWidth(QOpenHarmonyPlatformIntegration::m_defaultPhysicalSizeWidth);
++    connect(qGuiApp, &QGuiApplication::applicationStateChanged, this, &QOpenHarmonyPlatformScreen::applicationStateChanged);
++}
++
++QOpenHarmonyPlatformScreen::~QOpenHarmonyPlatformScreen()
++{
++
++}
++
++QWindow *QOpenHarmonyPlatformScreen::topWindow() const
++{
++    for (QOpenHarmonyPlatformWindow *w : m_windowStack) {
++        if (w->window()->type() == Qt::Window ||
++                w->window()->type() == Qt::Popup ||
++                w->window()->type() == Qt::Dialog) {
++            return w->window();
++        }
++    }
++    return 0;
++}
++
++QWindow *QOpenHarmonyPlatformScreen::topLevelAt(const QPoint &p) const
++{
++    for (QOpenHarmonyPlatformWindow *w : m_windowStack) {
++        if (w->geometry().contains(p, false) && w->window()->isVisible())
++            return w->window();
++    }
++    return 0;
++}
++
++bool QOpenHarmonyPlatformScreen::event(QEvent *event)
++{
++    if (event->type() == QEvent::UpdateRequest) {
++        doRedraw();
++        m_updatePending = false;
++        return true;
++    }
++    return QObject::event(event);
++}
++
++void QOpenHarmonyPlatformScreen::addWindow(QOpenHarmonyPlatformWindow *window)
++{
++    if (window->parent() && window->isRaster())
++        return;
++
++    Q_ASSERT(!m_windowStack.contains(window));
++    m_windowStack.prepend(window);
++    if (window->isRaster()) {
++        m_rasterSurfaces.ref();
++        setDirty(window->geometry());
++    }
++
++    QWindow *w = topWindow();
++    QWindowSystemInterface::handleWindowActivated(w);
++    topWindowChanged(w);
++}
++
++void QOpenHarmonyPlatformScreen::removeWindow(QOpenHarmonyPlatformWindow *window)
++{
++    if (window->parent() && window->isRaster())
++        return;
++
++
++    Q_ASSERT(m_windowStack.contains(window));
++    m_windowStack.removeOne(window);
++    Q_ASSERT(!m_windowStack.contains(window));
++
++    if (window->isRaster()) {
++        m_rasterSurfaces.deref();
++        setDirty(window->geometry());
++    }
++
++    QWindow *w = topWindow();
++    QWindowSystemInterface::handleWindowActivated(w);
++    topWindowChanged(w);
++}
++
++void QOpenHarmonyPlatformScreen::raise(QOpenHarmonyPlatformWindow *window)
++{
++    if (window->parent() && window->isRaster())
++        return;
++
++    int index = m_windowStack.indexOf(window);
++    if (index <= 0)
++        return;
++    m_windowStack.move(index, 0);
++    if (window->isRaster()) {
++        setDirty(window->geometry());
++    }
++    QWindow *w = topWindow();
++    QWindowSystemInterface::handleWindowActivated(w);
++    topWindowChanged(w);
++}
++
++void QOpenHarmonyPlatformScreen::lower(QOpenHarmonyPlatformWindow *window)
++{
++    if (window->parent() && window->isRaster())
++        return;
++
++    int index = m_windowStack.indexOf(window);
++    if (index == -1 || index == (m_windowStack.size() - 1))
++        return;
++    m_windowStack.move(index, m_windowStack.size() - 1);
++    if (window->isRaster()) {
++        setDirty(window->geometry());
++    }
++    QWindow *w = topWindow();
++    QWindowSystemInterface::handleWindowActivated(w);
++    topWindowChanged(w);
++}
++
++void QOpenHarmonyPlatformScreen::scheduleUpdate()
++{
++    if (!m_updatePending) {
++        m_updatePending = true;
++        QCoreApplication::postEvent(this, new QEvent(QEvent::UpdateRequest));
++    }
++}
++
++void QOpenHarmonyPlatformScreen::setDirty(const QRect &rect)
++{
++    QRect intersection = rect.intersected(m_availableGeometry);
++    m_dirtyRect |= intersection;
++    scheduleUpdate();
++}
++
++void QOpenHarmonyPlatformScreen::setPhysicalSize(const QSize &size)
++{
++    m_physicalSize = size;
++}
++
++void QOpenHarmonyPlatformScreen::setSize(const QSize &size)
++{
++    m_size = size;
++    QWindowSystemInterface::handleScreenGeometryChange(QPlatformScreen::screen(), geometry(), availableGeometry());
++}
++
++void QOpenHarmonyPlatformScreen::setAvailableGeometry(const QRect &rect)
++{
++    if (m_availableGeometry == rect)
++        return;
++
++    QRect oldGeometry = m_availableGeometry;
++
++    m_availableGeometry = rect;
++    QWindowSystemInterface::handleScreenGeometryChange(QPlatformScreen::screen(), geometry(), availableGeometry());
++    resizeMaximizedWindows();
++
++    if (oldGeometry.width() == 0 && oldGeometry.height() == 0 && rect.width() > 0 && rect.height() > 0) {
++        QList<QWindow *> windows = QGuiApplication::allWindows();
++        for (int i = 0; i < windows.size(); ++i) {
++            QWindow *w = windows.at(i);
++            if (w->handle()) {
++                QRect geometry = w->handle()->geometry();
++                if (geometry.width() > 0 && geometry.height() > 0)
++                    QWindowSystemInterface::handleExposeEvent(w, QRect(QPoint(0, 0), geometry.size()));
++            }
++        }
++    }
++}
++
++void QOpenHarmonyPlatformScreen::applicationStateChanged(Qt::ApplicationState state)
++{
++    for (QOpenHarmonyPlatformWindow *w : qAsConst(m_windowStack))
++        w->applicationStateChanged(state);
++
++    if (state <=  Qt::ApplicationHidden) {
++        releaseSurface();
++    }
++}
++
++void QOpenHarmonyPlatformScreen::topWindowChanged(QWindow *w)
++{
++    if (w != 0) {
++        QOpenHarmonyPlatformWindow *platformWindow = static_cast<QOpenHarmonyPlatformWindow *>(w->handle());
++        if (platformWindow != 0)
++            platformWindow->updateStatusBarVisibility();
++    }
++}
++
++int QOpenHarmonyPlatformScreen::rasterSurfaces()
++{
++    return m_rasterSurfaces;
++}
++
++void QOpenHarmonyPlatformScreen::doRedraw()
++{
++    if ((m_eglCore == nullptr) || m_dirtyRect.isEmpty())
++        return;
++
++    // Stop if there are no visible raster windows. If we only have RasterGLSurface
++    // windows that have renderToTexture children (i.e. they need the OpenGL path) then
++    // we do not need an overlay surface.
++    bool hasVisibleRasterWindows = false;
++    for (QOpenHarmonyPlatformWindow *window : qAsConst(m_windowStack)) {
++        if (window->window()->isVisible() && window->isRaster() && !qt_window_private(window->window())->compositing) {
++            hasVisibleRasterWindows = true;
++            break;
++        }
++    }
++    if (!hasVisibleRasterWindows) {
++        LOGE("no visible raster windows");
++        return;
++    }
++    LOGE("begin doredraw on surface");
++
++    EGLNativeWindowType nativeWindow = QOpenHarmonySurface::instance()->nativeWindow();
++    if (!m_eglCore->inited(nativeWindow))
++        m_eglCore->init(nativeWindow, QOpenHarmonySurface::instance()->width(), QOpenHarmonySurface::instance()->height());
++
++
++    QRegion visibleRegion(m_dirtyRect);
++    for (QOpenHarmonyPlatformWindow *window : qAsConst(m_windowStack)) {
++        qDebug() << "for each" << (!window->window()->isVisible()
++                    || qt_window_private(window->window())->compositing
++                    || !window->isRaster())
++                 << !window->window()->isVisible() << qt_window_private(window->window())->compositing << !window->isRaster();
++        if (!window->window()->isVisible()
++                || qt_window_private(window->window())->compositing
++                || !window->isRaster())
++            continue;
++
++        for (const QRect &rect : std::vector<QRect>(visibleRegion.begin(), visibleRegion.end())) {
++            QRect targetRect = window->geometry();
++            targetRect &= rect;
++
++            if (targetRect.isNull())
++                continue;
++            visibleRegion -= targetRect;
++            QRect windowRect = targetRect.translated(-window->geometry().topLeft());
++            QOpenHarmonyPlatformOpenGLWindow *openglWindow = static_cast<QOpenHarmonyPlatformOpenGLWindow *>(window);
++            if (openglWindow != nullptr) {
++                QOpenHarmonyPlatformBackingStore *backingStore = openglWindow->backingStore();
++                if (backingStore)
++                    m_eglCore->drawImage(backingStore->toImage());
++            }
++        }
++    }
++
++//    for (const QRect &rect : visibleRegion)
++//        compositePainter.fillRect(rect, QColor(Qt::transparent));
++//    m_dirtyRect = QRect();
++}
++
++QDpi QOpenHarmonyPlatformScreen::logicalDpi() const
++{
++//    qreal lDpi = scaledDensity() * 72;
++    qreal lDpi = 2 * 72;
++    return QDpi(lDpi, lDpi);
++}
++
++qreal QOpenHarmonyPlatformScreen::pixelDensity() const
++{
++    //Todo get from ets
++    return 1.5;
++}
++
++Qt::ScreenOrientation QOpenHarmonyPlatformScreen::orientation() const
++{
++    return QOpenHarmonyPlatformIntegration::m_orientation;
++}
++
++Qt::ScreenOrientation QOpenHarmonyPlatformScreen::nativeOrientation() const
++{
++    return QOpenHarmonyPlatformIntegration::m_nativeOrientation;
++}
++
++void QOpenHarmonyPlatformScreen::releaseSurface()
++{
++    if (m_nativeSurface) {
++//        ANativeWindow_release(m_nativeSurface);
++        m_nativeSurface = 0;
++    }
++}
++
++QT_END_NAMESPACE
+diff --git a/src/plugins/platforms/openharmony/qopenharmonyplatformscreen.h b/src/plugins/platforms/openharmony/qopenharmonyplatformscreen.h
+new file mode 100644
+index 0000000000..fff2153a26
+--- /dev/null
++++ b/src/plugins/platforms/openharmony/qopenharmonyplatformscreen.h
+@@ -0,0 +1,81 @@
++#ifndef QOPENHARMONYPLATFORMSCREEN_H
++#define QOPENHARMONYPLATFORMSCREEN_H
++
++#include <qpa/qplatformscreen.h>
++#include <QList>
++#include <QPainter>
++#include <QTimer>
++#include <QWaitCondition>
++
++#include <native_window/external_window.h>
++class QOpenHarmonyEGLCore;
++QT_BEGIN_NAMESPACE
++
++class QOpenHarmonyPlatformWindow;
++
++class QOpenHarmonyPlatformScreen: public QObject, public QPlatformScreen
++{
++    Q_OBJECT
++public:
++    QOpenHarmonyPlatformScreen(QOpenHarmonyEGLCore *eglCore);
++    ~QOpenHarmonyPlatformScreen();
++
++    QRect geometry() const override { return QRect(QPoint(), m_size); }
++    QRect availableGeometry() const override { return m_availableGeometry; }
++    int depth() const override { return m_depth; }
++    QImage::Format format() const override { return m_format; }
++    QSizeF physicalSize() const override { return m_physicalSize; }
++
++    inline QWindow *topWindow() const;
++    QWindow *topLevelAt(const QPoint & p) const override;
++
++    // compositor api
++    void addWindow(QOpenHarmonyPlatformWindow *window);
++    void removeWindow(QOpenHarmonyPlatformWindow *window);
++    void raise(QOpenHarmonyPlatformWindow *window);
++    void lower(QOpenHarmonyPlatformWindow *window);
++
++    void scheduleUpdate();
++    void topWindowChanged(QWindow *w);
++    int rasterSurfaces();
++
++public slots:
++    void setDirty(const QRect &rect);
++    void setPhysicalSize(const QSize &size);
++    void setAvailableGeometry(const QRect &rect);
++    void setSize(const QSize &size);
++
++protected:
++    bool event(QEvent *event) override;
++
++    typedef QList<QOpenHarmonyPlatformWindow *> WindowStackType;
++    WindowStackType m_windowStack;
++    QRect m_dirtyRect;
++    bool m_updatePending = false;
++
++    QRect m_availableGeometry;
++    int m_depth;
++    QImage::Format m_format;
++    QSizeF m_physicalSize;
++
++private:
++    QDpi logicalDpi() const override;
++    qreal pixelDensity()  const override;
++    Qt::ScreenOrientation orientation() const override;
++    Qt::ScreenOrientation nativeOrientation() const override;
++    void releaseSurface();
++    void applicationStateChanged(Qt::ApplicationState);
++
++private slots:
++    void doRedraw();
++
++private:
++    QOpenHarmonyEGLCore *m_eglCore = nullptr;
++    QAtomicInt m_rasterSurfaces = 0;
++    OHNativeWindow* m_nativeSurface = nullptr;
++    QWaitCondition m_surfaceWaitCondition;
++    QSize m_size;
++};
++
++QT_END_NAMESPACE
++#endif
+diff --git a/src/plugins/platforms/openharmony/qopenharmonyplatformwindow.cpp b/src/plugins/platforms/openharmony/qopenharmonyplatformwindow.cpp
+new file mode 100644
+index 0000000000..f086b1a80a
+--- /dev/null
++++ b/src/plugins/platforms/openharmony/qopenharmonyplatformwindow.cpp
+@@ -0,0 +1,128 @@
++#include "qopenharmonyplatformwindow.h"
++//#include "qopenharmonyplatformopenglcontext.h"
++#include "qopenharmonyplatformscreen.h"
++
++#include <qguiapplication.h>
++#include <qpa/qwindowsysteminterface.h>
++
++QT_BEGIN_NAMESPACE
++
++QOpenHarmonyPlatformWindow::QOpenHarmonyPlatformWindow(QWindow *window)
++    : QPlatformWindow(window)
++{
++    m_windowFlags = Qt::Widget;
++    m_windowState = Qt::WindowNoState;
++    static QAtomicInt winIdGenerator(1);
++    m_windowId = winIdGenerator.fetchAndAddRelaxed(1);
++    setWindowState(window->windowStates());
++}
++
++void QOpenHarmonyPlatformWindow::lower()
++{
++    platformScreen()->lower(this);
++}
++
++void QOpenHarmonyPlatformWindow::raise()
++{
++    updateStatusBarVisibility();
++    platformScreen()->raise(this);
++}
++
++void QOpenHarmonyPlatformWindow::setGeometry(const QRect &rect)
++{
++    QWindowSystemInterface::handleGeometryChange(window(), rect);
++}
++
++void QOpenHarmonyPlatformWindow::setVisible(bool visible)
++{
++    if (visible)
++        updateStatusBarVisibility();
++
++    if (visible) {
++        if (m_windowState & Qt::WindowFullScreen)
++            setGeometry(platformScreen()->geometry());
++        else if (m_windowState & Qt::WindowMaximized)
++            setGeometry(platformScreen()->availableGeometry());
++    }
++
++    if (visible)
++        platformScreen()->addWindow(this);
++    else
++        platformScreen()->removeWindow(this);
++
++    QRect availableGeometry = screen()->availableGeometry();
++    if (geometry().width() > 0 && geometry().height() > 0 && availableGeometry.width() > 0 && availableGeometry.height() > 0)
++        QPlatformWindow::setVisible(visible);
++}
++
++void QOpenHarmonyPlatformWindow::setWindowState(Qt::WindowStates state)
++{
++    if (m_windowState == state)
++        return;
++
++    QPlatformWindow::setWindowState(state);
++    m_windowState = state;
++
++    if (window()->isVisible())
++        updateStatusBarVisibility();
++}
++
++void QOpenHarmonyPlatformWindow::setWindowFlags(Qt::WindowFlags flags)
++{
++    if (m_windowFlags == flags)
++        return;
++
++    m_windowFlags = flags;
++}
++
++Qt::WindowFlags QOpenHarmonyPlatformWindow::windowFlags() const
++{
++    return m_windowFlags;
++}
++
++void QOpenHarmonyPlatformWindow::setParent(const QPlatformWindow *window)
++{
++    Q_UNUSED(window);
++}
++
++QOpenHarmonyPlatformScreen *QOpenHarmonyPlatformWindow::platformScreen() const
++{
++    return static_cast<QOpenHarmonyPlatformScreen *>(window()->screen()->handle());
++}
++
++void QOpenHarmonyPlatformWindow::propagateSizeHints()
++{
++    //shut up warning from default implementation
++}
++
++void QOpenHarmonyPlatformWindow::requestActivateWindow()
++{
++    platformScreen()->topWindowChanged(window());
++}
++
++void QOpenHarmonyPlatformWindow::updateStatusBarVisibility()
++{
++    Qt::WindowFlags flags = window()->flags();
++    bool isNonRegularWindow = flags & (Qt::Popup | Qt::Dialog | Qt::Sheet) & ~Qt::Window;
++    if (!isNonRegularWindow) {
++    }
++}
++
++bool QOpenHarmonyPlatformWindow::isExposed() const
++{
++    return qApp->applicationState() > Qt::ApplicationHidden
++            && window()->isVisible()
++            && !window()->geometry().isEmpty();
++}
++
++void QOpenHarmonyPlatformWindow::applicationStateChanged(Qt::ApplicationState)
++{
++    QRegion region;
++    if (isExposed())
++        region = QRect(QPoint(), geometry().size());
++
++    QWindowSystemInterface::handleExposeEvent(window(), region);
++    QWindowSystemInterface::flushWindowSystemEvents();
++}
++
++QT_END_NAMESPACE
+diff --git a/src/plugins/platforms/openharmony/qopenharmonyplatformwindow.h b/src/plugins/platforms/openharmony/qopenharmonyplatformwindow.h
+new file mode 100644
+index 0000000000..c19f13e3ec
+--- /dev/null
++++ b/src/plugins/platforms/openharmony/qopenharmonyplatformwindow.h
+@@ -0,0 +1,62 @@
++#ifndef QOPENHARMONYPLATFORMWINDOW_H
++#define QOPENHARMONYPLATFORMWINDOW_H
++#include <qobject.h>
++#include <qrect.h>
++#include <qpa/qplatformwindow.h>
++
++QT_BEGIN_NAMESPACE
++
++class QOpenHarmonyPlatformScreen;
++class QOpenHarmonyPlatformBackingStore;
++
++class QOpenHarmonyPlatformWindow: public QPlatformWindow
++{
++public:
++    explicit QOpenHarmonyPlatformWindow(QWindow *window);
++
++    void lower() override;
++    void raise() override;
++
++    void setVisible(bool visible) override;
++
++    void setWindowState(Qt::WindowStates state) override;
++    void setWindowFlags(Qt::WindowFlags flags) override;
++    Qt::WindowFlags windowFlags() const;
++    void setParent(const QPlatformWindow *window) override;
++    WId winId() const override { return m_windowId; }
++
++    QOpenHarmonyPlatformScreen *platformScreen() const;
++
++    void propagateSizeHints() override;
++    void requestActivateWindow() override;
++    void updateStatusBarVisibility();
++    inline bool isRaster() const {
++        if (isForeignWindow())
++            return false;
++
++        return window()->surfaceType() == QSurface::RasterSurface
++            || window()->surfaceType() == QSurface::RasterGLSurface;
++    }
++    bool isExposed() const override;
++
++    virtual void applicationStateChanged(Qt::ApplicationState);
++
++    void setBackingStore(QOpenHarmonyPlatformBackingStore *store) { m_backingStore = store; }
++    QOpenHarmonyPlatformBackingStore *backingStore() const { return m_backingStore; }
++
++    virtual void repaint(const QRegion &) { }
++
++protected:
++    void setGeometry(const QRect &rect) override;
++
++protected:
++    Qt::WindowFlags m_windowFlags;
++    Qt::WindowStates m_windowState;
++
++    WId m_windowId;
++
++    QOpenHarmonyPlatformBackingStore *m_backingStore = nullptr;
++};
++
++QT_END_NAMESPACE
++#endif // QOPENHARMONYPLATFORMWINDOW_H
+diff --git a/src/plugins/platforms/openharmony/qopenharmonysurface.cpp b/src/plugins/platforms/openharmony/qopenharmonysurface.cpp
+new file mode 100644
+index 0000000000..91fe59ab0d
+--- /dev/null
++++ b/src/plugins/platforms/openharmony/qopenharmonysurface.cpp
+@@ -0,0 +1,155 @@
++#include "qopenharmonysurface.h"
++#include "qopenharmonydefines.h"
++#include "qopenharmonyplatforminputcontext.h"
++
++#include <hilog/log.h>
++#include <ace/xcomponent/native_interface_xcomponent.h>
++
++QOpenHarmonySurface *QOpenHarmonySurface::m_self = nullptr;
++
++QOpenHarmonySurface::QOpenHarmonySurface(OH_NativeXComponent *component)
++    : m_nativeComponent(component)
++{
++    m_touchEventCallback = new OH_NativeXComponent_Callback;
++    m_touchEventCallback->OnSurfaceCreated = &QOpenHarmonySurface::onSurfaceCreated;
++    m_touchEventCallback->OnSurfaceChanged = &QOpenHarmonySurface::onSurfaceChanged;
++    m_touchEventCallback->OnSurfaceDestroyed = &QOpenHarmonySurface::onSurfaceDestroyed;
++    m_touchEventCallback->DispatchTouchEvent = &QOpenHarmonySurface::dispatchTouchEvent;
++    int32_t ret = OH_NativeXComponent_RegisterCallback(component, m_touchEventCallback);
++    if (ret != OH_NATIVEXCOMPONENT_RESULT_SUCCESS) {
++        LOGE("set surface touch callback failed");
++    }
++    m_mouseEventCallback = new OH_NativeXComponent_MouseEvent_Callback;
++    m_mouseEventCallback->DispatchMouseEvent = &QOpenHarmonySurface::dispatchMouseEvent;
++    m_mouseEventCallback->DispatchHoverEvent = &QOpenHarmonySurface::dispatchHoverEvent;
++    if (ret != OH_NATIVEXCOMPONENT_RESULT_SUCCESS) {
++        LOGE("set surface mouse callback failed");
++    }
++    m_self = this;
++}
++
++QOpenHarmonySurface::~QOpenHarmonySurface()
++{
++    delete m_touchEventCallback;
++}
++
++void QOpenHarmonySurface::onSurfaceCreated(OH_NativeXComponent *component, void *window)
++{
++    m_self->m_nativeWindow = reinterpret_cast<EGLNativeWindowType>(window);
++    m_self->getSurfaceInfo(component, window);
++}
++
++void QOpenHarmonySurface::onSurfaceChanged(OH_NativeXComponent *component, void *window)
++{
++    m_self->getSurfaceInfo(component, window);
++}
++
++void QOpenHarmonySurface::onSurfaceDestroyed(OH_NativeXComponent *component, void *window)
++{
++
++}
++
++void QOpenHarmonySurface::dispatchTouchEvent(OH_NativeXComponent *component, void *window)
++{
++    OH_NativeXComponent_TouchEvent touchEvent;
++    int32_t ret = OH_NativeXComponent_GetTouchEvent(component, window, &touchEvent);
++    if (ret != OH_NATIVEXCOMPONENT_RESULT_SUCCESS)
++        return;
++    LOGE("receive touch event x = %{public}f, y = %{public}f screenx = %{public}f, screeny = %{public}f, type = %{public}d, pointnumber = %{public}d, deviceid = %{public}d",
++         touchEvent.x, touchEvent.y, touchEvent.screenX, touchEvent.screenY, touchEvent.type, touchEvent.numPoints, touchEvent.deviceId);
++    QOpenHarmonyPlatformInputContext *context = QOpenHarmonyPlatformInputContext::openHarmonyInputContext();
++    context->touchBegin();
++    for (int i = 0; i < touchEvent.numPoints; i++) {
++        OH_NativeXComponent_TouchPoint &point = touchEvent.touchPoints[i];
++        context->touchAdd(touchEvent.deviceId, static_cast<int>(point.type), point.force, point.x, point.y);
++    }
++    OH_NativeXComponent_TouchEventType type = touchEvent.type;
++    switch (type) {
++    case OH_NATIVEXCOMPONENT_DOWN:
++        context->touchEnd(0);
++        break;
++    case OH_NATIVEXCOMPONENT_UP:
++        context->touchEnd(2);
++        break;
++
++    default:
++        context->touchEnd(1);
++    }
++}
++
++void QOpenHarmonySurface::dispatchMouseEvent(OH_NativeXComponent *component, void *window)
++{
++    LOGE("receive mouse event");
++    OH_NativeXComponent_MouseEvent mouseEvent;
++    int32_t ret = OH_NativeXComponent_GetMouseEvent(component, window, &mouseEvent);
++    if (ret != OH_NATIVEXCOMPONENT_RESULT_SUCCESS)
++        return;
++    OH_NativeXComponent_MouseEventAction action = mouseEvent.action;
++    LOGE("mouse event %{public}%d", action);
++    switch (action) {
++    case OH_NATIVEXCOMPONENT_MOUSE_RELEASE:
++        QOpenHarmonyPlatformInputContext::openHarmonyInputContext()->mouseRelease(mouseEvent.x, mouseEvent.y);
++        break;
++    case OH_NATIVEXCOMPONENT_MOUSE_PRESS:
++        QOpenHarmonyPlatformInputContext::openHarmonyInputContext()->mousePress(mouseEvent.x, mouseEvent.y);
++        break;
++    case OH_NATIVEXCOMPONENT_MOUSE_MOVE:
++        break;
++    }
++}
++
++void QOpenHarmonySurface::dispatchHoverEvent(OH_NativeXComponent *component, bool isHover)
++{
++
++}
++
++void QOpenHarmonySurface::getSurfaceInfo(OH_NativeXComponent *component, void *window)
++{
++    uint64_t w;
++    uint64_t h;
++    int32_t ret = OH_NativeXComponent_GetXComponentSize(component, window, &w, &h);
++    if (ret != OH_NATIVEXCOMPONENT_RESULT_SUCCESS) {
++        LOGE("Get surface size failed");
++        return;
++    }
++
++    LOGE("Get surface size (%{public}llu, %{public}llu)", w, h);
++    setWidth(w);
++    setHeight(h);
++}
++
++EGLNativeWindowType QOpenHarmonySurface::nativeWindow() const
++{
++    return m_nativeWindow;
++}
++
++int QOpenHarmonySurface::height() const
++{
++    return m_height;
++}
++
++void QOpenHarmonySurface::setHeight(int height)
++{
++    if (m_height != height) {
++        m_height = height;
++        emit heightChanged();
++    }
++}
++
++QOpenHarmonySurface *QOpenHarmonySurface::instance()
++{
++    return m_self;
++}
++
++int QOpenHarmonySurface::width() const
++{
++    return m_width;
++}
++
++void QOpenHarmonySurface::setWidth(int width)
++{
++    if (m_width != width) {
++        m_width = width;
++        emit heightChanged();
++    }
++}
+diff --git a/src/plugins/platforms/openharmony/qopenharmonysurface.h b/src/plugins/platforms/openharmony/qopenharmonysurface.h
+new file mode 100644
+index 0000000000..33ea4caa38
+--- /dev/null
++++ b/src/plugins/platforms/openharmony/qopenharmonysurface.h
+@@ -0,0 +1,55 @@
++#ifndef QOPENHARMONYSURFACE_H
++#define QOPENHARMONYSURFACE_H
++
++#include <QObject>
++#include <EGL/egl.h>
++
++struct OH_NativeXComponent;
++struct OH_NativeXComponent_Callback;
++struct OH_NativeXComponent_MouseEvent_Callback;
++class QOpenHarmonySurface : public QObject
++{
++    Q_OBJECT
++public:
++    QOpenHarmonySurface(OH_NativeXComponent *component);
++    ~QOpenHarmonySurface();
++    int width() const;
++    void setWidth(int width);
++
++    int height() const;
++    void setHeight(int height);
++
++    static QOpenHarmonySurface *instance();
++
++    EGLNativeWindowType nativeWindow() const;
++
++private:
++    static void onSurfaceCreated(OH_NativeXComponent* component, void* window);
++
++    static void onSurfaceChanged(OH_NativeXComponent* component, void* window);
++
++    static void onSurfaceDestroyed(OH_NativeXComponent* component, void* window);
++
++    static void dispatchTouchEvent(OH_NativeXComponent* component, void* window);
++
++    static void dispatchMouseEvent(OH_NativeXComponent* component, void* window);
++
++    static void dispatchHoverEvent(OH_NativeXComponent* component, bool isHover);
++
++signals:
++    void widthChanged();
++    void heightChanged();
++
++private:
++    void getSurfaceInfo(OH_NativeXComponent* component, void* window);
++private:
++    OH_NativeXComponent *m_nativeComponent = nullptr;
++    OH_NativeXComponent_Callback *m_touchEventCallback = nullptr;
++    OH_NativeXComponent_MouseEvent_Callback *m_mouseEventCallback = nullptr;
++    int m_width = 0;
++    int m_height = 0;
++    EGLNativeWindowType m_nativeWindow;
++    static QOpenHarmonySurface *m_self;
++};
++
++#endif // QOPENHARMONYSURFACE_H
+diff --git a/src/plugins/platforms/platforms.pro b/src/plugins/platforms/platforms.pro
+index acc55adf6f..288df4ce01 100644
+--- a/src/plugins/platforms/platforms.pro
++++ b/src/plugins/platforms/platforms.pro
+@@ -3,9 +3,11 @@ QT_FOR_CONFIG += gui-private
+ 
+ android:!android-embedded: SUBDIRS += android
+ 
+-!android: SUBDIRS += minimal
++openharmony: SUBDIRS += openharmony
+ 
+-!android:qtConfig(freetype): SUBDIRS += offscreen
++!android:!openharmony: SUBDIRS += minimal
++
++!android:!openharmony:qtConfig(freetype): SUBDIRS += offscreen
+ 
+ qtConfig(xcb) {
+     SUBDIRS += xcb
 diff --git a/tests/auto/corelib/kernel/qmetatype/tst_qmetatype.cpp b/tests/auto/corelib/kernel/qmetatype/tst_qmetatype.cpp
 index e6fac74ccc..ca6e8f3c45 100644
 --- a/tests/auto/corelib/kernel/qmetatype/tst_qmetatype.cpp
