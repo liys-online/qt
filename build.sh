@@ -102,10 +102,10 @@ cd $ROOT_DIR
 echo "Build Qt......"
 cd $ROOT_DIR/qt5
 ./configure -xplatform oh-clang -opensource -confirm-license -disable-rpath -make tests -make examples -v \
-            -prefix $QT_INSTALL_DIR -skip qtdeclarative -skip qttranslations -skip qtserialport -skip webengine \
+            -prefix $QT_INSTALL_DIR -opengl es2 -opengles3 -skip qttranslations -skip qtserialport -skip webengine \
             -skip qtpurchasing -skip qtconnectivity -skip qtmultimedia -skip qtspeech -skip qtwebchannel -skip qtgamepad \
             -skip qtsensors -skip qtlocation -skip qtxmlpatterns -skip qt3d -skip qtscript -skip qtnetworkauth \
-            -skip qtsystems -no-feature-bearermanagement -no-feature-http -no-gui -no-widgets \
-            -no-dbus -no-opengl -recheck-all
+            -skip qtsystems -no-feature-bearermanagement -no-feature-http \
+            -no-dbus -recheck-all
 make -j4
 make install
