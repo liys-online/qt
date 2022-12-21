@@ -150,6 +150,29 @@ index 850ee98057..8c92306173 100644
      $${2} {
          qtConfExtendVar("publicPro", "QT.$${currentModule}.enabled_features", $$name)
          QT.$${currentModule}.enabled_features += $$name
+diff --git a/mkspecs/features/qt_plugin.prf b/mkspecs/features/qt_plugin.prf
+index 40528a65e2..3e563b8cc0 100644
+--- a/mkspecs/features/qt_plugin.prf
++++ b/mkspecs/features/qt_plugin.prf
+@@ -91,7 +91,17 @@ CONFIG(static, static|shared)|prefix_build {
+ target.path = $$[QT_INSTALL_PLUGINS]/$$PLUGIN_TYPE
+ INSTALLS += target
+ 
+-TARGET = $$qt5LibraryTarget($$TARGET)
++defineReplace(qt5OpenHarmonyPluginTarget) {
++    LIBRARY_NAME_PREFIX = $$2
++    LIBRARY_NAME_PREFIX = $$replace(LIBRARY_NAME_PREFIX, "//", "/")
++    LIBRARY_NAME_PREFIX = $$replace(LIBRARY_NAME_PREFIX, "/", "_")
++    LIBRARY_NAME = $$LIBRARY_NAME_PREFIX$$qtLibraryTarget($$1)
++    unset(LIBRARY_NAME_PREFIX)
++   return($$LIBRARY_NAME)
++}
++
++
++TARGET = $$qt5OpenHarmonyPluginTarget($$TARGET, "plugins/$$PLUGIN_TYPE/")
+ 
+ CONFIG += create_cmake
+ 
 diff --git a/mkspecs/oh-clang/qmake.conf b/mkspecs/oh-clang/qmake.conf
 new file mode 100644
 index 0000000000..96eac24a1d
@@ -391,6 +414,42 @@ index d87e181e5c..998be34739 100644
  #elif defined(__CYGWIN__)
  #  define Q_OS_CYGWIN
  #elif !defined(SAG_COM) && (!defined(WINAPI_FAMILY) || WINAPI_FAMILY==WINAPI_FAMILY_DESKTOP_APP) && (defined(WIN64) || defined(_WIN64) || defined(__WIN64__))
+diff --git a/src/corelib/plugin/qfactoryloader.cpp b/src/corelib/plugin/qfactoryloader.cpp
+index 35c64180d4..396ee5882c 100644
+--- a/src/corelib/plugin/qfactoryloader.cpp
++++ b/src/corelib/plugin/qfactoryloader.cpp
+@@ -193,7 +193,11 @@ void QFactoryLoader::update()
+             continue;
+         d->loadedPaths << pluginDir;
+ 
++#ifdef Q_OS_OPENHARMONY
++        QString path = pluginDir;
++#else
+         QString path = pluginDir + d->suffix;
++#endif
+ 
+         if (qt_debug_component())
+             qDebug() << "QFactoryLoader::QFactoryLoader() checking directory path" << path << "...";
+@@ -204,6 +208,8 @@ void QFactoryLoader::update()
+         QStringList plugins = QDir(path).entryList(
+ #ifdef Q_OS_WIN
+                     QStringList(QStringLiteral("*.dll")),
++#elif defined(Q_OS_OPENHARMONY)
++                    QStringList(QString("libplugins_%1_*.so").arg(d->suffix)),
+ #endif
+                     QDir::Files);
+         QLibraryPrivate *library = 0;
+@@ -339,6 +345,10 @@ QFactoryLoader::QFactoryLoader(const char *iid,
+ #if QT_CONFIG(library)
+     d->cs = cs;
+     d->suffix = suffix;
++# ifdef Q_OS_OPENHARMONY
++    if (!d->suffix.isEmpty() && d->suffix.at(0) == QLatin1Char('/'))
++        d->suffix.remove(0, 1);
++# endif
+ 
+     QMutexLocker locker(qt_factoryloader_mutex());
+     update();
 diff --git a/src/corelib/thread/qthread_unix.cpp b/src/corelib/thread/qthread_unix.cpp
 index 695d45d8e7..b10617fdaa 100644
 --- a/src/corelib/thread/qthread_unix.cpp
