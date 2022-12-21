@@ -1,3 +1,16 @@
+diff --git a/config.tests/arch/write_info.pri b/config.tests/arch/write_info.pri
+index 3b55a63f49..e0518dd242 100644
+--- a/config.tests/arch/write_info.pri
++++ b/config.tests/arch/write_info.pri
+@@ -3,7 +3,7 @@ targetinfofile ~= s/pro$/target.txt/
+ 
+ win32 {
+     ext = .exe
+-} else:android {
++} else:android|openharmony {
+     file_prefix = lib
+     ext = .so
+ } else:wasm {
 diff --git a/mkspecs/common/oh-base-head.conf b/mkspecs/common/oh-base-head.conf
 new file mode 100644
 index 0000000000..9cedf64bb3
