@@ -30,18 +30,18 @@ index 0000000000..9cedf64bb3
 +QMAKE_CXXFLAGS_USE_PRECOMPILE = $$QMAKE_CFLAGS_USE_PRECOMPILE
 diff --git a/mkspecs/common/oh-base-tail.conf b/mkspecs/common/oh-base-tail.conf
 new file mode 100644
-index 0000000000..da447c3e69
+index 0000000000..1e260be843
 --- /dev/null
 +++ b/mkspecs/common/oh-base-tail.conf
 @@ -0,0 +1,76 @@
 +equals(OHOS_ARCH, armeabi-v7a): \
-+    QMAKE_CFLAGS += -march=armv7a -mfloat-abi=hard -mfpu=vfp -fno-builtin-memmove
++    QMAKE_CFLAGS += -march=armv7a -msoft-float -mfpu=vfp -fno-builtin-memmove
 +else: equals(OHOS_ARCH, arm64-v8a): \
-+    QMAKE_CFLAGS += -march=armv8a -mfloat-abi=hard -mfpu=vfp -fno-builtin-memmove
++    QMAKE_CFLAGS += -march=armv8a -msoft-float -mfpu=vfp -fno-builtin-memmove
 +else: equals(OHOS_ARCH, x86_64): \
 +    QMAKE_CFLAGS += -march=x86_64
 +else: \
-+    QMAKE_CFLAGS += -march=armv7a -mfloat-abi=hard -mfpu=vfp -fno-builtin-memmove
++    QMAKE_CFLAGS += -march=armv7a -msoft-float -mfpu=vfp -fno-builtin-memmove
 +
 +
 +equals(OHOS_ARCH, armeabi-v7a) | equals(OHOS_ARCH, armeabi) {
@@ -110,6 +110,16 @@ index 0000000000..da447c3e69
 +!exists($$SDK_ROOT): error("You need to set the OHOS_SDK_PATH environment variable to point to your Harmony NDK.")
 +
 +load(qt_config)
+diff --git a/mkspecs/features/openharmony/openharmony.prf b/mkspecs/features/openharmony/openharmony.prf
+new file mode 100644
+index 0000000000..14524b35ee
+--- /dev/null
++++ b/mkspecs/features/openharmony/openharmony.prf
+@@ -0,0 +1,4 @@
++contains(TEMPLATE, ".*app") {
++    !contains(TARGET, ".so"): TARGET = lib$${TARGET}.so
++    QMAKE_LFLAGS += -Wl,-soname,$$shell_quote($$TARGET)
++}
 diff --git a/mkspecs/features/qt_configure.prf b/mkspecs/features/qt_configure.prf
 index 850ee98057..8c92306173 100644
 --- a/mkspecs/features/qt_configure.prf
@@ -1187,10 +1197,10 @@ index 0000000000..51fe72e96e
 +#endif // QOPENHARMONYEVENTDISPATCHER_H
 diff --git a/src/plugins/platforms/openharmony/qopenharmonymain.cpp b/src/plugins/platforms/openharmony/qopenharmonymain.cpp
 new file mode 100644
-index 0000000000..2f04346c7f
+index 0000000000..b323998e3e
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonymain.cpp
-@@ -0,0 +1,281 @@
+@@ -0,0 +1,284 @@
 +#include <memory>
 +#include <dlfcn.h>
 +#include <pthread.h>
@@ -1203,6 +1213,7 @@ index 0000000000..2f04346c7f
 +#include <QDebug>
 +#include <QJsonObject>
 +#include <QJsonDocument>
++#include <QStandardPaths>
 +
 +#include "qopenharmonymain.h"
 +#include "qopenharmonysurface.h"
@@ -1251,6 +1262,8 @@ index 0000000000..2f04346c7f
 +    if (::setenv("QT_QPA_PLATFORM_PLUGIN_PATH", "/data/storage/el1/bundle/libs/arm", 1) != 0) {
 +         qWarning() << "Can't set environment for QT_PLUGIN_PATH";
 +    }
++    /* TODO shuold set QML_DISK_CACHE_PATH <----> /data/storage/el2/base/haps/entry/cache
++     */
 +    if (::setenv("QML_DISABLE_DISK_CACHE", "1", 1) != 0) {
 +        qWarning() << "Can't set environment for QML_DISABLE_DISK_CACHE";
 +    }
