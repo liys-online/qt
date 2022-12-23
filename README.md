@@ -27,7 +27,14 @@ OpenHarmony - Qt
 |	|	qtsystems.patch - qtsystems子模块代码补丁
 |	|   qtvirtualkeyboard.patch - qtvirtualkeyboard子模块代码补丁
 |	|   qtremoteobjects.patch - qtremoteobjects子模块代码补丁
-└───build.sh - 交叉编译脚本
+└───example - 示例说明
+|   |   images 示例说明图片存档
+│   │   QtCreatorSettings.md - 基于Qt Creator配置Qt for OpenHarmony
+│   │   CreateQtApp.md - 基于Qt Creator创建应用程序动态库
+|   |   QtWidgetExample.md - 如何使用Qt Widget示例
+|   |   QtQuickExample.md - 如何使用Qt Quick示例
+└───windows_build.bat - windows环境下的交叉编译脚本
+└───linux_build.sh - Linux环境下的交叉编译脚本
 └───LICENSE.FDL - GNU Free Documentation License
 └───LICENSE.GPLv2 - GNU GENERAL PUBLIC LICENSE Version 2
 └───LICENSE.GPLv3 - GNU GENERAL PUBLIC LICENSE Version 3
@@ -40,28 +47,40 @@ OpenHarmony - Qt
 
 # 编译配置说明
 
-## 前置条件
+## Linux环境下
+### 前置条件
 1. 基于Ubuntu20.04 amd64版本完成交叉编译，下载链接：https://releases.ubuntu.com/focal/ubuntu-20.04.5-desktop-amd64.iso
 2. 安装Git工具（sudo apt-get install git）
 3. 安装Curl工具（sudo apt-get install curl）
 
-## 编译步骤
-1. 执行build.sh脚本，完成qt5源码、OpenHarmony NDK及代码补丁应用和编译安装
+### 编译步骤
+1. 执行linux_build.sh脚本，完成qt5源码、OpenHarmony NDK及代码补丁应用和编译安装
 2. 脚本执行完成后，生成安装目录为当前文件夹的bin目录
+
+## Windows环境下
+### 前置条件
+1. 安装git, 如果已安装跳过，下载链接：https://gitforwindows.org/
+2. 安装mingw, 如果已安装跳过，下载链接：https://sourceforge.net/projects/mingw/
+3. 把%GIT_DIR%\cmd %GIT_DIR%\usr\bin和ming32-make.exe的路径设置到系统环境Path中，%GIT_DIR%替换成实际的安装目录
+
+### 编译步骤
+1. 执行windows_build.bat脚本，完成qt5源码、OpenHarmony NDK及代码补丁应用和编译安装
+2. 脚本执行完成后，生成安装目录为当前文件夹的bin目录
+
 
 # Qt5.12.12版本适配情况
 ## 支持模块
 
 | module | description | support | status |
 | :----: | :---- | :----: | :----: |
-| Qt Core | Core non-graphical classes used by other modules. | :white_check_mark: |completed|
+| Qt Core | Core non-graphical classes used by other modules. | :white_large_square: |in-progress|
 | Qt Gui | Base classes for graphical user interface (GUI) components. Includes OpenGL. | :white_large_square: |in-progress|
 | Qt Multimedia | Classes for audio, video, radio and camera functionality. | :white_large_square: |schedule|
 | Qt Multimedia Widgets | Widget-based classes for implementing multimedia functionality. | :white_large_square: |schedule|
 | Qt Network | Classes to make network programming easier and more portable. | :white_check_mark: |completed|
-| Qt QML | Classes for QML and JavaScript languages.                    | :white_large_square: |schedule|
-| Qt Quick | A declarative framework for building highly dynamic applications with custom user interfaces. | :white_large_square: |schedule|
-| Qt Quick Controls | Provides lightweight QML types for creating performant user interfaces for desktop, embedded, and mobile devices. These types employ a simple styling architecture and are very efficient. | :white_large_square: |schedule|
+| Qt QML | Classes for QML and JavaScript languages.                    | :white_check_mark: |completed|
+| Qt Quick | A declarative framework for building highly dynamic applications with custom user interfaces. | :white_check_mark: |completed|
+| Qt Quick Controls | Provides lightweight QML types for creating performant user interfaces for desktop, embedded, and mobile devices. These types employ a simple styling architecture and are very efficient. | :white_check_mark: |completed|
 | Qt Quick Dialogs | Types for creating and interacting with system dialogs from a Qt Quick application. | :white_large_square: |schedule|
 | Qt Quick Layouts | Layouts are items that are used to arrange Qt Quick 2 based items in the user interface. | :white_large_square: |schedule|
 | Qt Quick Test | A unit test framework for QML applications, where the test cases are written as JavaScript functions. | :white_large_square: |schedule|
