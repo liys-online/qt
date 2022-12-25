@@ -50,7 +50,7 @@ then
     QT_INSTALL_DIR=$PWD/bin/Qt5.12.12/aarch64-linux-ohos
 elif [ "$OHOS_ARCH" == "x86_64" ]
 then
-    QT_INSTALL_DIR=$PWD/bin/Qt5.12.12/x86_64cd .-linux-ohos
+    QT_INSTALL_DIR=$PWD/bin/Qt5.12.12/x86_64-linux-ohos
 else
     QT_INSTALL_DIR=$PWD/bin/Qt5.12.12/arm-linux-ohos
 fi
@@ -69,7 +69,7 @@ cd $ROOT_DIR
 echo "Download OpenHarmony SDK......"
 if [ ! -f $PWD/$SDK_PACKAGE ] 
 then 
-    curl -O http://download.ci.openharmony.cn/version/Master_Version/OpenHarmony_3.2.8.2/20221020_161555/$NDK_PACKAGE
+    curl -O http://download.ci.openharmony.cn/version/Master_Version/OpenHarmony_3.2.8.2/20221020_161555/$SDK_PACKAGE
 else
     echo "The $SDK_PACKAGE has already download."
 fi
