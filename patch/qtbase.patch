@@ -660,13 +660,15 @@ index 0000000000..ee1f03f2d5
 +
 diff --git a/src/plugins/platforms/openharmony/qopenharmonydefines.h b/src/plugins/platforms/openharmony/qopenharmonydefines.h
 new file mode 100644
-index 0000000000..3d51c980d9
+index 0000000000..066b93680e
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonydefines.h
-@@ -0,0 +1,94 @@
+@@ -0,0 +1,96 @@
 +#ifndef QOPENHARMONYDEFINES_H
 +#define QOPENHARMONYDEFINES_H
 +#include <hilog/log.h>
++
++#define NAPI_RETVAL_NOTHING
 +
 +#define GET_AND_THROW_LAST_ERROR(env)                                                                   \
 +    do {                                                                                                \
@@ -1286,31 +1288,34 @@ index 0000000000..51fe72e96e
 +#endif // QOPENHARMONYEVENTDISPATCHER_H
 diff --git a/src/plugins/platforms/openharmony/qopenharmonymain.cpp b/src/plugins/platforms/openharmony/qopenharmonymain.cpp
 new file mode 100644
-index 0000000000..2bd5be081b
+index 0000000000..f3277b97dc
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonymain.cpp
-@@ -0,0 +1,371 @@
+@@ -0,0 +1,387 @@
 +#include <memory>
 +#include <dlfcn.h>
 +#include <pthread.h>
 +#include <napi/native_api.h>
 +#include <ace/xcomponent/native_interface_xcomponent.h>
 +
-+#include <QHash>
-+#include <QGuiApplication>
 +#include <QDir>
++#include <QHash>
++#include <QString>
 +#include <QDebug>
++#include <QByteArray>
 +#include <QJsonObject>
 +#include <QJsonDocument>
 +#include <QByteArray>
 +#include <QString>
++#include <QStringList>
++#include <QGuiApplication>
 +
 +#include "qopenharmonymain.h"
++#include "qopenharmonydefines.h"
 +#include "qopenharmonysurface.h"
 +#include "qopenharmonyplatformintegration.h"
 +#include "qopenharmonyplatformdialoghelpers.h"
 +
-+#include "qopenharmonydefines.h"
 +extern "C" typedef int (*Main)(int, char **); //use the standard main method to start the application
 +static Main m_main = nullptr;
 +static void *m_mainLibraryHnd = nullptr;
@@ -1325,10 +1330,16 @@ index 0000000000..2bd5be081b
 +static int m_desktopHeightPixels = 0;
 +static napi_env m_env = nullptr;
 +
-+static void *startMainMethod(void */*data*/)
++static void *startMainMethod(void *arg)
 +{
++    if (nullptr == arg)
++    {
++        return nullptr;
++    }
++
 +    QVarLengthArray<const char *> params(1);
-+    QByteArray p = "/data/storage/el1/bundle/libs/arm/libQtQuickForHarmony.so";
++//    QByteArray p = "/data/storage/el1/bundle/libs/arm/libQtForHarmony.so";
++    QByteArray p((char*)arg);
 +    params[0] = static_cast<const char *>(p.constData());
 +
 +    int ret = m_main(1, const_cast<char **>(params.data()));
@@ -1431,7 +1442,14 @@ index 0000000000..2bd5be081b
 +    if (sem_init(&m_terminateSemaphore, 0, 0) == -1)
 +        return nullptr;
 +
-+    pthread_create(&m_qtAppThread, nullptr, startMainMethod, nullptr);
++    QByteArray arg(str.get());
++    QByteArrayList argsList = arg.split(';');    
++    if (argsList.isEmpty()) {
++        qWarning() << "args is vaild";
++        return nullptr;
++    }
++    QByteArray applib = argsList.at(4) + "/libs/arm/" + QByteArray(str1.get());
++    pthread_create(&m_qtAppThread, nullptr, startMainMethod, (void*)applib.data());
 +    return nullptr;
 +}
 +
@@ -1629,41 +1647,41 @@ index 0000000000..2bd5be081b
 +    }
 +}
 +
-+void QtOpenHarmony::messageBox(long handler, const QString &title, const QString &text)
++void QtOpenHarmony::messageBox(long handler, const QString &title, const QString &text, const QStringList &buttons)
 +{
 +    GET_JS_FUNCTION(messageBox);
 +    if (function == nullptr) {
 +        return;
 +    }
 +
-+    size_t argc = 3;
-+    napi_value argv[3] = {0};
++    size_t argc = 4;
++    napi_value argv[4] = {0};
 +
-+    status = napi_create_int64(m_env, handler, &argv[0]);
-+    if (status != napi_ok) {
-+        LOGE("[messageBox] napi_call_function status != napi_ok %{public}d", status);
-+    }
++    NAPI_CALL_RETURN_VOID(m_env, napi_create_int64(m_env, handler, &argv[0]));
 +    QByteArray _title = title.toUtf8();
 +    const char *titleData = _title.constData();
-+    status = napi_create_string_utf8(m_env, titleData, _title.length(), &argv[1]);
-+    if (status != napi_ok) {
-+        LOGE("[messageBox] napi_call_function status != napi_ok %{public}d", status);
-+    }
++    NAPI_CALL_RETURN_VOID(m_env, napi_create_string_utf8(m_env, titleData, _title.length(), &argv[1]));
++
 +    QByteArray _text = text.toUtf8();
 +    const char *textData = _text.constData();
-+    status = napi_create_string_utf8(m_env, textData, _text.length(), &argv[2]);
-+    if (status != napi_ok) {
-+        LOGE("[messageBox] napi_call_function status != napi_ok %{public}d", status);
++    NAPI_CALL_RETURN_VOID(m_env, napi_create_string_utf8(m_env, textData, _text.length(), &argv[2]));
++
++    NAPI_CALL_RETURN_VOID(m_env, napi_create_array(m_env, &argv[3]));
++
++    for (int i = 0; i < buttons.count(); ++i) {
++        QByteArray button = buttons.at(i).toUtf8();
++        const char *buttonData = button.constData();
++        napi_value result;
++        NAPI_CALL_RETURN_VOID(m_env, napi_create_string_utf8(m_env, buttonData, button.length(), &result));
++        NAPI_CALL_RETURN_VOID(m_env, napi_set_element(m_env, argv[3], i, result));
 +    }
++
 +    napi_value return_value;
-+    status = napi_call_function(m_env, global, function, argc, argv, &return_value);
-+    if (status != napi_ok) {
-+        LOGE("[HObjectProxy] napi_call_function status != napi_ok %{public}d messageBox", status);
-+    }
++    NAPI_CALL_RETURN_VOID(m_env, napi_call_function(m_env, global, function, argc, argv, &return_value));
 +}
 diff --git a/src/plugins/platforms/openharmony/qopenharmonymain.h b/src/plugins/platforms/openharmony/qopenharmonymain.h
 new file mode 100644
-index 0000000000..4e4dbb447c
+index 0000000000..e70b9f6330
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonymain.h
 @@ -0,0 +1,17 @@
@@ -1679,7 +1697,7 @@ index 0000000000..4e4dbb447c
 +
 +void showInputPanel(bool visible);
 +
-+void messageBox(long handler, const QString &title, const QString &text);
++void messageBox(long handler, const QString &title, const QString &text, const QStringList &buttons);
 +
 +}
 +
@@ -2040,7 +2058,7 @@ index 0000000000..db75831b39
 +#endif // QOPENHARMONYPLATFORMBACKINGSTORE_H
 diff --git a/src/plugins/platforms/openharmony/qopenharmonyplatformdialoghelpers.cpp b/src/plugins/platforms/openharmony/qopenharmonyplatformdialoghelpers.cpp
 new file mode 100644
-index 0000000000..a6605b8e7f
+index 0000000000..085229d4a3
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonyplatformdialoghelpers.cpp
 @@ -0,0 +1,139 @@
@@ -2065,10 +2083,9 @@ index 0000000000..a6605b8e7f
 +
 +void QOpenHarmonyPlatformMessageDialogHelper::exec()
 +{
-+    if (!m_shown) {
++    if (!m_shown)
 +        show(Qt::Dialog, Qt::ApplicationModal, 0);
-+        m_loop.exec();
-+    }
++     m_loop.exec();
 +}
 +
 +static QString htmlText(QString text)
@@ -2094,32 +2111,36 @@ index 0000000000..a6605b8e7f
 +    qDebug() << "2222222222222222222222222" << htmlText(opt->windowTitle());
 +    qDebug() << "2222222222222222222222222" << htmlText(opt->text());
 +
++    m_buttons.clear();
++    m_stanardButton.clear();
 +    const int * currentLayout = buttonLayout(Qt::Horizontal);
 +    while (*currentLayout != QPlatformDialogHelper::EOL) {
 +        int role = (*currentLayout & ~QPlatformDialogHelper::Reverse);
 +        addButtons(opt, static_cast<ButtonRole>(role));
 +        ++currentLayout;
 +    }
-+    QtOpenHarmony::messageBox(long(static_cast<QObject*>(this)), htmlText(opt->windowTitle()), htmlText(opt->text()));
++    QtOpenHarmony::messageBox(long(static_cast<QObject*>(this)), htmlText(opt->windowTitle()), htmlText(opt->text()), m_buttons);
 +    m_shown = true;
 +    return true;
 +}
 +
 +void QOpenHarmonyPlatformMessageDialogHelper::addButtons(QSharedPointer<QMessageDialogOptions> opt, ButtonRole role)
 +{
-+//    for (const QMessageDialogOptions::CustomButton &b : opt->customButtons()) {
-+//        if (b.role == role) {
-+//            QString label = b.label;
-+//            label.remove(QChar('&'));
-+//        }
-+//    }
++    for (const QMessageDialogOptions::CustomButton &b : opt->customButtons()) {
++        if (b.role == role) {
++            QString label = b.label;
++            label.remove(QChar('&'));
++        }
++    }
 +
-+//    for (int i = QPlatformDialogHelper::FirstButton; i < QPlatformDialogHelper::LastButton; i<<=1) {
-+//        StandardButton b = static_cast<StandardButton>(i);
-+//        if (buttonRole(b) == role && (opt->standardButtons() & i)) {
-+//            const QString text = QGuiApplicationPrivate::platformTheme()->standardButtonText(b);
-+//        }
-+//    }
++    for (int i = QPlatformDialogHelper::FirstButton; i < QPlatformDialogHelper::LastButton; i<<=1) {
++        StandardButton b = static_cast<StandardButton>(i);
++        if (buttonRole(b) == role && (opt->standardButtons() & i)) {
++            const QString text = QGuiApplicationPrivate::platformTheme()->standardButtonText(b);
++            m_buttons << text;
++            m_stanardButton << b;
++        }
++    }
 +}
 +
 +void QOpenHarmonyPlatformMessageDialogHelper::hide()
@@ -2137,14 +2158,14 @@ index 0000000000..a6605b8e7f
 +        return;
 +    }
 +
-+    QPlatformDialogHelper::StandardButton standardButton = static_cast<QPlatformDialogHelper::StandardButton>(buttonID);
++//    QPlatformDialogHelper::StandardButton standardButton = static_cast<QPlatformDialogHelper::StandardButton>(buttonID);
++    QPlatformDialogHelper::StandardButton standardButton = m_stanardButton.at(buttonID);
 +    QPlatformDialogHelper::ButtonRole role = QPlatformDialogHelper::buttonRole(standardButton);
 +    if (buttonID > QPlatformDialogHelper::LastButton) {
 +        const QMessageDialogOptions::CustomButton *custom = options()->customButton(buttonID);
 +        Q_ASSERT(custom);
 +        role = custom->role;
 +    }
-+
 +    emit clicked(standardButton, role);
 +}
 +
@@ -2166,10 +2187,7 @@ index 0000000000..a6605b8e7f
 +    int32_t value1;
 +    napi_get_value_int32(env, args[1], &value1);
 +
-+    LOGE("dialog result %{public}d", value1);
-+
 +    QObject *object = reinterpret_cast<QObject *>(value0);
-+    qDebug() << "object" << object;
 +    QMetaObject::invokeMethod(object, "dialogResult", Qt::QueuedConnection, Q_ARG(int, value1));
 +    return nullptr;
 +}
@@ -2185,16 +2203,17 @@ index 0000000000..a6605b8e7f
 +}
 diff --git a/src/plugins/platforms/openharmony/qopenharmonyplatformdialoghelpers.h b/src/plugins/platforms/openharmony/qopenharmonyplatformdialoghelpers.h
 new file mode 100644
-index 0000000000..2a5eb37703
+index 0000000000..3efaf07940
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonyplatformdialoghelpers.h
-@@ -0,0 +1,39 @@
+@@ -0,0 +1,42 @@
 +#ifndef QOPENHARMONYPLATFORMDIALOGHELPERS_H
 +#define QOPENHARMONYPLATFORMDIALOGHELPERS_H
 +
 +#include <qpa/qplatformdialoghelper.h>
 +#include <napi/native_api.h>
 +
++#include <QList>
 +#include <QEventLoop>
 +
 +namespace QtOpenHarmonyDialogHelpers {
@@ -2221,6 +2240,8 @@ index 0000000000..2a5eb37703
 +    int m_buttonId;
 +    QEventLoop m_loop;
 +    bool m_shown;
++    QStringList m_buttons;
++    QList<QPlatformDialogHelper::StandardButton> m_stanardButton;
 +};
 +
 +
