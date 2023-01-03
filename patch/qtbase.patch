@@ -13,7 +13,7 @@ index 3b55a63f49..e0518dd242 100644
  } else:wasm {
 diff --git a/mkspecs/common/oh-base-head.conf b/mkspecs/common/oh-base-head.conf
 new file mode 100644
-index 0000000000..9cedf64bb3
+index 0000000000..f8d0699f2a
 --- /dev/null
 +++ b/mkspecs/common/oh-base-head.conf
 @@ -0,0 +1,24 @@
@@ -30,8 +30,8 @@ index 0000000000..9cedf64bb3
 +
 +QMAKE_CFLAGS = -D__MUSL__
 +QMAKE_CXXFLAGS = -D__MUSL__
-+QMAKE_CFLAGS = -D_OPENHARMONY
-+QMAKE_CXXFLAGS = -D_OPENHARMONY
++QMAKE_CFLAGS += -D_OPENHARMONY
++QMAKE_CXXFLAGS += -D_OPENHARMONY
 +
 +CROSS_COMPILE = $$SDK_ROOT/native/llvm/bin/
 +
@@ -599,10 +599,10 @@ index 0000000000..886625295c
 +}
 diff --git a/src/plugins/platforms/openharmony/openharmony.pro b/src/plugins/platforms/openharmony/openharmony.pro
 new file mode 100644
-index 0000000000..ee1f03f2d5
+index 0000000000..7cd6b84359
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/openharmony.pro
-@@ -0,0 +1,55 @@
+@@ -0,0 +1,57 @@
 +TARGET = qopenharmony
 +
 +LIBS += -lEGL -lace_napi.z -lace_ndk.z
@@ -630,7 +630,8 @@ index 0000000000..ee1f03f2d5
 +    $$PWD/qopenharmonyplatformfontdatabase.h \
 +    $$PWD/qopenharmonyplatforminputcontext.h \
 +    $$PWD/qopenharmonyplatformtheme.h \
-+    $$PWD/qopenharmonyplatformdialoghelpers.h
++    $$PWD/qopenharmonyplatformdialoghelpers.h \
++    $$PWD/qopenharmonyplatformclipboard.h
 +
 +SOURCES += $$PWD/qopenharmonyplatformplugin.cpp \
 +    $$PWD/qopenharmonyplatformwindow.cpp \
@@ -648,7 +649,8 @@ index 0000000000..ee1f03f2d5
 +    $$PWD/qopenharmonyplatformfontdatabase.cpp \
 +    $$PWD/qopenharmonyplatforminputcontext.cpp \
 +    $$PWD/qopenharmonyplatformtheme.cpp \
-+    $$PWD/qopenharmonyplatformdialoghelpers.cpp
++    $$PWD/qopenharmonyplatformdialoghelpers.cpp \
++    $$PWD/qopenharmonyplatformclipboard.cpp
 +
 +
 +PLUGIN_TYPE = platforms
@@ -1288,10 +1290,10 @@ index 0000000000..51fe72e96e
 +#endif // QOPENHARMONYEVENTDISPATCHER_H
 diff --git a/src/plugins/platforms/openharmony/qopenharmonymain.cpp b/src/plugins/platforms/openharmony/qopenharmonymain.cpp
 new file mode 100644
-index 0000000000..f3277b97dc
+index 0000000000..44329faa66
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonymain.cpp
-@@ -0,0 +1,387 @@
+@@ -0,0 +1,405 @@
 +#include <memory>
 +#include <dlfcn.h>
 +#include <pthread.h>
@@ -1315,6 +1317,7 @@ index 0000000000..f3277b97dc
 +#include "qopenharmonysurface.h"
 +#include "qopenharmonyplatformintegration.h"
 +#include "qopenharmonyplatformdialoghelpers.h"
++#include "qopenharmonyplatformclipboard.h"
 +
 +extern "C" typedef int (*Main)(int, char **); //use the standard main method to start the application
 +static Main m_main = nullptr;
@@ -1362,19 +1365,6 @@ index 0000000000..f3277b97dc
 +
 +static napi_value startQtApplication(napi_env env, napi_callback_info info)
 +{
-+    if (::setenv("QT_QPA_PLATFORM_PLUGIN_PATH", "/data/storage/el1/bundle/libs/arm", 1) != 0) {
-+         qWarning() << "Can't set environment for QT_PLUGIN_PATH";
-+    }
-+    if (::setenv("QML_DISABLE_DISK_CACHE", "1", 1) != 0) {
-+        qWarning() << "Can't set environment for QML_DISABLE_DISK_CACHE";
-+    }
-+    if (::setenv("QT_PLUGIN_PATH", "/data/storage/el1/bundle/libs/arm", 1) != 0) {
-+        qWarning() << "Can't set environment for QT_PLUGIN_PATH";
-+    }
-+
-+    if (::setenv("QML2_IMPORT_PATH", "/data/storage/el1/bundle/entry/resources/rawfile", 1) != 0) {
-+        qWarning() << "Can't set environment for QML2_IMPORT_PATH" << getenv("QML2_IMPORT_PATH");
-+    }
 +    napi_status status;
 +    size_t argc = 2;
 +    napi_value args[2];
@@ -1418,6 +1408,40 @@ index 0000000000..f3277b97dc
 +    std::unique_ptr<char[]> str1 = std::make_unique<char[]>(bufLen);
 +    NAPI_CALL(env, napi_get_value_string_utf8(env, args[1], str1.get(), bufLen, &strLen));
 +
++    QByteArray arg(str.get());
++    QByteArrayList argsList = arg.split(';');
++    if (argsList.isEmpty()) {
++        qWarning() << "args is vaild";
++        return nullptr;
++    }
++
++    QByteArray bundle = argsList.at(4);
++    if (bundle.isEmpty()) {
++        qWarning() << "args is vaild";
++        return nullptr;
++    }
++    QByteArray libDir = bundle + "/libs/arm";
++    QByteArray resourcesDir = bundle + "/entry/resources/rawfile";
++
++
++    if (::setenv("QT_QPA_PLATFORM_PLUGIN_PATH", libDir.constData(), 1) != 0) {
++         qWarning() << "Can't set environment for QT_PLUGIN_PATH";
++    }
++    if (::setenv("QML_DISABLE_DISK_CACHE", "1", 1) != 0) {
++        qWarning() << "Can't set environment for QML_DISABLE_DISK_CACHE";
++    }
++    if (::setenv("QT_PLUGIN_PATH", libDir.constData(), 1) != 0) {
++        qWarning() << "Can't set environment for QT_PLUGIN_PATH";
++    }
++
++    if (::setenv("QML2_IMPORT_PATH", resourcesDir.constData(), 1) != 0) {
++        qWarning() << "Can't set environment for QML2_IMPORT_PATH" << getenv("QML2_IMPORT_PATH");
++    }
++
++    if (::setenv("QT_DEBUG_PLUGINS", "1", 1) != 0) {
++        qWarning() << "Can't set environment for QT_DEBUG_PLUGINS" << getenv("QT_DEBUG_PLUGINS");
++    }
++
 +    m_mainLibraryHnd = nullptr;
 +
 +    //look for main()
@@ -1442,12 +1466,6 @@ index 0000000000..f3277b97dc
 +    if (sem_init(&m_terminateSemaphore, 0, 0) == -1)
 +        return nullptr;
 +
-+    QByteArray arg(str.get());
-+    QByteArrayList argsList = arg.split(';');    
-+    if (argsList.isEmpty()) {
-+        qWarning() << "args is vaild";
-+        return nullptr;
-+    }
 +    QByteArray applib = argsList.at(4) + "/libs/arm/" + QByteArray(str1.get());
 +    pthread_create(&m_qtAppThread, nullptr, startMainMethod, (void*)applib.data());
 +    return nullptr;
@@ -1566,7 +1584,9 @@ index 0000000000..f3277b97dc
 +    getSurface(env, exports);
 +
 +    QtOpenHarmonyDialogHelpers::init(env, exports);
-+
++#ifndef QT_NO_CLIPBOARD
++    QtOpenHarmonyClipboard::init(env, exports);
++#endif
 +    m_env = env;
 +    return exports;
 +}
@@ -2056,6 +2076,109 @@ index 0000000000..db75831b39
 +QT_END_NAMESPACE
 +
 +#endif // QOPENHARMONYPLATFORMBACKINGSTORE_H
+diff --git a/src/plugins/platforms/openharmony/qopenharmonyplatformclipboard.cpp b/src/plugins/platforms/openharmony/qopenharmonyplatformclipboard.cpp
+new file mode 100644
+index 0000000000..631ef12db9
+--- /dev/null
++++ b/src/plugins/platforms/openharmony/qopenharmonyplatformclipboard.cpp
+@@ -0,0 +1,57 @@
++#include "qopenharmonyplatformclipboard.h"
++#include "qopenharmonymain.h"
++
++#ifndef QT_NO_CLIPBOARD
++
++QOpenHarmonyPlatformClipboard::QOpenHarmonyPlatformClipboard()
++{
++
++}
++
++QMimeData *QOpenHarmonyPlatformClipboard::mimeData(QClipboard::Mode mode)
++{
++    Q_UNUSED(mode);
++    Q_ASSERT(supportsMode(mode));
++    m_mimeData.setText(QtOpenHarmonyClipboard::hasClipboardText()
++                       ? QtOpenHarmonyClipboard::clipboardText()
++                       : QString());
++    return &m_mimeData;
++}
++
++void QOpenHarmonyPlatformClipboard::setMimeData(QMimeData *data, QClipboard::Mode mode)
++{
++    if (supportsMode(mode))
++        QtOpenHarmonyClipboard::setClipboardText(data != 0 && data->hasText() ? data->text() : QString());
++    if (data != 0)
++        data->deleteLater();
++}
++
++bool QOpenHarmonyPlatformClipboard::supportsMode(QClipboard::Mode mode) const
++{
++    return QClipboard::Clipboard == mode;
++}
++
++#endif // QT_NO_CLIPBOARD
++
++namespace QtOpenHarmonyClipboard {
++napi_value QtOpenHarmonyClipboard::init(napi_env env, napi_value exports)
++{
++    return nullptr;
++}
++
++bool hasClipboardText()
++{
++    return true;
++}
++
++QString clipboardText()
++{
++    return "2222";
++}
++
++void setClipboardText(const QString &text)
++{
++
++}
++
++} // namespace QtOpenHarmonyClipboard
+diff --git a/src/plugins/platforms/openharmony/qopenharmonyplatformclipboard.h b/src/plugins/platforms/openharmony/qopenharmonyplatformclipboard.h
+new file mode 100644
+index 0000000000..a827f8b599
+--- /dev/null
++++ b/src/plugins/platforms/openharmony/qopenharmonyplatformclipboard.h
+@@ -0,0 +1,34 @@
++#ifndef QOPENHARMONYPLATFORMCLIPBOARD_H
++#define QOPENHARMONYPLATFORMCLIPBOARD_H
++
++#include <qpa/qplatformclipboard.h>
++#include <QMimeData>
++#include <napi/native_api.h>
++
++#ifndef QT_NO_CLIPBOARD
++
++namespace QtOpenHarmonyClipboard {
++
++napi_value init(napi_env env, napi_value exports);
++bool hasClipboardText();
++QString clipboardText();
++void setClipboardText(const QString &text);
++
++}// namespace QtOpenHarmonyClipboard
++
++class QOpenHarmonyPlatformClipboard: public QPlatformClipboard
++{
++public:
++    QOpenHarmonyPlatformClipboard();
++
++    QMimeData *mimeData(QClipboard::Mode mode = QClipboard::Clipboard) override;
++    void setMimeData(QMimeData *data, QClipboard::Mode mode = QClipboard::Clipboard) override;
++    bool supportsMode(QClipboard::Mode mode) const override;
++
++private:
++    QMimeData m_mimeData;
++};
++
++#endif // QT_NO_CLIPBOARD
++
++#endif // QOPENHARMONYPLATFORMCLIPBOARD_H
 diff --git a/src/plugins/platforms/openharmony/qopenharmonyplatformdialoghelpers.cpp b/src/plugins/platforms/openharmony/qopenharmonyplatformdialoghelpers.cpp
 new file mode 100644
 index 0000000000..085229d4a3
@@ -2629,10 +2752,10 @@ index 0000000000..048cb84968
 +#endif // QOPENHARMONYPLATFORMINPUTCONTEXT_H
 diff --git a/src/plugins/platforms/openharmony/qopenharmonyplatformintegration.cpp b/src/plugins/platforms/openharmony/qopenharmonyplatformintegration.cpp
 new file mode 100644
-index 0000000000..407300ae69
+index 0000000000..c7a3163bde
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonyplatformintegration.cpp
-@@ -0,0 +1,240 @@
+@@ -0,0 +1,252 @@
 +#include "qopenharmonyplatformintegration.h"
 +
 +#include <QtGui/private/qguiapplication_p.h>
@@ -2657,6 +2780,7 @@ index 0000000000..407300ae69
 +#include "qopenharmonyplatformoffscreensurface.h"
 +#include "qopenharmonyplatforminputcontext.h"
 +#include "qopenharmonyplatformtheme.h"
++#include "qopenharmonyplatformclipboard.h"
 +#include "qopenharmonydefines.h"
 +#include "qopenharmonyeglcore.h"
 +
@@ -2698,6 +2822,10 @@ index 0000000000..407300ae69
 +    m_primaryScreen->setAvailableGeometry(QRect(0, 0, m_defaultGeometryWidth, m_defaultGeometryHeight));
 +
 +    m_mainThread = QThread::currentThread();
++
++#ifndef QT_NO_CLIPBOARD
++    m_platformClipboard.reset(new QOpenHarmonyPlatformClipboard);
++#endif
 +}
 +
 +
@@ -2872,13 +3000,20 @@ index 0000000000..407300ae69
 +    return m_harmonyFontDatabase.data();
 +}
 +
++//#ifndef QT_NO_CLIPBOARD
++//QPlatformClipboard *QOpenHarmonyPlatformIntegration::clipboard() const
++//{
++//    return m_platformClipboard.data();
++//}
++//#endif
++
 +QT_END_NAMESPACE
 diff --git a/src/plugins/platforms/openharmony/qopenharmonyplatformintegration.h b/src/plugins/platforms/openharmony/qopenharmonyplatformintegration.h
 new file mode 100644
-index 0000000000..57e21b660b
+index 0000000000..4290b30617
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonyplatformintegration.h
-@@ -0,0 +1,115 @@
+@@ -0,0 +1,119 @@
 +#ifndef QOPENHARMONYPLATFORMINTERATION_H
 +#define QOPENHARMONYPLATFORMINTERATION_H
 +
@@ -2989,6 +3124,10 @@ index 0000000000..57e21b660b
 +    QScopedPointer<QOpenHarmonyPlatformFontDatabase> m_harmonyFontDatabase;
 +
 +    QScopedPointer<QPlatformInputContext> m_platformInputContext;
++
++#ifndef QT_NO_CLIPBOARD
++    QScopedPointer<QPlatformClipboard> m_platformClipboard;
++#endif
 +};
 +
 +QT_END_NAMESPACE
