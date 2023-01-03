@@ -13,7 +13,7 @@ index 3b55a63f49..e0518dd242 100644
  } else:wasm {
 diff --git a/mkspecs/common/oh-base-head.conf b/mkspecs/common/oh-base-head.conf
 new file mode 100644
-index 0000000000..9cedf64bb3
+index 0000000000..f8d0699f2a
 --- /dev/null
 +++ b/mkspecs/common/oh-base-head.conf
 @@ -0,0 +1,24 @@
@@ -30,8 +30,8 @@ index 0000000000..9cedf64bb3
 +
 +QMAKE_CFLAGS = -D__MUSL__
 +QMAKE_CXXFLAGS = -D__MUSL__
-+QMAKE_CFLAGS = -D_OPENHARMONY
-+QMAKE_CXXFLAGS = -D_OPENHARMONY
++QMAKE_CFLAGS += -D_OPENHARMONY
++QMAKE_CXXFLAGS += -D_OPENHARMONY
 +
 +CROSS_COMPILE = $$SDK_ROOT/native/llvm/bin/
 +
@@ -43,7 +43,7 @@ index 0000000000..9cedf64bb3
 +QMAKE_CXXFLAGS_USE_PRECOMPILE = $$QMAKE_CFLAGS_USE_PRECOMPILE
 diff --git a/mkspecs/common/oh-base-tail.conf b/mkspecs/common/oh-base-tail.conf
 new file mode 100644
-index 0000000000..1e260be843
+index 0000000000..777ccacf84
 --- /dev/null
 +++ b/mkspecs/common/oh-base-tail.conf
 @@ -0,0 +1,76 @@
@@ -106,7 +106,7 @@ index 0000000000..1e260be843
 +
 +QMAKE_LINK_SHLIB        = $$QMAKE_LINK
 +QMAKE_LFLAGS            = --sysroot=$$SDK_ROOT/native/sysroot
-+QMAKE_LFLAGS_APP        = -Wl,--gc-sections
++QMAKE_LFLAGS_APP        = -Wl,--no-undefined -Wl,-z,noexecstack -shared
 +QMAKE_LFLAGS_SHLIB      = -Wl,--no-undefined -Wl,-z,noexecstack -shared
 +QMAKE_LFLAGS_PLUGIN     = $$QMAKE_LFLAGS_SHLIB
 +QMAKE_LFLAGS_NOUNDEF    = -Wl,--no-undefined
@@ -427,6 +427,19 @@ index d87e181e5c..998be34739 100644
  #elif defined(__CYGWIN__)
  #  define Q_OS_CYGWIN
  #elif !defined(SAG_COM) && (!defined(WINAPI_FAMILY) || WINAPI_FAMILY==WINAPI_FAMILY_DESKTOP_APP) && (defined(WIN64) || defined(_WIN64) || defined(__WIN64__))
+diff --git a/src/corelib/kernel/qcoreapplication.cpp b/src/corelib/kernel/qcoreapplication.cpp
+index db6546028a..10fba6c9c8 100644
+--- a/src/corelib/kernel/qcoreapplication.cpp
++++ b/src/corelib/kernel/qcoreapplication.cpp
+@@ -2337,7 +2337,7 @@ QString QCoreApplication::applicationFilePath()
+     }
+ #endif
+ #if defined( Q_OS_UNIX )
+-#  if defined(Q_OS_LINUX) && (!defined(Q_OS_ANDROID) || defined(Q_OS_ANDROID_EMBEDDED))
++#  if defined(Q_OS_LINUX) && !defined(Q_OS_OPENHARMONY) && (!defined(Q_OS_ANDROID) || defined(Q_OS_ANDROID_EMBEDDED))
+     // Try looking for a /proc/<pid>/exe symlink first which points to
+     // the absolute path of the executable
+     QFileInfo pfi(QString::fromLatin1("/proc/%1/exe").arg(getpid()));
 diff --git a/src/corelib/plugin/qfactoryloader.cpp b/src/corelib/plugin/qfactoryloader.cpp
 index 35c64180d4..396ee5882c 100644
 --- a/src/corelib/plugin/qfactoryloader.cpp
@@ -586,10 +599,10 @@ index 0000000000..886625295c
 +}
 diff --git a/src/plugins/platforms/openharmony/openharmony.pro b/src/plugins/platforms/openharmony/openharmony.pro
 new file mode 100644
-index 0000000000..48ff1d1565
+index 0000000000..7cd6b84359
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/openharmony.pro
-@@ -0,0 +1,51 @@
+@@ -0,0 +1,57 @@
 +TARGET = qopenharmony
 +
 +LIBS += -lEGL -lace_napi.z -lace_ndk.z
@@ -615,7 +628,10 @@ index 0000000000..48ff1d1565
 +    $$PWD/qopenharmonymain.h \
 +    $$PWD/qopenharmonyeglcore.h \
 +    $$PWD/qopenharmonyplatformfontdatabase.h \
-+    $$PWD/qopenharmonyplatforminputcontext.h
++    $$PWD/qopenharmonyplatforminputcontext.h \
++    $$PWD/qopenharmonyplatformtheme.h \
++    $$PWD/qopenharmonyplatformdialoghelpers.h \
++    $$PWD/qopenharmonyplatformclipboard.h
 +
 +SOURCES += $$PWD/qopenharmonyplatformplugin.cpp \
 +    $$PWD/qopenharmonyplatformwindow.cpp \
@@ -631,7 +647,10 @@ index 0000000000..48ff1d1565
 +    $$PWD/qopenharmonyeventdispatcher.cpp \
 +    $$PWD/qopenharmonyeglcore.cpp \
 +    $$PWD/qopenharmonyplatformfontdatabase.cpp \
-+    $$PWD/qopenharmonyplatforminputcontext.cpp
++    $$PWD/qopenharmonyplatforminputcontext.cpp \
++    $$PWD/qopenharmonyplatformtheme.cpp \
++    $$PWD/qopenharmonyplatformdialoghelpers.cpp \
++    $$PWD/qopenharmonyplatformclipboard.cpp
 +
 +
 +PLUGIN_TYPE = platforms
@@ -643,13 +662,15 @@ index 0000000000..48ff1d1565
 +
 diff --git a/src/plugins/platforms/openharmony/qopenharmonydefines.h b/src/plugins/platforms/openharmony/qopenharmonydefines.h
 new file mode 100644
-index 0000000000..3d51c980d9
+index 0000000000..066b93680e
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonydefines.h
-@@ -0,0 +1,94 @@
+@@ -0,0 +1,96 @@
 +#ifndef QOPENHARMONYDEFINES_H
 +#define QOPENHARMONYDEFINES_H
 +#include <hilog/log.h>
++
++#define NAPI_RETVAL_NOTHING
 +
 +#define GET_AND_THROW_LAST_ERROR(env)                                                                   \
 +    do {                                                                                                \
@@ -1269,29 +1290,35 @@ index 0000000000..51fe72e96e
 +#endif // QOPENHARMONYEVENTDISPATCHER_H
 diff --git a/src/plugins/platforms/openharmony/qopenharmonymain.cpp b/src/plugins/platforms/openharmony/qopenharmonymain.cpp
 new file mode 100644
-index 0000000000..b323998e3e
+index 0000000000..72ed123847
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonymain.cpp
-@@ -0,0 +1,284 @@
+@@ -0,0 +1,403 @@
 +#include <memory>
 +#include <dlfcn.h>
 +#include <pthread.h>
 +#include <napi/native_api.h>
 +#include <ace/xcomponent/native_interface_xcomponent.h>
 +
-+#include <QHash>
-+#include <QGuiApplication>
 +#include <QDir>
++#include <QHash>
++#include <QString>
 +#include <QDebug>
++#include <QByteArray>
 +#include <QJsonObject>
 +#include <QJsonDocument>
-+#include <QStandardPaths>
++#include <QByteArray>
++#include <QString>
++#include <QStringList>
++#include <QGuiApplication>
 +
 +#include "qopenharmonymain.h"
++#include "qopenharmonydefines.h"
 +#include "qopenharmonysurface.h"
 +#include "qopenharmonyplatformintegration.h"
++#include "qopenharmonyplatformdialoghelpers.h"
++#include "qopenharmonyplatformclipboard.h"
 +
-+#include "qopenharmonydefines.h"
 +extern "C" typedef int (*Main)(int, char **); //use the standard main method to start the application
 +static Main m_main = nullptr;
 +static void *m_mainLibraryHnd = nullptr;
@@ -1304,11 +1331,18 @@ index 0000000000..b323998e3e
 +static double m_density = 1.5;
 +static int m_desktopWidthPixels  = 0;
 +static int m_desktopHeightPixels = 0;
++static napi_env m_env = nullptr;
 +
-+static void *startMainMethod(void */*data*/)
++static void *startMainMethod(void *arg)
 +{
++    if (nullptr == arg)
++    {
++        return nullptr;
++    }
++
 +    QVarLengthArray<const char *> params(1);
-+    QByteArray p = "/data/storage/el1/bundle/libs/arm/libQtQuickForHarmony.so";
++//    QByteArray p = "/data/storage/el1/bundle/libs/arm/libQtForHarmony.so";
++    QByteArray p((char*)arg);
 +    params[0] = static_cast<const char *>(p.constData());
 +
 +    int ret = m_main(1, const_cast<char **>(params.data()));
@@ -1331,21 +1365,6 @@ index 0000000000..b323998e3e
 +
 +static napi_value startQtApplication(napi_env env, napi_callback_info info)
 +{
-+    if (::setenv("QT_QPA_PLATFORM_PLUGIN_PATH", "/data/storage/el1/bundle/libs/arm", 1) != 0) {
-+         qWarning() << "Can't set environment for QT_PLUGIN_PATH";
-+    }
-+    /* TODO shuold set QML_DISK_CACHE_PATH <----> /data/storage/el2/base/haps/entry/cache
-+     */
-+    if (::setenv("QML_DISABLE_DISK_CACHE", "1", 1) != 0) {
-+        qWarning() << "Can't set environment for QML_DISABLE_DISK_CACHE";
-+    }
-+    if (::setenv("QT_PLUGIN_PATH", "/data/storage/el1/bundle/libs/arm", 1) != 0) {
-+        qWarning() << "Can't set environment for QT_PLUGIN_PATH";
-+    }
-+
-+    if (::setenv("QML2_IMPORT_PATH", "/data/storage/el1/bundle/entry/resources/rawfile", 1) != 0) {
-+        qWarning() << "Can't set environment for QML2_IMPORT_PATH" << getenv("QML2_IMPORT_PATH");
-+    }
 +    napi_status status;
 +    size_t argc = 2;
 +    napi_value args[2];
@@ -1381,6 +1400,35 @@ index 0000000000..b323998e3e
 +        napi_throw_type_error(env, NULL, "Wrong arguments");
 +        return nullptr;
 +    }
++    /* NOTE read arguments */
++    QByteArray arg(str.get());
++    QByteArrayList argsList = arg.split(';');
++    QByteArray bundle = argsList.at(4);
++    if (bundle.isEmpty()) {
++        qWarning() << "args is vaild";
++        return nullptr;
++    }
++    QByteArray libDir = bundle + "/libs/arm";
++    QByteArray resourcesDir = bundle + "/entry/resources/rawfile";
++
++
++    if (::setenv("QT_QPA_PLATFORM_PLUGIN_PATH", libDir.constData(), 1) != 0) {
++        qWarning() << "Can't set environment for QT_PLUGIN_PATH";
++    }
++    if (::setenv("QML_DISABLE_DISK_CACHE", "1", 1) != 0) {
++        qWarning() << "Can't set environment for QML_DISABLE_DISK_CACHE";
++    }
++    if (::setenv("QT_PLUGIN_PATH", libDir.constData(), 1) != 0) {
++        qWarning() << "Can't set environment for QT_PLUGIN_PATH";
++    }
++
++    if (::setenv("QML2_IMPORT_PATH", resourcesDir.constData(), 1) != 0) {
++        qWarning() << "Can't set environment for QML2_IMPORT_PATH" << getenv("QML2_IMPORT_PATH");
++    }
++
++    if (::setenv("QT_DEBUG_PLUGINS", "1", 1) != 0) {
++        qWarning() << "Can't set environment for QT_DEBUG_PLUGINS" << getenv("QT_DEBUG_PLUGINS");
++    }
 +
 +    strLen = 0;
 +    NAPI_CALL(env, napi_get_value_string_utf8(env, args[1], nullptr, -1, &strLen));
@@ -1413,7 +1461,9 @@ index 0000000000..b323998e3e
 +    if (sem_init(&m_terminateSemaphore, 0, 0) == -1)
 +        return nullptr;
 +
-+    pthread_create(&m_qtAppThread, nullptr, startMainMethod, nullptr);
++    QByteArray applib = argsList.at(4) + "/libs/arm/" + QByteArray(str1.get());
++    pthread_create(&m_qtAppThread, nullptr, startMainMethod, (void*)applib.data());
++
 +    return nullptr;
 +}
 +
@@ -1429,20 +1479,20 @@ index 0000000000..b323998e3e
 +        return nullptr;
 +    }
 +
-+    napi_valuetype valuetype0;
-+    napi_typeof(env, args[0], &valuetype0);
++//    napi_valuetype valuetype0;
++//    napi_typeof(env, args[0], &valuetype0);
 +
-+    napi_valuetype valuetype1;
-+    napi_typeof(env, args[1], &valuetype1);
++//    napi_valuetype valuetype1;
++//    napi_typeof(env, args[1], &valuetype1);
 +
-+    napi_valuetype valuetype2;
-+    napi_typeof(env, args[2], &valuetype2);
++//    napi_valuetype valuetype2;
++//    napi_typeof(env, args[2], &valuetype2);
 +
-+    napi_valuetype valuetype3;
-+    napi_typeof(env, args[3], &valuetype3);
++//    napi_valuetype valuetype3;
++//    napi_typeof(env, args[3], &valuetype3);
 +
-+    napi_valuetype valuetype4;
-+    napi_typeof(env, args[4], &valuetype4);
++//    napi_valuetype valuetype4;
++//    napi_typeof(env, args[4], &valuetype4);
 +
 +    double value0;
 +    napi_get_value_double(env, args[0], &value0);
@@ -1485,6 +1535,32 @@ index 0000000000..b323998e3e
 +    LOGE("Fatal: %{public}s (%{public}s:%{public}u, %{public}s)", localMsg.constData(), context.file, context.line, context.function);
 +}
 +
++static void getSurface(napi_env env, napi_value exports)
++{
++    napi_status status;
++    napi_value exportInstance = nullptr;
++    OH_NativeXComponent *nativeXComponent = nullptr;
++    int32_t ret;
++    char idStr[OH_XCOMPONENT_ID_LEN_MAX + 1] = { };
++    uint64_t idSize = OH_XCOMPONENT_ID_LEN_MAX + 1;
++
++    status = napi_get_named_property(env, exports, OH_NATIVE_XCOMPONENT_OBJ, &exportInstance);
++    if (status != napi_ok) {
++        return;
++    }
++
++    status = napi_unwrap(env, exportInstance, reinterpret_cast<void**>(&nativeXComponent));
++    if (status != napi_ok) {
++        return;
++    }
++
++    ret = OH_NativeXComponent_GetXComponentId(nativeXComponent, idStr, &idSize);
++    if (ret != OH_NATIVEXCOMPONENT_RESULT_SUCCESS) {
++        return;
++    }
++    new QOpenHarmonySurface(nativeXComponent);
++}
++
 +/*
 + * function for module exports
 + */
@@ -1501,29 +1577,15 @@ index 0000000000..b323998e3e
 +
 +    qInstallMessageHandler(openHarmonyMessageOutput);
 +
-+    napi_status status;
-+    napi_value exportInstance = nullptr;
-+    OH_NativeXComponent *nativeXComponent = nullptr;
-+    int32_t ret;
-+    char idStr[OH_XCOMPONENT_ID_LEN_MAX + 1] = { };
-+    uint64_t idSize = OH_XCOMPONENT_ID_LEN_MAX + 1;
-+
-+    status = napi_get_named_property(env, exports, OH_NATIVE_XCOMPONENT_OBJ, &exportInstance);
-+    if (status != napi_ok) {
-+        return exports;
++    if (static_cast<QGuiApplication*>(qApp)) {
++        getSurface(env, exports);
++        QtOpenHarmonyDialogHelpers::init(env, exports);
 +    }
 +
-+    status = napi_unwrap(env, exportInstance, reinterpret_cast<void**>(&nativeXComponent));
-+    if (status != napi_ok) {
-+        return exports;
-+    }
-+
-+    ret = OH_NativeXComponent_GetXComponentId(nativeXComponent, idStr, &idSize);
-+    if (ret != OH_NATIVEXCOMPONENT_RESULT_SUCCESS) {
-+        return exports;
-+    }
-+    new QOpenHarmonySurface(nativeXComponent);
-+
++#ifndef QT_NO_CLIPBOARD
++    QtOpenHarmonyClipboard::init(env, exports);
++#endif
++    m_env = env;
 +    return exports;
 +}
 +EXTERN_C_END
@@ -1536,7 +1598,7 @@ index 0000000000..b323998e3e
 +    .nm_flags = 0,
 +    .nm_filename = nullptr,
 +    .nm_register_func = Init,
-+    .nm_modname = "qopenharmony",
++    .nm_modname = "plugins_platforms_qopenharmony",
 +    .nm_priv = ((void*)0),
 +    .reserved = { 0 },
 +};
@@ -1557,12 +1619,90 @@ index 0000000000..b323998e3e
 +{
 +    return m_density;
 +}
++
++#define GET_JS_FUNCTION(functionName) \
++    napi_value global; \
++    napi_value nativeAdapter; \
++    napi_status status = napi_get_global(m_env, &global); \
++    if (status != napi_ok) { \
++        LOGE("[getClassObject] napi_get_global != napi_ok"); \
++        return; \
++    } \
++    napi_value globalThis; \
++    status = napi_get_named_property(m_env, global, "globalThis", &globalThis); \
++    if (status != napi_ok) { \
++        LOGE("[getClassObject] napi_get_named_property globalThis != napi_ok %{public}d", status); \
++        return; \
++    } \
++    status = napi_get_named_property(m_env, globalThis, "nativeadapter", &nativeAdapter); \
++    if (status != napi_ok) { \
++        LOGE("[jni_bridge] napi_get_named_property nativeadapter != napi_ok %{public}d", status); \
++        return; \
++    } \
++    napi_value function = nullptr; \
++    status = napi_get_named_property(m_env, nativeAdapter, #functionName, &function); \
++    if (status != napi_ok) { \
++        LOGE("[jni_bridge] napi_get_named_property status != napi_ok %{public}d %{public}s", status, #functionName); \
++        return; \
++    }
++
++
++void QtOpenHarmony::showInputPanel(bool visible)
++{
++    GET_JS_FUNCTION(showInputPanel);
++    if (function == nullptr) {
++        return;
++    }
++
++    size_t argc = 1;
++    napi_value argv[1] = {0};
++
++    status = napi_get_boolean(m_env, visible, &argv[0]);
++    napi_value return_value;
++    status = napi_call_function(m_env, global, function, argc, argv, &return_value);
++    if (status != napi_ok) {
++        LOGE("[HObjectProxy] napi_call_function status != napi_ok %{public}d showInputPanel", status);
++    }
++}
++
++void QtOpenHarmony::messageBox(long handler, const QString &title, const QString &text, const QStringList &buttons)
++{
++    GET_JS_FUNCTION(messageBox);
++    if (function == nullptr) {
++        return;
++    }
++
++    size_t argc = 4;
++    napi_value argv[4] = {0};
++
++    NAPI_CALL_RETURN_VOID(m_env, napi_create_int64(m_env, handler, &argv[0]));
++    QByteArray _title = title.toUtf8();
++    const char *titleData = _title.constData();
++    NAPI_CALL_RETURN_VOID(m_env, napi_create_string_utf8(m_env, titleData, _title.length(), &argv[1]));
++
++    QByteArray _text = text.toUtf8();
++    const char *textData = _text.constData();
++    NAPI_CALL_RETURN_VOID(m_env, napi_create_string_utf8(m_env, textData, _text.length(), &argv[2]));
++
++    NAPI_CALL_RETURN_VOID(m_env, napi_create_array(m_env, &argv[3]));
++
++    for (int i = 0; i < buttons.count(); ++i) {
++        QByteArray button = buttons.at(i).toUtf8();
++        const char *buttonData = button.constData();
++        napi_value result;
++        NAPI_CALL_RETURN_VOID(m_env, napi_create_string_utf8(m_env, buttonData, button.length(), &result));
++        NAPI_CALL_RETURN_VOID(m_env, napi_set_element(m_env, argv[3], i, result));
++    }
++
++    napi_value return_value;
++    NAPI_CALL_RETURN_VOID(m_env, napi_call_function(m_env, global, function, argc, argv, &return_value));
++}
 diff --git a/src/plugins/platforms/openharmony/qopenharmonymain.h b/src/plugins/platforms/openharmony/qopenharmonymain.h
 new file mode 100644
-index 0000000000..018eb708f7
+index 0000000000..e70b9f6330
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonymain.h
-@@ -0,0 +1,13 @@
+@@ -0,0 +1,17 @@
 +#ifndef QOPENHARMONYMAIN_H
 +#define QOPENHARMONYMAIN_H
 +class QOpenHarmonyPlatformIntegration;
@@ -1572,6 +1712,10 @@ index 0000000000..018eb708f7
 +double scaledDensity();
 +
 +double pixelDensity();
++
++void showInputPanel(bool visible);
++
++void messageBox(long handler, const QString &title, const QString &text, const QStringList &buttons);
 +
 +}
 +
@@ -1930,6 +2074,302 @@ index 0000000000..db75831b39
 +QT_END_NAMESPACE
 +
 +#endif // QOPENHARMONYPLATFORMBACKINGSTORE_H
+diff --git a/src/plugins/platforms/openharmony/qopenharmonyplatformclipboard.cpp b/src/plugins/platforms/openharmony/qopenharmonyplatformclipboard.cpp
+new file mode 100644
+index 0000000000..631ef12db9
+--- /dev/null
++++ b/src/plugins/platforms/openharmony/qopenharmonyplatformclipboard.cpp
+@@ -0,0 +1,57 @@
++#include "qopenharmonyplatformclipboard.h"
++#include "qopenharmonymain.h"
++
++#ifndef QT_NO_CLIPBOARD
++
++QOpenHarmonyPlatformClipboard::QOpenHarmonyPlatformClipboard()
++{
++
++}
++
++QMimeData *QOpenHarmonyPlatformClipboard::mimeData(QClipboard::Mode mode)
++{
++    Q_UNUSED(mode);
++    Q_ASSERT(supportsMode(mode));
++    m_mimeData.setText(QtOpenHarmonyClipboard::hasClipboardText()
++                       ? QtOpenHarmonyClipboard::clipboardText()
++                       : QString());
++    return &m_mimeData;
++}
++
++void QOpenHarmonyPlatformClipboard::setMimeData(QMimeData *data, QClipboard::Mode mode)
++{
++    if (supportsMode(mode))
++        QtOpenHarmonyClipboard::setClipboardText(data != 0 && data->hasText() ? data->text() : QString());
++    if (data != 0)
++        data->deleteLater();
++}
++
++bool QOpenHarmonyPlatformClipboard::supportsMode(QClipboard::Mode mode) const
++{
++    return QClipboard::Clipboard == mode;
++}
++
++#endif // QT_NO_CLIPBOARD
++
++namespace QtOpenHarmonyClipboard {
++napi_value QtOpenHarmonyClipboard::init(napi_env env, napi_value exports)
++{
++    return nullptr;
++}
++
++bool hasClipboardText()
++{
++    return true;
++}
++
++QString clipboardText()
++{
++    return "2222";
++}
++
++void setClipboardText(const QString &text)
++{
++
++}
++
++} // namespace QtOpenHarmonyClipboard
+diff --git a/src/plugins/platforms/openharmony/qopenharmonyplatformclipboard.h b/src/plugins/platforms/openharmony/qopenharmonyplatformclipboard.h
+new file mode 100644
+index 0000000000..a827f8b599
+--- /dev/null
++++ b/src/plugins/platforms/openharmony/qopenharmonyplatformclipboard.h
+@@ -0,0 +1,34 @@
++#ifndef QOPENHARMONYPLATFORMCLIPBOARD_H
++#define QOPENHARMONYPLATFORMCLIPBOARD_H
++
++#include <qpa/qplatformclipboard.h>
++#include <QMimeData>
++#include <napi/native_api.h>
++
++#ifndef QT_NO_CLIPBOARD
++
++namespace QtOpenHarmonyClipboard {
++
++napi_value init(napi_env env, napi_value exports);
++bool hasClipboardText();
++QString clipboardText();
++void setClipboardText(const QString &text);
++
++}// namespace QtOpenHarmonyClipboard
++
++class QOpenHarmonyPlatformClipboard: public QPlatformClipboard
++{
++public:
++    QOpenHarmonyPlatformClipboard();
++
++    QMimeData *mimeData(QClipboard::Mode mode = QClipboard::Clipboard) override;
++    void setMimeData(QMimeData *data, QClipboard::Mode mode = QClipboard::Clipboard) override;
++    bool supportsMode(QClipboard::Mode mode) const override;
++
++private:
++    QMimeData m_mimeData;
++};
++
++#endif // QT_NO_CLIPBOARD
++
++#endif // QOPENHARMONYPLATFORMCLIPBOARD_H
+diff --git a/src/plugins/platforms/openharmony/qopenharmonyplatformdialoghelpers.cpp b/src/plugins/platforms/openharmony/qopenharmonyplatformdialoghelpers.cpp
+new file mode 100644
+index 0000000000..085229d4a3
+--- /dev/null
++++ b/src/plugins/platforms/openharmony/qopenharmonyplatformdialoghelpers.cpp
+@@ -0,0 +1,139 @@
++#include "qopenharmonyplatformdialoghelpers.h"
++#include "qopenharmonymain.h"
++#include "qopenharmonydefines.h"
++
++#include <private/qguiapplication_p.h>
++#include <qpa/qplatformtheme.h>
++#include <QDebug>
++#include <QTextDocument>
++
++
++namespace QtOpenHarmonyDialogHelpers {
++
++QOpenHarmonyPlatformMessageDialogHelper::QOpenHarmonyPlatformMessageDialogHelper()
++    : m_buttonId(-1)
++    , m_shown(false)
++{
++
++}
++
++void QOpenHarmonyPlatformMessageDialogHelper::exec()
++{
++    if (!m_shown)
++        show(Qt::Dialog, Qt::ApplicationModal, 0);
++     m_loop.exec();
++}
++
++static QString htmlText(QString text)
++{
++    if (Qt::mightBeRichText(text))
++        return text;
++    text.remove(QLatin1Char('\r'));
++    return text.toHtmlEscaped().replace(QLatin1Char('\n'), QLatin1String("<br />"));
++}
++
++bool QOpenHarmonyPlatformMessageDialogHelper::show(Qt::WindowFlags windowFlags
++                                         , Qt::WindowModality windowModality
++                                         , QWindow *parent)
++{
++    Q_UNUSED(windowFlags)
++    Q_UNUSED(windowModality)
++    Q_UNUSED(parent)
++    QSharedPointer<QMessageDialogOptions> opt = options();
++    if (!opt.data())
++        return false;
++
++    qDebug() << "2222222222222222222222222" << opt->icon();
++    qDebug() << "2222222222222222222222222" << htmlText(opt->windowTitle());
++    qDebug() << "2222222222222222222222222" << htmlText(opt->text());
++
++    m_buttons.clear();
++    m_stanardButton.clear();
++    const int * currentLayout = buttonLayout(Qt::Horizontal);
++    while (*currentLayout != QPlatformDialogHelper::EOL) {
++        int role = (*currentLayout & ~QPlatformDialogHelper::Reverse);
++        addButtons(opt, static_cast<ButtonRole>(role));
++        ++currentLayout;
++    }
++    QtOpenHarmony::messageBox(long(static_cast<QObject*>(this)), htmlText(opt->windowTitle()), htmlText(opt->text()), m_buttons);
++    m_shown = true;
++    return true;
++}
++
++void QOpenHarmonyPlatformMessageDialogHelper::addButtons(QSharedPointer<QMessageDialogOptions> opt, ButtonRole role)
++{
++    for (const QMessageDialogOptions::CustomButton &b : opt->customButtons()) {
++        if (b.role == role) {
++            QString label = b.label;
++            label.remove(QChar('&'));
++        }
++    }
++
++    for (int i = QPlatformDialogHelper::FirstButton; i < QPlatformDialogHelper::LastButton; i<<=1) {
++        StandardButton b = static_cast<StandardButton>(i);
++        if (buttonRole(b) == role && (opt->standardButtons() & i)) {
++            const QString text = QGuiApplicationPrivate::platformTheme()->standardButtonText(b);
++            m_buttons << text;
++            m_stanardButton << b;
++        }
++    }
++}
++
++void QOpenHarmonyPlatformMessageDialogHelper::hide()
++{
++    m_shown = false;
++}
++
++void QOpenHarmonyPlatformMessageDialogHelper::dialogResult(int buttonID)
++{
++    m_buttonId = buttonID;
++    if (m_loop.isRunning())
++        m_loop.exit();
++    if (m_buttonId < 0) {
++        emit reject();
++        return;
++    }
++
++//    QPlatformDialogHelper::StandardButton standardButton = static_cast<QPlatformDialogHelper::StandardButton>(buttonID);
++    QPlatformDialogHelper::StandardButton standardButton = m_stanardButton.at(buttonID);
++    QPlatformDialogHelper::ButtonRole role = QPlatformDialogHelper::buttonRole(standardButton);
++    if (buttonID > QPlatformDialogHelper::LastButton) {
++        const QMessageDialogOptions::CustomButton *custom = options()->customButton(buttonID);
++        Q_ASSERT(custom);
++        role = custom->role;
++    }
++    emit clicked(standardButton, role);
++}
++
++static napi_value dialogResult(napi_env env, napi_callback_info info)
++{
++    napi_status status;
++    size_t argc = 2;
++    napi_value args[2];
++    NAPI_CALL(env, napi_get_cb_info(env, info, &argc, args, nullptr, nullptr));
++
++    if (argc != 2) {
++        napi_throw_type_error(env, NULL, "Wrong number of arguments");
++        return nullptr;
++    }
++
++    int64_t value0;
++    napi_get_value_int64(env, args[0], &value0);
++
++    int32_t value1;
++    napi_get_value_int32(env, args[1], &value1);
++
++    QObject *object = reinterpret_cast<QObject *>(value0);
++    QMetaObject::invokeMethod(object, "dialogResult", Qt::QueuedConnection, Q_ARG(int, value1));
++    return nullptr;
++}
++
++napi_value init(napi_env env, napi_value exports)
++{
++    napi_property_descriptor desc[] ={
++        DECLARE_NAPI_FUNCTION("dialogResult", dialogResult),
++    };
++    NAPI_CALL(env, napi_define_properties(env, exports, sizeof(desc) / sizeof(desc[0]), desc));
++}
++
++}
+diff --git a/src/plugins/platforms/openharmony/qopenharmonyplatformdialoghelpers.h b/src/plugins/platforms/openharmony/qopenharmonyplatformdialoghelpers.h
+new file mode 100644
+index 0000000000..3efaf07940
+--- /dev/null
++++ b/src/plugins/platforms/openharmony/qopenharmonyplatformdialoghelpers.h
+@@ -0,0 +1,42 @@
++#ifndef QOPENHARMONYPLATFORMDIALOGHELPERS_H
++#define QOPENHARMONYPLATFORMDIALOGHELPERS_H
++
++#include <qpa/qplatformdialoghelper.h>
++#include <napi/native_api.h>
++
++#include <QList>
++#include <QEventLoop>
++
++namespace QtOpenHarmonyDialogHelpers {
++
++
++class QOpenHarmonyPlatformMessageDialogHelper: public QPlatformMessageDialogHelper
++{
++    Q_OBJECT
++public:
++    QOpenHarmonyPlatformMessageDialogHelper();
++    void exec() override;
++    bool show(Qt::WindowFlags windowFlags,
++              Qt::WindowModality windowModality,
++              QWindow *parent) override;
++    void hide() override;
++
++public slots:
++    void dialogResult(int buttonID);
++
++private:
++    void addButtons(QSharedPointer<QMessageDialogOptions> opt, ButtonRole role);
++
++private:
++    int m_buttonId;
++    QEventLoop m_loop;
++    bool m_shown;
++    QStringList m_buttons;
++    QList<QPlatformDialogHelper::StandardButton> m_stanardButton;
++};
++
++
++napi_value init(napi_env env, napi_value exports);
++
++}
++#endif // QOPENHARMONYPLATFORMDIALOGHELPERS_H
 diff --git a/src/plugins/platforms/openharmony/qopenharmonyplatformfontdatabase.cpp b/src/plugins/platforms/openharmony/qopenharmonyplatformfontdatabase.cpp
 new file mode 100644
 index 0000000000..86da3824a5
@@ -2090,10 +2530,10 @@ index 0000000000..7676f9fa31
 +#endif // QOPENHARMONYPLATFORMFOREIGNWINDOW_H
 diff --git a/src/plugins/platforms/openharmony/qopenharmonyplatforminputcontext.cpp b/src/plugins/platforms/openharmony/qopenharmonyplatforminputcontext.cpp
 new file mode 100644
-index 0000000000..b90eff4fca
+index 0000000000..8f1447102a
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonyplatforminputcontext.cpp
-@@ -0,0 +1,161 @@
+@@ -0,0 +1,188 @@
 +#include "qopenharmonyplatforminputcontext.h"
 +#include "qopenharmonyplatformscreen.h"
 +#include "qopenharmonyplatformintegration.h"
@@ -2134,6 +2574,13 @@ index 0000000000..b90eff4fca
 +    return m_openHarmonyInputContext;
 +}
 +
++void QOpenHarmonyPlatformInputContext::invokeAction(QInputMethod::Action act, int cursorPosition)
++{
++    qInfo() << "QOpenHarmonyPlatformInputContext<===================invokeAction:"
++            << act
++            << cursorPosition;
++}
++
 +void QOpenHarmonyPlatformInputContext::setPlatformIntegration(QOpenHarmonyPlatformIntegration *integration)
 +{
 +    m_integration = integration;
@@ -2167,7 +2614,7 @@ index 0000000000..b90eff4fca
 +        state = Qt::TouchPointMoved;
 +        break;
 +    case 3:
-+//        state = Qt::TouchPointStationary;
++        //        state = Qt::TouchPointStationary;
 +        break;
 +    default:
 +        break;
@@ -2180,7 +2627,7 @@ index 0000000000..b90eff4fca
 +    QWindowSystemInterface::TouchPoint touchPoint;
 +    touchPoint.id = id;
 +    touchPoint.pressure = static_cast<qreal>(force);
-+//    touchPoint.rotation = qRadiansToDegrees(rotation);
++    //    touchPoint.rotation = qRadiansToDegrees(rotation);
 +    touchPoint.rotation = 0;
 +    touchPoint.normalPosition = QPointF(double(x / dw), double(y / dh));
 +    touchPoint.state = state;
@@ -2221,6 +2668,26 @@ index 0000000000..b90eff4fca
 +    QWindowSystemInterface::handleTouchEvent(window, touchDevice, m_touchPoints);
 +}
 +
++void QOpenHarmonyPlatformInputContext::reset()
++{
++    qInfo() << "QOpenHarmonyPlatformInputContext<===================reset:";
++}
++
++void QOpenHarmonyPlatformInputContext::showInputPanel()
++{
++    qInfo() << "QOpenHarmonyPlatformInputContext<===================showInputPanel:";
++}
++
++void QOpenHarmonyPlatformInputContext::hideInputPanel()
++{
++    qInfo() << "QOpenHarmonyPlatformInputContext<===================hideInputPanel:";
++}
++
++void QOpenHarmonyPlatformInputContext::update(Qt::InputMethodQueries)
++{
++    qInfo() << "QOpenHarmonyPlatformInputContext<============================update";
++}
++
 +void QOpenHarmonyPlatformInputContext::mousePress(float x, float y)
 +{
 +    if ((m_integration == nullptr) || m_ignoreMouseEvents)
@@ -2228,7 +2695,7 @@ index 0000000000..b90eff4fca
 +
 +    QPoint globalPos(x,y);
 +    QWindow *tlw = m_integration->screen()->topLevelAt(globalPos);
-+//    m_mouseGrabber = tlw;
++    //    m_mouseGrabber = tlw;
 +    QPoint localPos = tlw ? (globalPos - tlw->position()) : globalPos;
 +    QWindowSystemInterface::handleMouseEvent(tlw, localPos, globalPos,
 +                                             Qt::MouseButtons(Qt::LeftButton),
@@ -2242,7 +2709,7 @@ index 0000000000..b90eff4fca
 +
 +    QPoint globalPos(x,y);
 +    QWindow *tlw = m_integration->screen()->topLevelAt(globalPos);
-+//    m_mouseGrabber = tlw;
++    //    m_mouseGrabber = tlw;
 +    QPoint localPos = tlw ? (globalPos - tlw->position()) : globalPos;
 +    QWindowSystemInterface::handleMouseEvent(tlw, localPos, globalPos,
 +                                             Qt::MouseButtons(Qt::LeftButton),
@@ -2257,10 +2724,10 @@ index 0000000000..b90eff4fca
 +QT_END_NAMESPACE
 diff --git a/src/plugins/platforms/openharmony/qopenharmonyplatforminputcontext.h b/src/plugins/platforms/openharmony/qopenharmonyplatforminputcontext.h
 new file mode 100644
-index 0000000000..048cb84968
+index 0000000000..f7bed895e4
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonyplatforminputcontext.h
-@@ -0,0 +1,47 @@
+@@ -0,0 +1,46 @@
 +#ifndef QOPENHARMONYPLATFORMINPUTCONTEXT_H
 +#define QOPENHARMONYPLATFORMINPUTCONTEXT_H
 +
@@ -2279,20 +2746,19 @@ index 0000000000..048cb84968
 +public:
 +    QOpenHarmonyPlatformInputContext();
 +    ~QOpenHarmonyPlatformInputContext() override;
-+    static QOpenHarmonyPlatformInputContext * openHarmonyInputContext();
-+
-+    void setPlatformIntegration(QOpenHarmonyPlatformIntegration *integration);
 +
 +    void clear();
-+
-+    bool isValid() const override { return true; }
-+
-+    // for touch
 +    void touchBegin();
-+
-+    void touchAdd(int id, int action, float force, float x, float y);
-+
 +    void touchEnd(int id);
++    void reset() override;
++    void showInputPanel() override;
++    void hideInputPanel() override;
++    void update(Qt::InputMethodQueries) override;
++    bool isValid() const override { return true; }
++    void touchAdd(int id, int action, float force, float x, float y);
++    static QOpenHarmonyPlatformInputContext * openHarmonyInputContext();
++    void invokeAction(QInputMethod::Action act, int cursorPosition) override;
++    void setPlatformIntegration(QOpenHarmonyPlatformIntegration *integration);
 +
 +public slots:
 +    void mousePress(float x, float y);
@@ -2310,10 +2776,10 @@ index 0000000000..048cb84968
 +#endif // QOPENHARMONYPLATFORMINPUTCONTEXT_H
 diff --git a/src/plugins/platforms/openharmony/qopenharmonyplatformintegration.cpp b/src/plugins/platforms/openharmony/qopenharmonyplatformintegration.cpp
 new file mode 100644
-index 0000000000..02d1aaaf17
+index 0000000000..c7a3163bde
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonyplatformintegration.cpp
-@@ -0,0 +1,234 @@
+@@ -0,0 +1,252 @@
 +#include "qopenharmonyplatformintegration.h"
 +
 +#include <QtGui/private/qguiapplication_p.h>
@@ -2337,6 +2803,8 @@ index 0000000000..02d1aaaf17
 +#include "qopenharmonyplatformfontdatabase.h"
 +#include "qopenharmonyplatformoffscreensurface.h"
 +#include "qopenharmonyplatforminputcontext.h"
++#include "qopenharmonyplatformtheme.h"
++#include "qopenharmonyplatformclipboard.h"
 +#include "qopenharmonydefines.h"
 +#include "qopenharmonyeglcore.h"
 +
@@ -2378,6 +2846,10 @@ index 0000000000..02d1aaaf17
 +    m_primaryScreen->setAvailableGeometry(QRect(0, 0, m_defaultGeometryWidth, m_defaultGeometryHeight));
 +
 +    m_mainThread = QThread::currentThread();
++
++#ifndef QT_NO_CLIPBOARD
++    m_platformClipboard.reset(new QOpenHarmonyPlatformClipboard);
++#endif
 +}
 +
 +
@@ -2492,6 +2964,11 @@ index 0000000000..02d1aaaf17
 +    return QStringList(QString(openharmonyThemeName));
 +}
 +
++QPlatformTheme *QOpenHarmonyPlatformIntegration::createPlatformTheme(const QString &name) const
++{
++    return new QOpenHarmonyPlatformTheme;
++}
++
 +void QOpenHarmonyPlatformIntegration::setDefaultDisplayMetrics(int gw, int gh, int sw, int sh, int screenWidth, int screenHeight)
 +{
 +    m_defaultGeometryWidth = gw;
@@ -2547,13 +3024,20 @@ index 0000000000..02d1aaaf17
 +    return m_harmonyFontDatabase.data();
 +}
 +
++//#ifndef QT_NO_CLIPBOARD
++//QPlatformClipboard *QOpenHarmonyPlatformIntegration::clipboard() const
++//{
++//    return m_platformClipboard.data();
++//}
++//#endif
++
 +QT_END_NAMESPACE
 diff --git a/src/plugins/platforms/openharmony/qopenharmonyplatformintegration.h b/src/plugins/platforms/openharmony/qopenharmonyplatformintegration.h
 new file mode 100644
-index 0000000000..913e826bc5
+index 0000000000..4290b30617
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonyplatformintegration.h
-@@ -0,0 +1,115 @@
+@@ -0,0 +1,119 @@
 +#ifndef QOPENHARMONYPLATFORMINTERATION_H
 +#define QOPENHARMONYPLATFORMINTERATION_H
 +
@@ -2623,7 +3107,7 @@ index 0000000000..913e826bc5
 +    Qt::WindowState defaultWindowState(Qt::WindowFlags flags) const override;
 +
 +    QStringList themeNames() const override;
-+//    QPlatformTheme *createPlatformTheme(const QString &name) const override;
++    QPlatformTheme *createPlatformTheme(const QString &name) const override;
 +
 +    static void setDefaultDisplayMetrics(int gw, int gh, int sw, int sh, int width, int height);
 +    static void setDefaultDesktopSize(int gw, int gh);
@@ -2664,6 +3148,10 @@ index 0000000000..913e826bc5
 +    QScopedPointer<QOpenHarmonyPlatformFontDatabase> m_harmonyFontDatabase;
 +
 +    QScopedPointer<QPlatformInputContext> m_platformInputContext;
++
++#ifndef QT_NO_CLIPBOARD
++    QScopedPointer<QPlatformClipboard> m_platformClipboard;
++#endif
 +};
 +
 +QT_END_NAMESPACE
@@ -3454,6 +3942,73 @@ index 0000000000..fff2153a26
 +
 +QT_END_NAMESPACE
 +#endif
+diff --git a/src/plugins/platforms/openharmony/qopenharmonyplatformtheme.cpp b/src/plugins/platforms/openharmony/qopenharmonyplatformtheme.cpp
+new file mode 100644
+index 0000000000..5e343e163f
+--- /dev/null
++++ b/src/plugins/platforms/openharmony/qopenharmonyplatformtheme.cpp
+@@ -0,0 +1,40 @@
++#include "qopenharmonyplatformtheme.h"
++#include "qopenharmonyplatformdialoghelpers.h"
++
++#include <QCoreApplication>
++
++QOpenHarmonyPlatformTheme::QOpenHarmonyPlatformTheme()
++{
++
++}
++
++QString QOpenHarmonyPlatformTheme::standardButtonText(int button) const
++{
++    switch (button) {
++    case QPlatformDialogHelper::Yes:
++        return QCoreApplication::translate("QOpenHarmonyPlatformTheme", "Yes");
++    case QPlatformDialogHelper::YesToAll:
++        return QCoreApplication::translate("QOpenHarmonyPlatformTheme", "Yes to All");
++    case QPlatformDialogHelper::No:
++        return QCoreApplication::translate("QOpenHarmonyPlatformTheme", "No");
++    case QPlatformDialogHelper::NoToAll:
++        return QCoreApplication::translate("QOpenHarmonyPlatformTheme", "No to All");
++    }
++    return QPlatformTheme::standardButtonText(button);
++}
++
++bool QOpenHarmonyPlatformTheme::usePlatformNativeDialog(QPlatformTheme::DialogType type) const
++{
++    Q_UNUSED(type)
++    return true;
++}
++
++QPlatformDialogHelper *QOpenHarmonyPlatformTheme::createPlatformDialogHelper(QPlatformTheme::DialogType type) const
++{
++    switch (type) {
++    case MessageDialog:
++        return new QtOpenHarmonyDialogHelpers::QOpenHarmonyPlatformMessageDialogHelper;
++    default:
++        return 0;
++    }
++}
+diff --git a/src/plugins/platforms/openharmony/qopenharmonyplatformtheme.h b/src/plugins/platforms/openharmony/qopenharmonyplatformtheme.h
+new file mode 100644
+index 0000000000..06de62426a
+--- /dev/null
++++ b/src/plugins/platforms/openharmony/qopenharmonyplatformtheme.h
+@@ -0,0 +1,15 @@
++#ifndef QOPENHARMONYPLATFORMTHEME_H
++#define QOPENHARMONYPLATFORMTHEME_H
++
++#include <qpa/qplatformtheme.h>
++
++class QOpenHarmonyPlatformTheme: public QPlatformTheme
++{
++public:
++    QOpenHarmonyPlatformTheme();
++    virtual QString standardButtonText(int button) const override;
++    bool usePlatformNativeDialog(DialogType type) const override;
++    QPlatformDialogHelper *createPlatformDialogHelper(DialogType type) const override;
++};
++
++#endif // QOPENHARMONYPLATFORMTHEME_H
 diff --git a/src/plugins/platforms/openharmony/qopenharmonyplatformwindow.cpp b/src/plugins/platforms/openharmony/qopenharmonyplatformwindow.cpp
 new file mode 100644
 index 0000000000..46efa83825
