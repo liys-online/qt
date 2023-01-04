@@ -1290,10 +1290,10 @@ index 0000000000..51fe72e96e
 +#endif // QOPENHARMONYEVENTDISPATCHER_H
 diff --git a/src/plugins/platforms/openharmony/qopenharmonymain.cpp b/src/plugins/platforms/openharmony/qopenharmonymain.cpp
 new file mode 100644
-index 0000000000..72ed123847
+index 0000000000..44329faa66
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonymain.cpp
-@@ -0,0 +1,403 @@
+@@ -0,0 +1,405 @@
 +#include <memory>
 +#include <dlfcn.h>
 +#include <pthread.h>
@@ -1437,6 +1437,40 @@ index 0000000000..72ed123847
 +    std::unique_ptr<char[]> str1 = std::make_unique<char[]>(bufLen);
 +    NAPI_CALL(env, napi_get_value_string_utf8(env, args[1], str1.get(), bufLen, &strLen));
 +
++    QByteArray arg(str.get());
++    QByteArrayList argsList = arg.split(';');
++    if (argsList.isEmpty()) {
++        qWarning() << "args is vaild";
++        return nullptr;
++    }
++
++    QByteArray bundle = argsList.at(4);
++    if (bundle.isEmpty()) {
++        qWarning() << "args is vaild";
++        return nullptr;
++    }
++    QByteArray libDir = bundle + "/libs/arm";
++    QByteArray resourcesDir = bundle + "/entry/resources/rawfile";
++
++
++    if (::setenv("QT_QPA_PLATFORM_PLUGIN_PATH", libDir.constData(), 1) != 0) {
++         qWarning() << "Can't set environment for QT_PLUGIN_PATH";
++    }
++    if (::setenv("QML_DISABLE_DISK_CACHE", "1", 1) != 0) {
++        qWarning() << "Can't set environment for QML_DISABLE_DISK_CACHE";
++    }
++    if (::setenv("QT_PLUGIN_PATH", libDir.constData(), 1) != 0) {
++        qWarning() << "Can't set environment for QT_PLUGIN_PATH";
++    }
++
++    if (::setenv("QML2_IMPORT_PATH", resourcesDir.constData(), 1) != 0) {
++        qWarning() << "Can't set environment for QML2_IMPORT_PATH" << getenv("QML2_IMPORT_PATH");
++    }
++
++    if (::setenv("QT_DEBUG_PLUGINS", "1", 1) != 0) {
++        qWarning() << "Can't set environment for QT_DEBUG_PLUGINS" << getenv("QT_DEBUG_PLUGINS");
++    }
++
 +    m_mainLibraryHnd = nullptr;
 +
 +    //look for main()
@@ -1577,11 +1611,9 @@ index 0000000000..72ed123847
 +
 +    qInstallMessageHandler(openHarmonyMessageOutput);
 +
-+    if (static_cast<QGuiApplication*>(qApp)) {
-+        getSurface(env, exports);
-+        QtOpenHarmonyDialogHelpers::init(env, exports);
-+    }
++    getSurface(env, exports);
 +
++    QtOpenHarmonyDialogHelpers::init(env, exports);
 +#ifndef QT_NO_CLIPBOARD
 +    QtOpenHarmonyClipboard::init(env, exports);
 +#endif
