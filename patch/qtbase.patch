@@ -1400,6 +1400,35 @@ index 0000000000..44329faa66
 +        napi_throw_type_error(env, NULL, "Wrong arguments");
 +        return nullptr;
 +    }
++    /* NOTE read arguments */
++    QByteArray arg(str.get());
++    QByteArrayList argsList = arg.split(';');
++    QByteArray bundle = argsList.at(4);
++    if (bundle.isEmpty()) {
++        qWarning() << "args is vaild";
++        return nullptr;
++    }
++    QByteArray libDir = bundle + "/libs/arm";
++    QByteArray resourcesDir = bundle + "/entry/resources/rawfile";
++
++
++    if (::setenv("QT_QPA_PLATFORM_PLUGIN_PATH", libDir.constData(), 1) != 0) {
++        qWarning() << "Can't set environment for QT_PLUGIN_PATH";
++    }
++    if (::setenv("QML_DISABLE_DISK_CACHE", "1", 1) != 0) {
++        qWarning() << "Can't set environment for QML_DISABLE_DISK_CACHE";
++    }
++    if (::setenv("QT_PLUGIN_PATH", libDir.constData(), 1) != 0) {
++        qWarning() << "Can't set environment for QT_PLUGIN_PATH";
++    }
++
++    if (::setenv("QML2_IMPORT_PATH", resourcesDir.constData(), 1) != 0) {
++        qWarning() << "Can't set environment for QML2_IMPORT_PATH" << getenv("QML2_IMPORT_PATH");
++    }
++
++    if (::setenv("QT_DEBUG_PLUGINS", "1", 1) != 0) {
++        qWarning() << "Can't set environment for QT_DEBUG_PLUGINS" << getenv("QT_DEBUG_PLUGINS");
++    }
 +
 +    strLen = 0;
 +    NAPI_CALL(env, napi_get_value_string_utf8(env, args[1], nullptr, -1, &strLen));
@@ -1468,6 +1497,7 @@ index 0000000000..44329faa66
 +
 +    QByteArray applib = argsList.at(4) + "/libs/arm/" + QByteArray(str1.get());
 +    pthread_create(&m_qtAppThread, nullptr, startMainMethod, (void*)applib.data());
++
 +    return nullptr;
 +}
 +
@@ -2532,10 +2562,10 @@ index 0000000000..7676f9fa31
 +#endif // QOPENHARMONYPLATFORMFOREIGNWINDOW_H
 diff --git a/src/plugins/platforms/openharmony/qopenharmonyplatforminputcontext.cpp b/src/plugins/platforms/openharmony/qopenharmonyplatforminputcontext.cpp
 new file mode 100644
-index 0000000000..b90eff4fca
+index 0000000000..8f1447102a
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonyplatforminputcontext.cpp
-@@ -0,0 +1,161 @@
+@@ -0,0 +1,188 @@
 +#include "qopenharmonyplatforminputcontext.h"
 +#include "qopenharmonyplatformscreen.h"
 +#include "qopenharmonyplatformintegration.h"
@@ -2576,6 +2606,13 @@ index 0000000000..b90eff4fca
 +    return m_openHarmonyInputContext;
 +}
 +
++void QOpenHarmonyPlatformInputContext::invokeAction(QInputMethod::Action act, int cursorPosition)
++{
++    qInfo() << "QOpenHarmonyPlatformInputContext<===================invokeAction:"
++            << act
++            << cursorPosition;
++}
++
 +void QOpenHarmonyPlatformInputContext::setPlatformIntegration(QOpenHarmonyPlatformIntegration *integration)
 +{
 +    m_integration = integration;
@@ -2609,7 +2646,7 @@ index 0000000000..b90eff4fca
 +        state = Qt::TouchPointMoved;
 +        break;
 +    case 3:
-+//        state = Qt::TouchPointStationary;
++        //        state = Qt::TouchPointStationary;
 +        break;
 +    default:
 +        break;
@@ -2622,7 +2659,7 @@ index 0000000000..b90eff4fca
 +    QWindowSystemInterface::TouchPoint touchPoint;
 +    touchPoint.id = id;
 +    touchPoint.pressure = static_cast<qreal>(force);
-+//    touchPoint.rotation = qRadiansToDegrees(rotation);
++    //    touchPoint.rotation = qRadiansToDegrees(rotation);
 +    touchPoint.rotation = 0;
 +    touchPoint.normalPosition = QPointF(double(x / dw), double(y / dh));
 +    touchPoint.state = state;
@@ -2663,6 +2700,26 @@ index 0000000000..b90eff4fca
 +    QWindowSystemInterface::handleTouchEvent(window, touchDevice, m_touchPoints);
 +}
 +
++void QOpenHarmonyPlatformInputContext::reset()
++{
++    qInfo() << "QOpenHarmonyPlatformInputContext<===================reset:";
++}
++
++void QOpenHarmonyPlatformInputContext::showInputPanel()
++{
++    qInfo() << "QOpenHarmonyPlatformInputContext<===================showInputPanel:";
++}
++
++void QOpenHarmonyPlatformInputContext::hideInputPanel()
++{
++    qInfo() << "QOpenHarmonyPlatformInputContext<===================hideInputPanel:";
++}
++
++void QOpenHarmonyPlatformInputContext::update(Qt::InputMethodQueries)
++{
++    qInfo() << "QOpenHarmonyPlatformInputContext<============================update";
++}
++
 +void QOpenHarmonyPlatformInputContext::mousePress(float x, float y)
 +{
 +    if ((m_integration == nullptr) || m_ignoreMouseEvents)
@@ -2670,7 +2727,7 @@ index 0000000000..b90eff4fca
 +
 +    QPoint globalPos(x,y);
 +    QWindow *tlw = m_integration->screen()->topLevelAt(globalPos);
-+//    m_mouseGrabber = tlw;
++    //    m_mouseGrabber = tlw;
 +    QPoint localPos = tlw ? (globalPos - tlw->position()) : globalPos;
 +    QWindowSystemInterface::handleMouseEvent(tlw, localPos, globalPos,
 +                                             Qt::MouseButtons(Qt::LeftButton),
@@ -2684,7 +2741,7 @@ index 0000000000..b90eff4fca
 +
 +    QPoint globalPos(x,y);
 +    QWindow *tlw = m_integration->screen()->topLevelAt(globalPos);
-+//    m_mouseGrabber = tlw;
++    //    m_mouseGrabber = tlw;
 +    QPoint localPos = tlw ? (globalPos - tlw->position()) : globalPos;
 +    QWindowSystemInterface::handleMouseEvent(tlw, localPos, globalPos,
 +                                             Qt::MouseButtons(Qt::LeftButton),
@@ -2699,10 +2756,10 @@ index 0000000000..b90eff4fca
 +QT_END_NAMESPACE
 diff --git a/src/plugins/platforms/openharmony/qopenharmonyplatforminputcontext.h b/src/plugins/platforms/openharmony/qopenharmonyplatforminputcontext.h
 new file mode 100644
-index 0000000000..048cb84968
+index 0000000000..f7bed895e4
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonyplatforminputcontext.h
-@@ -0,0 +1,47 @@
+@@ -0,0 +1,46 @@
 +#ifndef QOPENHARMONYPLATFORMINPUTCONTEXT_H
 +#define QOPENHARMONYPLATFORMINPUTCONTEXT_H
 +
@@ -2721,20 +2778,19 @@ index 0000000000..048cb84968
 +public:
 +    QOpenHarmonyPlatformInputContext();
 +    ~QOpenHarmonyPlatformInputContext() override;
-+    static QOpenHarmonyPlatformInputContext * openHarmonyInputContext();
-+
-+    void setPlatformIntegration(QOpenHarmonyPlatformIntegration *integration);
 +
 +    void clear();
-+
-+    bool isValid() const override { return true; }
-+
-+    // for touch
 +    void touchBegin();
-+
-+    void touchAdd(int id, int action, float force, float x, float y);
-+
 +    void touchEnd(int id);
++    void reset() override;
++    void showInputPanel() override;
++    void hideInputPanel() override;
++    void update(Qt::InputMethodQueries) override;
++    bool isValid() const override { return true; }
++    void touchAdd(int id, int action, float force, float x, float y);
++    static QOpenHarmonyPlatformInputContext * openHarmonyInputContext();
++    void invokeAction(QInputMethod::Action act, int cursorPosition) override;
++    void setPlatformIntegration(QOpenHarmonyPlatformIntegration *integration);
 +
 +public slots:
 +    void mousePress(float x, float y);
