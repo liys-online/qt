@@ -599,10 +599,10 @@ index 0000000000..886625295c
 +}
 diff --git a/src/plugins/platforms/openharmony/openharmony.pro b/src/plugins/platforms/openharmony/openharmony.pro
 new file mode 100644
-index 0000000000..94e0d8da0f
+index 0000000000..62a5277812
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/openharmony.pro
-@@ -0,0 +1,58 @@
+@@ -0,0 +1,60 @@
 +TARGET = qopenharmony
 +
 +LIBS += -lEGL -lace_napi.z -lace_ndk.z
@@ -631,7 +631,8 @@ index 0000000000..94e0d8da0f
 +    $$PWD/qopenharmonyplatforminputcontext.h \
 +    $$PWD/qopenharmonyplatformtheme.h \
 +    $$PWD/qopenharmonyplatformdialoghelpers.h \
-+    $$PWD/qopenharmonyjscaller.h
++    $$PWD/qopenharmonyjsenvironment.h \
++    $$PWD/qopenharmonyjsobject.h
 +
 +SOURCES += $$PWD/qopenharmonyplatformplugin.cpp \
 +    $$PWD/qopenharmonyplatformwindow.cpp \
@@ -651,7 +652,8 @@ index 0000000000..94e0d8da0f
 +    $$PWD/qopenharmonyplatformtheme.cpp \
 +    $$PWD/qopenharmonyplatformdialoghelpers.cpp \
 +    $$PWD/qopenharmonyplatformclipboard.cpp \
-+    $$PWD/qopenharmonyjscaller.cpp
++    $$PWD/qopenharmonyjsenvironment.cpp \
++    $$PWD/qopenharmonyjsobject.cpp
 +
 +
 +PLUGIN_TYPE = platforms
@@ -663,10 +665,10 @@ index 0000000000..94e0d8da0f
 +
 diff --git a/src/plugins/platforms/openharmony/qopenharmonydefines.h b/src/plugins/platforms/openharmony/qopenharmonydefines.h
 new file mode 100644
-index 0000000000..f8b16b95ec
+index 0000000000..cfd0a3feb0
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonydefines.h
-@@ -0,0 +1,113 @@
+@@ -0,0 +1,97 @@
 +#ifndef QOPENHARMONYDEFINES_H
 +#define QOPENHARMONYDEFINES_H
 +#include <hilog/log.h>
@@ -754,22 +756,6 @@ index 0000000000..f8b16b95ec
 +    {                                                                             \
 +        (name), nullptr, (func), nullptr, nullptr, nullptr, napi_default, nullptr \
 +    }
-+
-+#define GET_JS_FUNCTION(env, functionName, jsObject, retValue) \
-+    napi_value global; \
-+    napi_value jsNativeObject; \
-+    NAPI_CALL_BASE(env, napi_get_global(env, &global), retValue); \
-+    napi_value globalThis; \
-+    NAPI_CALL_BASE(env, napi_get_named_property(env, global, "globalThis", &globalThis), retValue); \
-+    NAPI_CALL_BASE(env, napi_get_named_property(env, globalThis, #jsObject, &jsNativeObject), retValue); \
-+    napi_value function = nullptr; \
-+    NAPI_CALL_BASE(env, napi_get_named_property(env, jsNativeObject, #functionName, &function), retValue); \
-+    if (function == nullptr) { \
-+        LOGE("[jni_bridge] get js function %{public}s failed", #functionName); \
-+        return retValue; \
-+    }
-+
-+#define GET_JS_FUNCTION_RETURN_VOID(env, functionName, jsObject) GET_JS_FUNCTION(env, functionName, jsObject, NAPI_RETVAL_NOTHING)
 +
 +
 +#define APP_LOG_DOMAIN 0x0002
@@ -1306,16 +1292,224 @@ index 0000000000..51fe72e96e
 +
 +
 +#endif // QOPENHARMONYEVENTDISPATCHER_H
-diff --git a/src/plugins/platforms/openharmony/qopenharmonyjscaller.cpp b/src/plugins/platforms/openharmony/qopenharmonyjscaller.cpp
+diff --git a/src/plugins/platforms/openharmony/qopenharmonyjsenvironment.cpp b/src/plugins/platforms/openharmony/qopenharmonyjsenvironment.cpp
 new file mode 100644
-index 0000000000..bf07cc51d0
+index 0000000000..44b30d31d4
 --- /dev/null
-+++ b/src/plugins/platforms/openharmony/qopenharmonyjscaller.cpp
-@@ -0,0 +1,123 @@
-+#include "qopenharmonyjscaller.h"
++++ b/src/plugins/platforms/openharmony/qopenharmonyjsenvironment.cpp
+@@ -0,0 +1,126 @@
++#include "qopenharmonyjsenvironment.h"
++
++napi_env QOpenHarmonyJsEnvironment::m_env = nullptr;
++
++void QOpenHarmonyJsEnvironment::init(napi_env env)
++{
++    m_env = env;
++}
++
++void QOpenHarmonyJsEnvironment::throwError(const QString &errorMessage)
++{
++    QByteArray _data = errorMessage.toUtf8();
++    napi_throw_type_error(m_env, NULL, _data.constData());
++}
++
++napi_value QOpenHarmonyJsEnvironment::createString(const QString &value)
++{
++    QByteArray text = value.toUtf8();
++    const char *textData = text.constData();
++    return createString(textData);
++}
++
++napi_value QOpenHarmonyJsEnvironment::createStringArrary(const QStringList &strList)
++{
++    napi_value result = nullptr;
++    if (napi_ok == napi_create_array(m_env, &result)) {
++        for (int k = 0; k < strList.count(); ++k) {
++            napi_set_element(m_env, result, k, createString(strList.at(k)));
++        }
++    }
++    return result;
++}
++
++napi_value QOpenHarmonyJsEnvironment::globalObject() {
++    napi_value _global;
++    NAPI_CALL(m_env, napi_get_global(m_env, &_global));
++    return _global;
++}
++
++void QOpenHarmonyJsEnvironment::callFunction(napi_value function, int argc, const napi_value *argv)
++{
++    napi_value return_value;
++    NAPI_CALL_RETURN_VOID(m_env, napi_call_function(m_env, globalObject(), function, argc,argv, &return_value));
++}
++
++QString QOpenHarmonyJsEnvironment::getString(napi_value value)
++{
++    size_t strLen = 0;
++    NAPI_CALL_BASE(m_env, napi_get_value_string_utf8(m_env, value, nullptr, -1, &strLen), QString());
++    size_t bufLen = strLen + 1;
++    std::unique_ptr<char[]> strBuffer = std::make_unique<char[]>(bufLen);
++    NAPI_CALL_BASE(m_env, napi_get_value_string_utf8(m_env, value, strBuffer.get(), bufLen, &strLen), QString());
++    QString str = QString::fromUtf8(strBuffer.get());
++    return str;
++}
++
++QByteArray QOpenHarmonyJsEnvironment::getByteArray(napi_value value)
++{
++    size_t strLen = 0;
++    NAPI_CALL_BASE(m_env, napi_get_value_string_utf8(m_env, value, nullptr, -1, &strLen), QByteArray());
++    size_t bufLen = strLen + 1;
++    std::unique_ptr<char[]> strBuffer = std::make_unique<char[]>(bufLen);
++    NAPI_CALL_BASE(m_env, napi_get_value_string_utf8(m_env, value, strBuffer.get(), bufLen, &strLen), QByteArray());
++    QByteArray result = QByteArray(strBuffer.get());
++    return result;
++}
++
++bool QOpenHarmonyJsEnvironment::getBool(napi_value value)
++{
++    bool result;
++    NAPI_CALL_BASE(m_env, napi_get_value_bool(m_env, value, &result), false);
++    return result;
++}
++
++napi_value QOpenHarmonyJsEnvironment::value(napi_value object, const char *name)
++{
++    napi_value result = nullptr;
++    NAPI_CALL(m_env, napi_get_named_property(m_env, object, name, &result));
++    return result;
++}
++
++napi_value QOpenHarmonyJsEnvironment::createString(const char *value)
++{
++    napi_value result;
++    NAPI_CALL(m_env, napi_create_string_utf8(m_env, value, NAPI_AUTO_LENGTH, &result));
++    return result;
++}
++
++napi_value QOpenHarmonyJsEnvironment::createBool(bool value)
++{
++    napi_value result;
++    NAPI_CALL(m_env, napi_get_boolean(m_env, value, &result));
++    return result;
++}
++
++napi_value QOpenHarmonyJsEnvironment::createInt64(qlonglong value)
++{
++    napi_value result;
++    NAPI_CALL(m_env, napi_create_int64(m_env, value, &result));
++    return result;
++}
++
++int64_t QOpenHarmonyJsEnvironment::getInt64(napi_value value)
++{
++    int64_t result;
++    NAPI_CALL_BASE(m_env, napi_get_value_int64(m_env, value, &result), 0);
++    return result;
++}
++
++int32_t QOpenHarmonyJsEnvironment::getInt32(napi_value value)
++{
++    int32_t result;
++    NAPI_CALL_BASE(m_env, napi_get_value_int32(m_env, value, &result), 0);
++    return result;
++}
++
++double QOpenHarmonyJsEnvironment::getDouble(napi_value value)
++{
++//    napi_valuetype valueType;
++//    napi_typeof(m_env, value, &valueType);
++//    if (valueType != napi_number)
++//        return 0;
++    double result;
++    NAPI_CALL_BASE(m_env, napi_get_value_double(m_env, value, &result), 0);
++    return result;
++}
+diff --git a/src/plugins/platforms/openharmony/qopenharmonyjsenvironment.h b/src/plugins/platforms/openharmony/qopenharmonyjsenvironment.h
+new file mode 100644
+index 0000000000..43f21b1cfc
+--- /dev/null
++++ b/src/plugins/platforms/openharmony/qopenharmonyjsenvironment.h
+@@ -0,0 +1,71 @@
++#ifndef QOPENHARMONYJSENVIRONMENT_H
++#define QOPENHARMONYJSENVIRONMENT_H
++
++#include <napi/native_api.h>
++#include <QVariantList>
++
 +#include "qopenharmonydefines.h"
 +
-+#include <QDebug>
++#define qJs QOpenHarmonyJsEnvironment
++
++class QOpenHarmonyJsEnvironment
++{
++public:
++    QOpenHarmonyJsEnvironment();
++    ~QOpenHarmonyJsEnvironment();
++
++    static void init(napi_env env);
++
++    static void throwError(const QString &errorMessage);
++
++    static napi_env env() { return m_env; }
++
++    static napi_value createString(const char *value);
++
++    static napi_value createString(const QString &value);
++
++    static napi_value createBool(bool value);
++
++    static napi_value createInt64(qlonglong value);
++
++    static napi_value createStringArrary(const QStringList &strList);
++
++    static napi_value globalObject();
++
++    static napi_value globalThis()
++    {
++        return value(globalObject(), "globalThis");
++    }
++
++    static napi_value jsObject(const QString &name)
++    {
++        QByteArray nameByte = name.toUtf8();
++        return value(globalThis(), nameByte.constData());
++    }
++
++    static napi_value function(napi_value jsObject, const char *functionName)
++    {
++        return value(jsObject, functionName);
++    }
++
++    static void callFunction(napi_value function, int argc = 0, const napi_value *argv = nullptr);
++
++    static QString getString(napi_value value);
++
++    static QByteArray getByteArray(napi_value value);
++
++    static bool getBool(napi_value value);
++
++    static int64_t getInt64(napi_value value);
++
++    static int32_t getInt32(napi_value value);
++
++    static double getDouble(napi_value value);
++
++private:
++    static napi_value value(napi_value object, const char *name);
++private:
++    static napi_env m_env;
++};
++
++#endif // QOPENHARMONYJSENVIRONMENT_H
+diff --git a/src/plugins/platforms/openharmony/qopenharmonyjsobject.cpp b/src/plugins/platforms/openharmony/qopenharmonyjsobject.cpp
+new file mode 100644
+index 0000000000..c358d10368
+--- /dev/null
++++ b/src/plugins/platforms/openharmony/qopenharmonyjsobject.cpp
+@@ -0,0 +1,102 @@
++#include "qopenharmonyjsobject.h"
++#include "qopenharmonydefines.h"
++#include "qopenharmonyjsenvironment.h"
 +
 +struct JsParams
 +{
@@ -1330,62 +1524,60 @@ index 0000000000..bf07cc51d0
 +        delete p;         \
 +    }
 +
-+napi_env QOpenHarmonyJSCaller::m_env = nullptr;
-+
 +static void call_js(napi_env env, napi_value js_cb, void* context, void* data) {
 +    Q_UNUSED(context);
-+    napi_value global;
++    napi_value global = qJs::globalObject();
 +    JsParams *p = (JsParams*)data;
-+    NAPI_CALL_RETURN_VOID(env, napi_get_global(env, &global));
 +    napi_value return_value;
 +    if (p == nullptr)
-+        napi_call_function(env, global, js_cb, 0, nullptr, &return_value);
++        qJs::callFunction(js_cb);
 +    else {
-+        NAPI_CALL_RETURN_VOID(env, napi_call_function(env, global, js_cb, p->argc, p->argv, &return_value));
++        qJs::callFunction(js_cb, p->argc, p->argv);
 +        FREE_JSPARAMS(p)
 +    }
 +}
 +
-+
-+napi_value QOpenHarmonyJSCaller::init(napi_env env, napi_value exports)
++QOpenHarmonyJsObject::QOpenHarmonyJsObject(const QString &name)
 +{
-+    m_env = env;
-+    return nullptr;
++    m_jsNativeObject = qJs::jsObject(name);
 +}
 +
-+void QOpenHarmonyJSCaller::call(const char *jsObject, const char *jsFunction, const QVariantList &args)
++QOpenHarmonyJsObject::~QOpenHarmonyJsObject()
 +{
-+    callJsFunction(jsObject, jsFunction, args);
++
 +}
 +
-+void QOpenHarmonyJSCaller::callJsFunction(const char *jsObject, const char *jsFunction, const QVariantList &args)
++void QOpenHarmonyJsObject::call(const char *jsFunction, const QVariantList &args)
 +{
-+    qDebug() << "call js function" << jsObject << "::" << jsFunction << "with args: " << args;
-+    napi_value global;
-+    napi_value jsNativeObject;
-+    NAPI_CALL_RETURN_VOID(m_env, napi_get_global(m_env, &global));
-+    napi_value globalThis;
-+    NAPI_CALL_RETURN_VOID(m_env, napi_get_named_property(m_env, global, "globalThis", &globalThis));
-+    NAPI_CALL_RETURN_VOID(m_env, napi_get_named_property(m_env, globalThis, jsObject, &jsNativeObject));
-+    napi_value function = nullptr;
-+    NAPI_CALL_RETURN_VOID(m_env, napi_get_named_property(m_env, jsNativeObject, jsFunction, &function));
++    napi_env env = qJs::env();
++    napi_value function = qJs::function(m_jsNativeObject, jsFunction);
 +    if (function == nullptr) {
 +        LOGE("[jni_bridge] get js function %{public}s failed", jsFunction);
 +        return;
 +    }
 +    napi_threadsafe_function threadsafe_function = nullptr;
-+    napi_value cb_name;
-+    NAPI_CALL_RETURN_VOID(m_env, napi_create_string_utf8(m_env, jsFunction, NAPI_AUTO_LENGTH, &cb_name));
-+    NAPI_CALL_RETURN_VOID(m_env, napi_create_threadsafe_function(m_env, function, nullptr, cb_name, 0, 1, nullptr, nullptr, nullptr, call_js, &threadsafe_function));
++    napi_value cb_name = qJs::createString(jsFunction);
++    NAPI_CALL_RETURN_VOID(env, napi_create_threadsafe_function(env, function, nullptr, cb_name, 0, 1, nullptr, nullptr, nullptr, call_js, &threadsafe_function));
 +    JsParams *p = formatParams(args);
 +    napi_status status = napi_call_threadsafe_function(threadsafe_function, p, napi_tsfn_blocking);
 +    if (status != napi_ok) {
 +        FREE_JSPARAMS(p)
 +    }
-+    NAPI_CALL_RETURN_VOID(m_env, napi_release_threadsafe_function(threadsafe_function, napi_tsfn_release));
++    NAPI_CALL_RETURN_VOID(env, napi_release_threadsafe_function(threadsafe_function, napi_tsfn_release));
 +}
 +
-+JsParams *QOpenHarmonyJSCaller::formatParams(const QVariantList &args)
++void QOpenHarmonyJsObject::wait()
++{
++    m_loop.exec();
++}
++
++void QOpenHarmonyJsObject::cancelWait()
++{
++    if (m_loop.isRunning())
++        m_loop.exit();
++}
++
++JsParams *QOpenHarmonyJsObject::formatParams(const QVariantList &args)
 +{
 +    if (args.isEmpty()) {
 +        return nullptr;
@@ -1399,25 +1591,16 @@ index 0000000000..bf07cc51d0
 +        QVariant::Type t = v.type();
 +        switch (t) {
 +        case QVariant::String:
-+        {
-+            p->argv[i] = createStringValue(v.toString());
-+        }
++            p->argv[i] = qJs::createString(v.toString());
 +            break;
 +        case QVariant::StringList:
-+        {
-+            if (napi_ok == napi_create_array(m_env, &p->argv[i])) {
-+                QStringList list = v.toStringList();
-+                for (int k = 0; k < list.count(); ++k) {
-+                    napi_set_element(m_env, p->argv[i], k, createStringValue(list.at(k)));
-+                }
-+            }
-+        }
++            p->argv[i] = qJs::createStringArrary(v.toStringList());
 +            break;
 +        case QVariant::Bool:
-+            napi_get_boolean(m_env, v.toBool(), &p->argv[i]);
++            p->argv[i] = qJs::createBool(v.toBool());
 +            break;
 +        case QVariant::LongLong:
-+            napi_create_int64(m_env, v.toLongLong(), &p->argv[i]);
++            p->argv[i] = qJs::createInt64(v.toLongLong());
 +            break;
 +        default:
 +            //Todo other type
@@ -1426,52 +1609,48 @@ index 0000000000..bf07cc51d0
 +    }
 +    return p;
 +}
-+
-+napi_value QOpenHarmonyJSCaller::createStringValue(const QString &value)
-+{
-+    QByteArray text = value.toUtf8();
-+    const char *textData = text.constData();
-+    napi_value result;
-+    napi_create_string_utf8(m_env, textData, text.length(), &result);
-+    return result;
-+}
-diff --git a/src/plugins/platforms/openharmony/qopenharmonyjscaller.h b/src/plugins/platforms/openharmony/qopenharmonyjscaller.h
+diff --git a/src/plugins/platforms/openharmony/qopenharmonyjsobject.h b/src/plugins/platforms/openharmony/qopenharmonyjsobject.h
 new file mode 100644
-index 0000000000..2a74ddb0b1
+index 0000000000..853828865e
 --- /dev/null
-+++ b/src/plugins/platforms/openharmony/qopenharmonyjscaller.h
-@@ -0,0 +1,25 @@
-+#ifndef QOPENHARMONYJSCALLER_H
-+#define QOPENHARMONYJSCALLER_H
++++ b/src/plugins/platforms/openharmony/qopenharmonyjsobject.h
+@@ -0,0 +1,30 @@
++#ifndef QOPENHARMONYJSOBJECT_H
++#define QOPENHARMONYJSOBJECT_H
 +
 +#include <napi/native_api.h>
 +#include <QVariantList>
++#include <QEventLoop>
 +
-+#define qJs QOpenHarmonyJSCaller
-+
++//Todo move to qtbase/src/kernel
 +struct JsParams;
-+
-+class QOpenHarmonyJSCaller
++class QOpenHarmonyJsObject
 +{
 +public:
-+    static napi_value init(napi_env env, napi_value exports);
++    QOpenHarmonyJsObject(const QString &name);
++    virtual ~QOpenHarmonyJsObject();
 +
-+    static void call(const char *jsObject, const char *jsFunction, const QVariantList &args = QVariantList());
++    void call(const char *jsFunction, const QVariantList &args = QVariantList());
++
++    void wait();
++
++    void cancelWait();
 +
 +private:
-+    static void callJsFunction(const char *jsObject, const char *jsFunction, const QVariantList &args);
-+    static JsParams *formatParams(const QVariantList &args);
-+    static napi_value createStringValue(const QString &value);
-+    static napi_env m_env;
++    JsParams *formatParams(const QVariantList &args);
++private:
++    QEventLoop m_loop;
++    napi_value m_global;
++    napi_value m_jsNativeObject;
 +};
 +
 +#endif // QOPENHARMONYEGLCORE_H
 diff --git a/src/plugins/platforms/openharmony/qopenharmonymain.cpp b/src/plugins/platforms/openharmony/qopenharmonymain.cpp
 new file mode 100644
-index 0000000000..8e12aab1d6
+index 0000000000..6a2ce52865
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonymain.cpp
-@@ -0,0 +1,297 @@
+@@ -0,0 +1,237 @@
 +#include <memory>
 +#include <dlfcn.h>
 +#include <pthread.h>
@@ -1496,7 +1675,7 @@ index 0000000000..8e12aab1d6
 +#include "qopenharmonyplatformdialoghelpers.h"
 +#include "qopenharmonyplatformclipboard.h"
 +#include "qopenharmonyplatforminputcontext.h"
-+#include "qopenharmonyjscaller.h"
++#include "qopenharmonyjsenvironment.h"
 +
 +extern "C" typedef int (*Main)(int, char **); //use the standard main method to start the application
 +static Main m_main = nullptr;
@@ -1554,33 +1733,8 @@ index 0000000000..8e12aab1d6
 +        return nullptr;
 +    }
 +
-+    napi_valuetype valuetype;
-+    status = napi_typeof(env, args[0], &valuetype);
-+    if (status != napi_ok) {
-+        return nullptr;
-+    }
-+    if (valuetype != napi_string) {
-+        napi_throw_type_error(env, NULL, "Wrong arguments");
-+        return nullptr;
-+    }
-+
-+    size_t strLen = 0;
-+    NAPI_CALL(env, napi_get_value_string_utf8(env, args[0], nullptr, -1, &strLen));
-+
-+    size_t bufLen = strLen + 1;
-+    std::unique_ptr<char[]> str = std::make_unique<char[]>(bufLen);
-+    NAPI_CALL(env, napi_get_value_string_utf8(env, args[0], str.get(), bufLen, &strLen));
-+
-+    status = napi_typeof(env, args[1], &valuetype);
-+    if (status != napi_ok) {
-+        return nullptr;
-+    }
-+    if (valuetype != napi_string) {
-+        napi_throw_type_error(env, NULL, "Wrong arguments");
-+        return nullptr;
-+    }
 +    /* NOTE read arguments */
-+    QByteArray arg(str.get());
++    QByteArray arg = qJs::getByteArray(args[0]);
 +    QByteArrayList argsList = arg.split(';');
 +    QByteArray bundle = argsList.at(4);
 +    if (bundle.isEmpty()) {
@@ -1605,23 +1759,18 @@ index 0000000000..8e12aab1d6
 +        LOGE("Can't set environment for QML2_IMPORT_PATH");
 +    }
 +
-+    if (::setenv("QT_DEBUG_PLUGINS", "1", 1) != 0) {
-+        LOGE("Can't set environment for QT_DEBUG_PLUGINS");
-+    }
-+
-+    strLen = 0;
-+    NAPI_CALL(env, napi_get_value_string_utf8(env, args[1], nullptr, -1, &strLen));
-+
-+    bufLen = strLen + 1;
-+    std::unique_ptr<char[]> str1 = std::make_unique<char[]>(bufLen);
-+    NAPI_CALL(env, napi_get_value_string_utf8(env, args[1], str1.get(), bufLen, &strLen));
++//    if (::setenv("QT_DEBUG_PLUGINS", "1", 1) != 0) {
++//        LOGE("Can't set environment for QT_DEBUG_PLUGINS");
++//    }
 +
 +    m_mainLibraryHnd = nullptr;
++
++    QByteArray fileName = qJs::getByteArray(args[1]);
 +
 +    //look for main()
 +    // Obtain a handle to the main library (the library that contains the main() function).
 +    // This library already be loaded, and calling dlopen() will just return a reference to it.
-+    m_mainLibraryHnd = dlopen(str1.get(), 0);
++    m_mainLibraryHnd = dlopen(fileName.constData(), 0);
 +    if (Q_UNLIKELY(!m_mainLibraryHnd)) {
 +        QString error = QString("dlopen failed: %1").arg(dlerror());
 +        napi_throw_type_error(env, NULL, error.toUtf8().constData());
@@ -1631,7 +1780,7 @@ index 0000000000..8e12aab1d6
 +
 +    if (Q_UNLIKELY(!m_main)) {
 +        QString error = QString("dlsym failed: %1, Could not find main method.").arg(dlerror());
-+        napi_throw_type_error(env, NULL, error.toUtf8().constData());
++        qJs::throwError(error.toUtf8().constData());
 +        return nullptr;
 +    }
 +    if (sem_init(&m_exitSemaphore, 0, 0) == -1)
@@ -1640,7 +1789,7 @@ index 0000000000..8e12aab1d6
 +    if (sem_init(&m_terminateSemaphore, 0, 0) == -1)
 +        return nullptr;
 +
-+    QByteArray applib = argsList.at(4) + "/libs/arm/" + QByteArray(str1.get());
++    QByteArray applib = argsList.at(4) + "/libs/arm/" + fileName;
 +    pthread_create(&m_qtAppThread, nullptr, startMainMethod, (void*)applib.data());
 +
 +    return nullptr;
@@ -1648,45 +1797,19 @@ index 0000000000..8e12aab1d6
 +
 +static napi_value setDisplayMetrics(napi_env env, napi_callback_info info)
 +{
-+    napi_status status;
 +    size_t argc = 5;
 +    napi_value args[5];
 +    NAPI_CALL(env, napi_get_cb_info(env, info, &argc, args, nullptr, nullptr));
 +
 +    if (argc != 5) {
-+        napi_throw_type_error(env, NULL, "Wrong number of arguments");
++        qJs::throwError("Wrong number of arguments");
 +        return nullptr;
 +    }
-+
-+//    napi_valuetype valuetype0;
-+//    napi_typeof(env, args[0], &valuetype0);
-+
-+//    napi_valuetype valuetype1;
-+//    napi_typeof(env, args[1], &valuetype1);
-+
-+//    napi_valuetype valuetype2;
-+//    napi_typeof(env, args[2], &valuetype2);
-+
-+//    napi_valuetype valuetype3;
-+//    napi_typeof(env, args[3], &valuetype3);
-+
-+//    napi_valuetype valuetype4;
-+//    napi_typeof(env, args[4], &valuetype4);
-+
-+    double value0;
-+    napi_get_value_double(env, args[0], &value0);
-+
-+    double value1;
-+    napi_get_value_double(env, args[1], &value1);
-+
-+    double value2;
-+    napi_get_value_double(env, args[2], &value2);
-+
-+    double value3;
-+    napi_get_value_double(env, args[3], &value3);
-+
-+    double value4;
-+    napi_get_value_double(env, args[4], &value4);
++    double value0 = qJs::getDouble(args[0]);
++    double value1 = qJs::getDouble(args[1]);
++    double value2 = qJs::getDouble(args[2]);
++    double value3 = qJs::getDouble(args[3]);
++    double value4 = qJs::getDouble(args[4]);
 +
 +    m_density = value1;
 +    m_scaledDensity = value2;
@@ -1726,11 +1849,12 @@ index 0000000000..8e12aab1d6
 +    QtOpenHarmonyInputContext::init(env, exports);
 +    QtOpenHarmonySurface::init(env, exports);
 +    QtOpenHarmonyDialogHelpers::init(env, exports);
-+    QOpenHarmonyJSCaller::init(env, exports);
++    qJs::init(env);
 +
 +#ifndef QT_NO_CLIPBOARD
 +    QtOpenHarmonyClipboard::init(env, exports);
 +#endif
++
 +    return exports;
 +}
 +EXTERN_C_END
@@ -1764,22 +1888,16 @@ index 0000000000..8e12aab1d6
 +{
 +    return m_density;
 +}
-+
-+void QtOpenHarmony::runOnJsThread(std::function<void ()> f)
-+{
-+    f();
-+}
 diff --git a/src/plugins/platforms/openharmony/qopenharmonymain.h b/src/plugins/platforms/openharmony/qopenharmonymain.h
 new file mode 100644
-index 0000000000..8f5610e6d2
+index 0000000000..f222bdcc90
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonymain.h
-@@ -0,0 +1,17 @@
+@@ -0,0 +1,16 @@
 +#ifndef QOPENHARMONYMAIN_H
 +#define QOPENHARMONYMAIN_H
 +
-+class QThread;
-+#include <functional>
++#include <napi/native_api.h>
 +
 +namespace QtOpenHarmony {
 +
@@ -1787,7 +1905,7 @@ index 0000000000..8f5610e6d2
 +
 +double pixelDensity();
 +
-+void runOnJsThread(std::function<void ()> f);
++napi_env jsEnv();
 +
 +}
 +
@@ -1879,14 +1997,15 @@ index 0000000000..db75831b39
 +#endif // QOPENHARMONYPLATFORMBACKINGSTORE_H
 diff --git a/src/plugins/platforms/openharmony/qopenharmonyplatformclipboard.cpp b/src/plugins/platforms/openharmony/qopenharmonyplatformclipboard.cpp
 new file mode 100644
-index 0000000000..d89c7114d8
+index 0000000000..2ef1e041f0
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonyplatformclipboard.cpp
-@@ -0,0 +1,147 @@
+@@ -0,0 +1,141 @@
 +#include "qopenharmonyplatformclipboard.h"
 +#include "qopenharmonymain.h"
 +#include "qopenharmonydefines.h"
-+#include "qopenharmonyjscaller.h"
++#include "qopenharmonyjsobject.h"
++#include "qopenharmonyjsenvironment.h"
 +
 +#include <QDebug>
 +#include <QTimer>
@@ -1911,8 +2030,7 @@ index 0000000000..d89c7114d8
 +        return nullptr;
 +    }
 +
-+    bool result;
-+    napi_get_value_bool(env, args[0], &result);
++    bool result = qJs::getBool(args[0]);
 +    qClipBoard->setHasClipBoardText(result);
 +    return nullptr;
 +}
@@ -1924,16 +2042,11 @@ index 0000000000..d89c7114d8
 +    NAPI_CALL(env, napi_get_cb_info(env, info, &argc, args, nullptr, nullptr));
 +
 +    if (argc != 1) {
-+        napi_throw_type_error(env, NULL, "Wrong number of arguments");
++        qJs::throwError("Wrong number of arguments");
 +        return nullptr;
 +    }
 +
-+    size_t strLen = 0;
-+    NAPI_CALL(env, napi_get_value_string_utf8(env, args[0], nullptr, -1, &strLen));
-+    size_t bufLen = strLen + 1;
-+    std::unique_ptr<char[]> str = std::make_unique<char[]>(bufLen);
-+    NAPI_CALL(env, napi_get_value_string_utf8(env, args[0], str.get(), bufLen, &strLen));
-+    QString text = QString::fromUtf8(str.get());
++    QString text = qJs::getString(args[0]);
 +    qClipBoard->setClipboardText(text);
 +    return nullptr;
 +}
@@ -1965,7 +2078,8 @@ index 0000000000..d89c7114d8
 +    : m_hasText(false)
 +{
 +    m_self = this;
-+    qJs::call("qtpasteboard", "registerSystemPasteboard");
++    m_jsClipboard.reset(new QOpenHarmonyJsObject("qtpasteboard"));
++    m_jsClipboard->call("registerSystemPasteboard");
 +}
 +
 +QOpenHarmonyPlatformClipboard::~QOpenHarmonyPlatformClipboard()
@@ -1990,7 +2104,7 @@ index 0000000000..d89c7114d8
 +{
 +    if (supportsMode(mode)) {
 +        QString text = (data != 0 && data->hasText() ? data->text() : QString());
-+        qJs::call("qtpasteboard", "setClipboardText", QVariantList() << text);;
++        m_jsClipboard->call("setClipboardText", QVariantList() << text);;
 +    }
 +    if (data != 0)
 +        data->deleteLater();
@@ -2003,49 +2117,48 @@ index 0000000000..d89c7114d8
 +
 +bool QOpenHarmonyPlatformClipboard::hasClipboardText()
 +{
-+    qJs::call("qtpasteboard", "hasClipboardText");
-+    m_loop.exec();
++    m_jsClipboard->call("hasClipboardText");
++    m_jsClipboard->wait();
 +    return m_hasText;
 +}
 +
 +void QOpenHarmonyPlatformClipboard::setHasClipBoardText(bool result)
 +{
 +    m_hasText = result;
-+    if (m_loop.isRunning())
-+        m_loop.exit();
++    m_jsClipboard->cancelWait();
 +}
 +
 +QString QOpenHarmonyPlatformClipboard::clipboardText()
 +{
-+    qJs::call("qtpasteboard", "clipboardText");
-+    m_loop.exec();
++    m_jsClipboard->call("clipboardText");
++    m_jsClipboard->wait();
 +    return m_text;
 +}
 +
 +void QOpenHarmonyPlatformClipboard::setClipboardText(const QString &text)
 +{
 +    m_text = text;
-+    if (m_loop.isRunning())
-+        m_loop.exit();
++    m_jsClipboard->cancelWait();
 +}
 +
 +#endif // QT_NO_CLIPBOARD
 diff --git a/src/plugins/platforms/openharmony/qopenharmonyplatformclipboard.h b/src/plugins/platforms/openharmony/qopenharmonyplatformclipboard.h
 new file mode 100644
-index 0000000000..43656ae2ac
+index 0000000000..10d4993d6f
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonyplatformclipboard.h
-@@ -0,0 +1,46 @@
+@@ -0,0 +1,47 @@
 +#ifndef QOPENHARMONYPLATFORMCLIPBOARD_H
 +#define QOPENHARMONYPLATFORMCLIPBOARD_H
 +
 +#include <qpa/qplatformclipboard.h>
 +#include <QMimeData>
-+#include <QEventLoop>
 +#include <QScopedPointer>
 +#include <napi/native_api.h>
 +
 +#ifndef QT_NO_CLIPBOARD
++class QOpenHarmonyJsObject;
++
 +namespace QtOpenHarmonyClipboard {
 +
 +napi_value init(napi_env env, napi_value exports);
@@ -2075,8 +2188,8 @@ index 0000000000..43656ae2ac
 +    QMimeData m_mimeData;
 +    static QOpenHarmonyPlatformClipboard *m_self;
 +    bool m_hasText = false;
-+    QEventLoop m_loop;
 +    QString m_text;
++    QScopedPointer<QOpenHarmonyJsObject> m_jsClipboard;
 +};
 +
 +#endif // QT_NO_CLIPBOARD
@@ -2084,14 +2197,15 @@ index 0000000000..43656ae2ac
 +#endif // QOPENHARMONYPLATFORMCLIPBOARD_H
 diff --git a/src/plugins/platforms/openharmony/qopenharmonyplatformdialoghelpers.cpp b/src/plugins/platforms/openharmony/qopenharmonyplatformdialoghelpers.cpp
 new file mode 100644
-index 0000000000..50c3d0c644
+index 0000000000..e634d9270b
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonyplatformdialoghelpers.cpp
-@@ -0,0 +1,143 @@
+@@ -0,0 +1,144 @@
 +#include "qopenharmonyplatformdialoghelpers.h"
 +#include "qopenharmonymain.h"
 +#include "qopenharmonydefines.h"
-+#include "qopenharmonyjscaller.h"
++#include "qopenharmonyjsenvironment.h"
++#include "qopenharmonyjsobject.h"
 +
 +#include <private/qguiapplication_p.h>
 +#include <qpa/qplatformtheme.h>
@@ -2105,6 +2219,11 @@ index 0000000000..50c3d0c644
 +    : m_buttonId(-1)
 +    , m_shown(false)
 +{
++    m_jsDialog.reset(new QOpenHarmonyJsObject("qtdialog"));
++}
++
++QOpenHarmonyPlatformMessageDialogHelper::~QOpenHarmonyPlatformMessageDialogHelper()
++{
 +
 +}
 +
@@ -2112,7 +2231,7 @@ index 0000000000..50c3d0c644
 +{
 +    if (!m_shown)
 +        show(Qt::Dialog, Qt::ApplicationModal, 0);
-+     m_loop.exec();
++     m_jsDialog->wait();
 +}
 +
 +static QString htmlText(QString text)
@@ -2148,7 +2267,7 @@ index 0000000000..50c3d0c644
 +    }
 +    QVariantList args;
 +    args << QVariant(qlonglong(static_cast<QObject*>(this))) << htmlText(opt->windowTitle()) << htmlText(opt->text()) << m_buttons;
-+    qJs::call("qtdialog", "messageBox", args);
++    m_jsDialog->call("messageBox", args);
 +    m_shown = true;
 +    return true;
 +}
@@ -2180,8 +2299,7 @@ index 0000000000..50c3d0c644
 +void QOpenHarmonyPlatformMessageDialogHelper::dialogResult(int buttonID)
 +{
 +    m_buttonId = buttonID;
-+    if (m_loop.isRunning())
-+        m_loop.exit();
++    m_jsDialog->cancelWait();
 +    if (m_buttonId < 0) {
 +        emit reject();
 +        return;
@@ -2200,7 +2318,6 @@ index 0000000000..50c3d0c644
 +
 +static napi_value dialogResult(napi_env env, napi_callback_info info)
 +{
-+    napi_status status;
 +    size_t argc = 2;
 +    napi_value args[2];
 +    NAPI_CALL(env, napi_get_cb_info(env, info, &argc, args, nullptr, nullptr));
@@ -2210,11 +2327,8 @@ index 0000000000..50c3d0c644
 +        return nullptr;
 +    }
 +
-+    int64_t value0;
-+    napi_get_value_int64(env, args[0], &value0);
-+
-+    int32_t value1;
-+    napi_get_value_int32(env, args[1], &value1);
++    int64_t value0 = qJs::getInt64(args[0]);
++    int32_t value1 = qJs::getInt32(args[1]);
 +
 +    QObject *object = reinterpret_cast<QObject *>(value0);
 +    QMetaObject::invokeMethod(object, "dialogResult", Qt::QueuedConnection, Q_ARG(int, value1));
@@ -2233,10 +2347,10 @@ index 0000000000..50c3d0c644
 +}
 diff --git a/src/plugins/platforms/openharmony/qopenharmonyplatformdialoghelpers.h b/src/plugins/platforms/openharmony/qopenharmonyplatformdialoghelpers.h
 new file mode 100644
-index 0000000000..3efaf07940
+index 0000000000..c6c8178c67
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonyplatformdialoghelpers.h
-@@ -0,0 +1,42 @@
+@@ -0,0 +1,45 @@
 +#ifndef QOPENHARMONYPLATFORMDIALOGHELPERS_H
 +#define QOPENHARMONYPLATFORMDIALOGHELPERS_H
 +
@@ -2244,7 +2358,9 @@ index 0000000000..3efaf07940
 +#include <napi/native_api.h>
 +
 +#include <QList>
-+#include <QEventLoop>
++#include <QScopedPointer>
++
++class QOpenHarmonyJsObject;
 +
 +namespace QtOpenHarmonyDialogHelpers {
 +
@@ -2254,6 +2370,7 @@ index 0000000000..3efaf07940
 +    Q_OBJECT
 +public:
 +    QOpenHarmonyPlatformMessageDialogHelper();
++    ~QOpenHarmonyPlatformMessageDialogHelper();
 +    void exec() override;
 +    bool show(Qt::WindowFlags windowFlags,
 +              Qt::WindowModality windowModality,
@@ -2268,10 +2385,10 @@ index 0000000000..3efaf07940
 +
 +private:
 +    int m_buttonId;
-+    QEventLoop m_loop;
 +    bool m_shown;
 +    QStringList m_buttons;
 +    QList<QPlatformDialogHelper::StandardButton> m_stanardButton;
++    QScopedPointer<QOpenHarmonyJsObject> m_jsDialog;
 +};
 +
 +
@@ -2439,15 +2556,15 @@ index 0000000000..7676f9fa31
 +#endif // QOPENHARMONYPLATFORMFOREIGNWINDOW_H
 diff --git a/src/plugins/platforms/openharmony/qopenharmonyplatforminputcontext.cpp b/src/plugins/platforms/openharmony/qopenharmonyplatforminputcontext.cpp
 new file mode 100644
-index 0000000000..a631c79f72
+index 0000000000..66a9344143
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonyplatforminputcontext.cpp
-@@ -0,0 +1,206 @@
+@@ -0,0 +1,207 @@
 +#include "qopenharmonyplatforminputcontext.h"
 +#include "qopenharmonyplatformscreen.h"
 +#include "qopenharmonyplatformintegration.h"
 +#include "qopenharmonydefines.h"
-+#include "qopenharmonyjscaller.h"
++#include "qopenharmonyjsobject.h"
 +
 +#include <QDebug>
 +#include <qevent.h>
@@ -2485,6 +2602,7 @@ index 0000000000..a631c79f72
 +    : QPlatformInputContext()
 +{
 +    m_openHarmonyInputContext = this;
++    m_jsInputManager.reset(new QOpenHarmonyJsObject("qtinputmanager"));
 +}
 +
 +QOpenHarmonyPlatformInputContext::~QOpenHarmonyPlatformInputContext()
@@ -2599,13 +2717,13 @@ index 0000000000..a631c79f72
 +void QOpenHarmonyPlatformInputContext::showInputPanel()
 +{
 +    qInfo() << "QOpenHarmonyPlatformInputContext<===================showInputPanel:";
-+    qJs::call("qtinputmanager", "setKeyBoardVisible", QVariantList() << true);
++    m_jsInputManager->call("setKeyBoardVisible", QVariantList() << true);
 +}
 +
 +void QOpenHarmonyPlatformInputContext::hideInputPanel()
 +{
 +    qInfo() << "QOpenHarmonyPlatformInputContext<===================hideInputPanel:";
-+    qJs::call("qtinputmanager", "setKeyBoardVisible", QVariantList() << false);
++    m_jsInputManager->call("setKeyBoardVisible", QVariantList() << false);
 +}
 +
 +void QOpenHarmonyPlatformInputContext::update(Qt::InputMethodQueries)
@@ -2651,10 +2769,10 @@ index 0000000000..a631c79f72
 +
 diff --git a/src/plugins/platforms/openharmony/qopenharmonyplatforminputcontext.h b/src/plugins/platforms/openharmony/qopenharmonyplatforminputcontext.h
 new file mode 100644
-index 0000000000..6a10e88a60
+index 0000000000..3c8bb397df
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonyplatforminputcontext.h
-@@ -0,0 +1,52 @@
+@@ -0,0 +1,55 @@
 +#ifndef QOPENHARMONYPLATFORMINPUTCONTEXT_H
 +#define QOPENHARMONYPLATFORMINPUTCONTEXT_H
 +
@@ -2663,6 +2781,8 @@ index 0000000000..6a10e88a60
 +#include <functional>
 +#include <QTimer>
 +#include <napi/native_api.h>
++
++class QOpenHarmonyJsObject;
 +
 +class QOpenHarmonyPlatformIntegration;
 +
@@ -2698,6 +2818,7 @@ index 0000000000..6a10e88a60
 +    bool m_ignoreMouseEvents = false;
 +    QOpenHarmonyPlatformIntegration *m_integration = nullptr;
 +    QList<QWindowSystemInterface::TouchPoint> m_touchPoints;
++    QScopedPointer<QOpenHarmonyJsObject> m_jsInputManager;
 +};
 +
 +QT_END_NAMESPACE
