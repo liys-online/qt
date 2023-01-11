@@ -68,20 +68,22 @@ if not exist %PATCH_DIR% (
 
 set OHOS_SDK_PATH=%ROOT_DIR%\ohos-sdk\windows
 echo "Apply QtBase Patch......"
-cd $ROOT_DIR/qt5/qtbase
+cd %ROOT_DIR%/qt5/qtbase
 git reset --hard origin/5.12.12
+git clean -fdx
 git apply --check %PATCH_DIR%/patch/qtbase.patch
 git apply --stat %PATCH_DIR%/patch/qtbase.patch
 git apply %PATCH_DIR%/patch/qtbase.patch
-cd $ROOT_DIR
+cd %ROOT_DIR%
 
 echo "Apply QtRemoteObjects Patch......"
-cd $ROOT_DIR/qt5/qtremoteobjects
+cd %ROOT_DIR%/qt5/qtremoteobjects
 git reset --hard origin/5.12.12
+git clean -fdx
 git apply --check %PATCH_DIR%/patch/qtremoteobjects.patch
 git apply --stat %PATCH_DIR%/patch/qtremoteobjects.patch
 git apply %PATCH_DIR%/patch/qtremoteobjects.patch
-cd $ROOT_DIR
+cd %ROOT_DIR%
 
 if "%OHOS_ARCH%" == "arm64-v8a" ( 
   set OHOS_TARGET=aarch64-linux-ohos
@@ -100,12 +102,12 @@ if not exist %BUILD_DIR% (
    mkdir %BUILD_DIR%
 )
 cd %BUILD_DIR%
-call ../qt5/configure -xplatform oh-clang -opensource -confirm-license -disable-rpath -make tests -make examples -v \
-            -prefix %QT_INSTALL_DIR% -opengl es2 -opengles3 -skip qttranslations -skip qtserialport -skip webengine \
-            -skip qtpurchasing -skip qtconnectivity -skip qtmultimedia -skip qtspeech -skip qtwebchannel -skip qtgamepad \
-            -skip qtsensors -skip qtlocation -skip qtxmlpatterns -skip qt3d -skip qtscript -skip qtnetworkauth \
-            -skip qtsystems -no-feature-bearermanagement -no-feature-http \
-            -no-dbus -recheck-all
+call ../qt5/configure -xplatform oh-clang -opensource -confirm-license -disable-rpath -make tests -make examples -v ^
+-prefix %QT_INSTALL_DIR% -opengl es2 -opengles3 -skip qttranslations -skip qtserialport -skip webengine ^
+-skip qtpurchasing -skip qtconnectivity -skip qtmultimedia -skip qtspeech -skip qtwebchannel -skip qtgamepad ^
+-skip qtsensors -skip qtlocation -skip qtxmlpatterns -skip qt3d -skip qtscript -skip qtnetworkauth ^
+-skip qtsystems -no-feature-bearermanagement -no-feature-http ^
+-no-dbus -recheck-all
 mingw32-make -j4
 mingw32-make install
 cd %ROOT_DIR%
