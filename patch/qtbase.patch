@@ -413,6 +413,56 @@ index 0000000000..f405c91ecb
 +#endif
 +
 +#endif // QPLATFORMDEFS_H
+diff --git a/src/corelib/global/qlogging.cpp b/src/corelib/global/qlogging.cpp
+index 3c82097cfe..f85b2baa19 100644
+--- a/src/corelib/global/qlogging.cpp
++++ b/src/corelib/global/qlogging.cpp
+@@ -1679,6 +1679,36 @@ static bool android_default_message_handler(QtMsgType type,
+ }
+ #endif //Q_OS_ANDROID
+ 
++#ifdef Q_OS_OPENHARMONY
++#include <hilog/log.h>
++#define APP_LOG_DOMAIN 0xf000
++#define APP_LOG_TAG "QtForOpenHarmony"
++
++static bool openharmony_default_message_handler(QtMsgType type,
++                                  const QMessageLogContext &context,
++                                  const QString &message)
++{
++    if (shouldLogToStderr())
++        return false; // Leave logging up to stderr handler
++
++    QString formattedMessage = qFormatLogMessage(type, context, message);
++
++    LogLevel priority = LOG_INFO;
++    switch (type) {
++    //LOG_DEBUG unable to print, temporarily use LOG_ INFO replace.
++    case QtDebugMsg: priority = LOG_INFO; break;
++    case QtInfoMsg: priority = LOG_INFO; break;
++    case QtWarningMsg: priority = LOG_WARN; break;
++    case QtCriticalMsg: priority = LOG_ERROR; break;
++    case QtFatalMsg: priority = LOG_FATAL; break;
++    };
++
++    OH_LOG_Print(LOG_APP, priority, APP_LOG_DOMAIN, APP_LOG_TAG, "%{public}s %{public}s\n", qPrintable(QCoreApplication::applicationName()), qPrintable(formattedMessage));
++
++    return true; // Prevent further output to stderr
++}
++#endif
++
+ #ifdef Q_OS_WIN
+ static bool win_message_handler(QtMsgType type, const QMessageLogContext &context, const QString &message)
+ {
+@@ -1770,6 +1800,8 @@ static void qDefaultMessageHandler(QtMsgType type, const QMessageLogContext &con
+     handledStderr |= AppleUnifiedLogger::messageHandler(type, context, message);
+ # elif defined Q_OS_WASM
+     handledStderr |= wasm_default_message_handler(type, context, message);
++#elif defined Q_OS_OPENHARMONY
++    handledStderr |= openharmony_default_message_handler(type, context, message);
+ # endif
+ #endif
+ 
 diff --git a/src/corelib/global/qsystemdetection.h b/src/corelib/global/qsystemdetection.h
 index d87e181e5c..998be34739 100644
 --- a/src/corelib/global/qsystemdetection.h
