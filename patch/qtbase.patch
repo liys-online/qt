@@ -829,10 +829,10 @@ index 0000000000..1a88d88b24
 +#endif // QOPENHARMONYDEFINES_H
 diff --git a/src/plugins/platforms/openharmony/qopenharmonyeglcore.cpp b/src/plugins/platforms/openharmony/qopenharmonyeglcore.cpp
 new file mode 100644
-index 0000000000..1bbac9ce51
+index 0000000000..ebab05a407
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonyeglcore.cpp
-@@ -0,0 +1,312 @@
+@@ -0,0 +1,318 @@
 +#include "qopenharmonyeglcore.h"
 +#include <EGL/egl.h>
 +#include <GLES3/gl3.h>
@@ -870,9 +870,6 @@ index 0000000000..1bbac9ce51
 +
 +QOpenHarmonyEGLCore::~QOpenHarmonyEGLCore()
 +{
-+    if (m_eglDisplay != EGL_NO_DISPLAY)
-+        eglTerminate(m_eglDisplay);
-+
 +    if (m_eglSurface != EGL_NO_SURFACE) {
 +        eglDestroySurface(m_eglDisplay, m_eglSurface);
 +        m_eglSurface = EGL_NO_SURFACE;
@@ -988,6 +985,9 @@ index 0000000000..1bbac9ce51
 +    if (!m_inited)
 +        initCore();
 +
++    if (!eglMakeCurrent(m_eglDisplay, m_eglSurface, m_eglSurface, m_eglContext)) {
++        LOGE("EGLCore::eglMakeCurrent error = %{public}d", eglGetError());
++    }
 +    glViewport(0, 0, m_width, m_height);
 +    glClearColor(0.0, 0.0, 0.0, 1.0);
 +    glClear(GL_COLOR_BUFFER_BIT);
@@ -1130,6 +1130,12 @@ index 0000000000..1bbac9ce51
 +    return m_eglConfig;
 +}
 +
++void QOpenHarmonyEGLCore::clear()
++{
++    if (m_eglDisplay != EGL_NO_DISPLAY)
++        eglTerminate(m_eglDisplay);
++}
++
 +EGLDisplay QOpenHarmonyEGLCore::eglDisplay()
 +{
 +    return m_eglDisplay;
@@ -1147,10 +1153,10 @@ index 0000000000..1bbac9ce51
 +}
 diff --git a/src/plugins/platforms/openharmony/qopenharmonyeglcore.h b/src/plugins/platforms/openharmony/qopenharmonyeglcore.h
 new file mode 100644
-index 0000000000..b878f659e3
+index 0000000000..5637eb96af
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonyeglcore.h
-@@ -0,0 +1,52 @@
+@@ -0,0 +1,54 @@
 +#ifndef QOPENHARMONYEGLCORE_H
 +#define QOPENHARMONYEGLCORE_H
 +
@@ -1175,6 +1181,8 @@ index 0000000000..b878f659e3
 +    static EGLDisplay eglDisplay();
 +
 +    static EGLConfig eglConfig();
++
++    static void clear();
 +
 +    EGLSurface eglSurface() const;
 +
@@ -1365,10 +1373,10 @@ index 0000000000..51fe72e96e
 +#endif // QOPENHARMONYEVENTDISPATCHER_H
 diff --git a/src/plugins/platforms/openharmony/qopenharmonyjsenvironment.cpp b/src/plugins/platforms/openharmony/qopenharmonyjsenvironment.cpp
 new file mode 100644
-index 0000000000..0411a6b5ae
+index 0000000000..6cd8836ddb
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonyjsenvironment.cpp
-@@ -0,0 +1,135 @@
+@@ -0,0 +1,211 @@
 +#include "qopenharmonyjsenvironment.h"
 +
 +napi_env QOpenHarmonyJsEnvironment::m_env = nullptr;
@@ -1503,13 +1511,89 @@ index 0000000000..0411a6b5ae
 +    return result;
 +}
 +
++template<>
++QByteArray QOpenHarmonyJsEnvironment::getObjectPropertyValue<QByteArray>(napi_value object, const char *propertyName)
++{
++    napi_value value = objectPropertyValue(object, propertyName);
++    return getByteArray(value);
++}
 +
++template<>
++QString QOpenHarmonyJsEnvironment::getObjectPropertyValue<QString>(napi_value object, const char *propertyName)
++{
++    napi_value value = objectPropertyValue(object, propertyName);
++    return getString(value);
++}
++
++template<>
++bool QOpenHarmonyJsEnvironment::getObjectPropertyValue<bool>(napi_value object, const char *propertyName)
++{
++    napi_value value = objectPropertyValue(object, propertyName);
++    return getBool(value);
++}
++
++template<>
++int64_t QOpenHarmonyJsEnvironment::getObjectPropertyValue<int64_t>(napi_value object, const char *propertyName)
++{
++    napi_value value = objectPropertyValue(object, propertyName);
++    return getInt64(value);
++}
++
++template<>
++int32_t QOpenHarmonyJsEnvironment::getObjectPropertyValue<int32_t>(napi_value object, const char *propertyName)
++{
++    napi_value value = objectPropertyValue(object, propertyName);
++    return getInt32(value);
++}
++
++template<>
++double QOpenHarmonyJsEnvironment::getObjectPropertyValue<double>(napi_value object, const char *propertyName)
++{
++    napi_value value = objectPropertyValue(object, propertyName);
++    return getDouble(value);
++}
++
++template<>
++QByteArray QOpenHarmonyJsEnvironment::getValue<QByteArray>(napi_value value)
++{
++    return getByteArray(value);
++}
++
++template<>
++QString QOpenHarmonyJsEnvironment::getValue<QString>(napi_value value)
++{
++    return getString(value);
++}
++
++template<>
++bool QOpenHarmonyJsEnvironment::getValue<bool>(napi_value value)
++{
++    return getBool(value);
++}
++
++template<>
++int64_t QOpenHarmonyJsEnvironment::getValue<int64_t>(napi_value value)
++{
++    return getInt64(value);
++}
++
++template<>
++int32_t QOpenHarmonyJsEnvironment::getValue<int32_t>(napi_value value)
++{
++    return getInt32(value);
++}
++
++template<>
++double QOpenHarmonyJsEnvironment::getValue<double>(napi_value value)
++{
++    return getDouble(value);
++}
 diff --git a/src/plugins/platforms/openharmony/qopenharmonyjsenvironment.h b/src/plugins/platforms/openharmony/qopenharmonyjsenvironment.h
 new file mode 100644
-index 0000000000..5392c2a312
+index 0000000000..ec577ba8fe
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonyjsenvironment.h
-@@ -0,0 +1,73 @@
+@@ -0,0 +1,78 @@
 +#ifndef QOPENHARMONYJSENVIRONMENT_H
 +#define QOPENHARMONYJSENVIRONMENT_H
 +
@@ -1562,6 +1646,12 @@ index 0000000000..5392c2a312
 +        return objectPropertyValue(jsObject, functionName);
 +    }
 +
++    template<typename T>
++    static T getObjectPropertyValue(napi_value object, const char *propertyName);
++
++    template<typename T>
++    static T getValue(napi_value value);
++
 +    static void callFunction(napi_value function, int argc = 0, const napi_value *argv = nullptr);
 +
 +    static QString getString(napi_value value);
@@ -1576,9 +1666,8 @@ index 0000000000..5392c2a312
 +
 +    static double getDouble(napi_value value);
 +
-+    static napi_value objectPropertyValue(napi_value object, const char *propertyName);
-+
 +private:
++    static napi_value objectPropertyValue(napi_value object, const char *propertyName);
 +    static napi_env m_env;
 +};
 +
@@ -1709,10 +1798,10 @@ index 0000000000..28f63d3e83
 +}
 diff --git a/src/plugins/platforms/openharmony/qopenharmonyjsobject.h b/src/plugins/platforms/openharmony/qopenharmonyjsobject.h
 new file mode 100644
-index 0000000000..939b7aa46e
+index 0000000000..05f67654aa
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonyjsobject.h
-@@ -0,0 +1,53 @@
+@@ -0,0 +1,54 @@
 +#ifndef QOPENHARMONYJSOBJECT_H
 +#define QOPENHARMONYJSOBJECT_H
 +
@@ -1721,20 +1810,6 @@ index 0000000000..939b7aa46e
 +#include <QEventLoop>
 +
 +//Todo move to qtbase/src/kernel
-+template<typename Arg0, typename... Args>
-+inline const QVariantList &packParams(QVariantList& paramList, Arg0&& arg, Args&&... args)
-+{
-+    QVariant v;
-+    v.setValue(std::forward<Arg0>(arg));
-+    paramList.push_back(v);
-+    packParams(paramList, std::forward<Args>(args)...);
-+    return paramList;
-+}
-+
-+inline const QVariantList& packParams(QVariantList& paramList)
-+{
-+    return paramList;
-+}
 +
 +struct JsParams;
 +class QOpenHarmonyJsObject
@@ -1746,6 +1821,21 @@ index 0000000000..939b7aa46e
 +    bool isValid() const;
 +
 +    void call(const char *jsFunction, const QVariantList &args = QVariantList());
++
++    template<typename Arg0, typename... Args>
++    const QVariantList &packParams(QVariantList& paramList, Arg0&& arg, Args&&... args)
++    {
++        QVariant v;
++        v.setValue(std::forward<Arg0>(arg));
++        paramList.push_back(v);
++        packParams(paramList, std::forward<Args>(args)...);
++        return paramList;
++    }
++
++    const QVariantList& packParams(QVariantList& paramList)
++    {
++        return paramList;
++    }
 +
 +    template<typename... Args>
 +    void call(const char *jsFunction, Args&&... args)
@@ -1768,10 +1858,10 @@ index 0000000000..939b7aa46e
 +#endif // QOPENHARMONYEGLCORE_H
 diff --git a/src/plugins/platforms/openharmony/qopenharmonymain.cpp b/src/plugins/platforms/openharmony/qopenharmonymain.cpp
 new file mode 100644
-index 0000000000..036a4c22eb
+index 0000000000..d2ef230390
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonymain.cpp
-@@ -0,0 +1,256 @@
+@@ -0,0 +1,245 @@
 +#include <memory>
 +#include <dlfcn.h>
 +#include <pthread.h>
@@ -1780,7 +1870,6 @@ index 0000000000..036a4c22eb
 +#include <QDir>
 +#include <QHash>
 +#include <QString>
-+#include <QDebug>
 +#include <QByteArray>
 +#include <QJsonObject>
 +#include <QJsonDocument>
@@ -1812,12 +1901,6 @@ index 0000000000..036a4c22eb
 +static int m_screenHeightPixels = 0;
 +static QOpenHarmonyPlatformIntegration *m_platformIntegration = nullptr;
 +
-+static void openHarmonyMessageOutput(QtMsgType type, const QMessageLogContext &context, const QString &msg)
-+{
-+    QByteArray localMsg = msg.toLocal8Bit();
-+    LOGE("Fatal: %{public}s (%{public}s:%{public}u, %{public}s)", localMsg.constData(), context.file, context.line, context.function);
-+}
-+
 +static void *startMainMethod(void *arg)
 +{
 +    if (nullptr == arg) {
@@ -1833,7 +1916,7 @@ index 0000000000..036a4c22eb
 +    if (m_mainLibraryHnd) {
 +        int res = dlclose(m_mainLibraryHnd);
 +        if (res < 0)
-+            qWarning() << "dlclose failed:" << dlerror();
++            LOGE("dlclose failed: %{public}d", dlerror());
 +    }
 +
 +    sem_post(&m_terminateSemaphore);
@@ -1857,8 +1940,7 @@ index 0000000000..036a4c22eb
 +        return nullptr;
 +    }
 +
-+    napi_value value = qJs::objectPropertyValue(args[0], "bundleCodeDir");
-+    QByteArray bundle = qJs::getByteArray(value);
++    QByteArray bundle = qJs::getObjectPropertyValue<QByteArray>(args[0], "bundleCodeDir");
 +    if (bundle.isEmpty()) {
 +        LOGE("args is vaild");
 +        return nullptr;
@@ -1923,21 +2005,19 @@ index 0000000000..036a4c22eb
 +        qJs::throwError("Wrong number of arguments");
 +        return nullptr;
 +    }
-+    double value0 = qJs::getDouble(args[0]);
-+    double value1 = qJs::getDouble(args[1]);
-+    double value2 = qJs::getDouble(args[2]);
-+    double value3 = qJs::getDouble(args[3]);
-+    double value4 = qJs::getDouble(args[4]);
-+    double value5 = qJs::getDouble(args[5]);
-+    double value6 = qJs::getDouble(args[6]);
 +
-+    m_density = value1;
-+    m_scaledDensity = value2;
-+    m_screenWidthPixels = static_cast<int>(value3);
-+    m_screenHeightPixels = static_cast<int>(value4);
++    double value[7] = {0};
++    for (size_t i = 0; i < argc; ++i) {
++        value[i] = qJs::getDouble(args[i]);
++    }
 +
-+    m_desktopWidthPixels = static_cast<int>(value5);
-+    m_desktopHeightPixels = static_cast<int>(value6);
++    m_density = value[1];
++    m_scaledDensity = value[2];
++    m_screenWidthPixels = static_cast<int>(value[3]);
++    m_screenHeightPixels = static_cast<int>(value[4]);
++
++    m_desktopWidthPixels = static_cast<int>(value[5]);
++    m_desktopHeightPixels = static_cast<int>(value[6]);
 +    // openharmony xdpi and ydpi is 0
 +    double xdpi = 72;
 +    double ydpi = 72;
@@ -1954,13 +2034,12 @@ index 0000000000..036a4c22eb
 +        m_platformIntegration->setScreenSize(m_screenWidthPixels, m_screenHeightPixels);
 +        m_platformIntegration->setDesktopSize(m_desktopWidthPixels, m_desktopHeightPixels);
 +    }
-+//    QOpenHarmonyPlatformIntegration::setDefaultDesktopSize(m_screenWidthPixels, m_screenHeightPixels);
-+//    QOpenHarmonyPlatformIntegration::setDefaultGeometrySize(m_desktopWidthPixels, m_desktopHeightPixels);
 +    return nullptr;
 +}
 +
 +static napi_value quitQtApplication(napi_env env, napi_callback_info info)
 +{
++    QOpenHarmonyEGLCore::clear();
 +    qApp->quit();
 +    return nullptr;
 +}
@@ -2140,17 +2219,16 @@ index 0000000000..db75831b39
 +#endif // QOPENHARMONYPLATFORMBACKINGSTORE_H
 diff --git a/src/plugins/platforms/openharmony/qopenharmonyplatformclipboard.cpp b/src/plugins/platforms/openharmony/qopenharmonyplatformclipboard.cpp
 new file mode 100644
-index 0000000000..dfcc658c3f
+index 0000000000..727669d710
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonyplatformclipboard.cpp
-@@ -0,0 +1,137 @@
+@@ -0,0 +1,136 @@
 +#include "qopenharmonyplatformclipboard.h"
 +#include "qopenharmonymain.h"
 +#include "qopenharmonydefines.h"
 +#include "qopenharmonyjsobject.h"
 +#include "qopenharmonyjsenvironment.h"
 +
-+#include <QDebug>
 +#include <QTimer>
 +#include <QThread>
 +
@@ -2331,10 +2409,10 @@ index 0000000000..afaaac97c0
 +#endif // QOPENHARMONYPLATFORMCLIPBOARD_H
 diff --git a/src/plugins/platforms/openharmony/qopenharmonyplatformdialoghelpers.cpp b/src/plugins/platforms/openharmony/qopenharmonyplatformdialoghelpers.cpp
 new file mode 100644
-index 0000000000..2e1aa44f55
+index 0000000000..1f6e094cba
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonyplatformdialoghelpers.cpp
-@@ -0,0 +1,134 @@
+@@ -0,0 +1,133 @@
 +#include "qopenharmonyplatformdialoghelpers.h"
 +#include "qopenharmonymain.h"
 +#include "qopenharmonydefines.h"
@@ -2343,7 +2421,6 @@ index 0000000000..2e1aa44f55
 +
 +#include <private/qguiapplication_p.h>
 +#include <qpa/qplatformtheme.h>
-+#include <QDebug>
 +#include <QTextDocument>
 +
 +QOpenHarmonyPlatformMessageDialogHelper::QOpenHarmonyPlatformMessageDialogHelper()
@@ -2517,10 +2594,10 @@ index 0000000000..988a87e1a1
 +#endif // QOPENHARMONYPLATFORMDIALOGHELPERS_H
 diff --git a/src/plugins/platforms/openharmony/qopenharmonyplatformfontdatabase.cpp b/src/plugins/platforms/openharmony/qopenharmonyplatformfontdatabase.cpp
 new file mode 100644
-index 0000000000..34c86ee671
+index 0000000000..894071dd1e
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonyplatformfontdatabase.cpp
-@@ -0,0 +1,36 @@
+@@ -0,0 +1,35 @@
 +#include <QDir>
 +
 +#include "qopenharmonyplatformfontdatabase.h"
@@ -2550,7 +2627,6 @@ index 0000000000..34c86ee671
 +    const auto entries = dir.entryInfoList(nameFilters, QDir::Files);
 +    for (const QFileInfo &fi : entries) {
 +        const QByteArray file = QFile::encodeName(fi.absoluteFilePath());
-+        qDebug() << fi.absoluteFilePath();
 +        QFreeTypeFontDatabase::addTTFile(QByteArray(), file);
 +    }
 +}
@@ -2676,17 +2752,16 @@ index 0000000000..7676f9fa31
 +#endif // QOPENHARMONYPLATFORMFOREIGNWINDOW_H
 diff --git a/src/plugins/platforms/openharmony/qopenharmonyplatforminputcontext.cpp b/src/plugins/platforms/openharmony/qopenharmonyplatforminputcontext.cpp
 new file mode 100644
-index 0000000000..52138c8413
+index 0000000000..38c61e9395
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonyplatforminputcontext.cpp
-@@ -0,0 +1,208 @@
+@@ -0,0 +1,200 @@
 +#include "qopenharmonyplatforminputcontext.h"
 +#include "qopenharmonyplatformscreen.h"
 +#include "qopenharmonyplatformintegration.h"
 +#include "qopenharmonydefines.h"
 +#include "qopenharmonyjsobject.h"
 +
-+#include <QDebug>
 +#include <qevent.h>
 +#include <qguiapplication.h>
 +#include <qsharedpointer.h>
@@ -2698,7 +2773,6 @@ index 0000000000..52138c8413
 +#include <QTextCharFormat>
 +#include <QTextBoundaryFinder>
 +
-+#include <QDebug>
 +#include <qpa/qwindowsysteminterface.h>
 +#include <qpa/qplatformintegration.h>
 +
@@ -2821,12 +2895,6 @@ index 0000000000..52138c8413
 +    }
 +
 +    QWindow *window = m_integration->screen()->topLevelAt(m_touchPoints.at(0).area.center().toPoint());
-+//    qDebug() << "dddddddddddddddddddddddddddd" << window;
-+//    QList<QWindowSystemInterface::TouchPoint> points
-+//    for (int i = 0; i < m_touchPoints.count(); ++i) {
-+
-+//        QPoint _p = p + w->geometry().topLeft();
-+//    }
 +    QWindowSystemInterface::handleTouchEvent(window, touchDevice, m_touchPoints);
 +}
 +
@@ -2838,13 +2906,13 @@ index 0000000000..52138c8413
 +void QOpenHarmonyPlatformInputContext::showInputPanel()
 +{
 +    qInfo() << "QOpenHarmonyPlatformInputContext<===================showInputPanel:";
-+    m_jsInputManager->call("setKeyBoardVisible", true);
++//    m_jsInputManager->call("setKeyBoardVisible", true);
 +}
 +
 +void QOpenHarmonyPlatformInputContext::hideInputPanel()
 +{
 +    qInfo() << "QOpenHarmonyPlatformInputContext<===================hideInputPanel:";
-+    m_jsInputManager->call("setKeyBoardVisible", false);
++//    m_jsInputManager->call("setKeyBoardVisible", false);
 +}
 +
 +void QOpenHarmonyPlatformInputContext::update(Qt::InputMethodQueries)
@@ -2947,10 +3015,10 @@ index 0000000000..907700682b
 +#endif // QOPENHARMONYPLATFORMINPUTCONTEXT_H
 diff --git a/src/plugins/platforms/openharmony/qopenharmonyplatformintegration.cpp b/src/plugins/platforms/openharmony/qopenharmonyplatformintegration.cpp
 new file mode 100644
-index 0000000000..e4f06f7f57
+index 0000000000..221f54e522
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonyplatformintegration.cpp
-@@ -0,0 +1,275 @@
+@@ -0,0 +1,274 @@
 +#include "qopenharmonyplatformintegration.h"
 +
 +#include <QtGui/private/qguiapplication_p.h>
@@ -3107,10 +3175,10 @@ index 0000000000..e4f06f7f57
 +    return m_platformInputContext.data();
 +}
 +
-+//QPlatformNativeInterface *QOpenHarmonyPlatformIntegration::nativeInterface() const
-+//{
-+//    return m_platformNativeInterface.data();
-+//}
++QPlatformNativeInterface *QOpenHarmonyPlatformIntegration::nativeInterface() const
++{
++    return m_platformNativeInterface.data();
++}
 +
 +QVariant QOpenHarmonyPlatformIntegration::styleHint(StyleHint hint) const
 +{
@@ -3130,7 +3198,6 @@ index 0000000000..e4f06f7f57
 +    if (flags & Qt::Dialog & ~Qt::Window) {
 +        return Qt::WindowNoState;
 +    }
-+    qDebug() << "adfffffffffffffffffffffffffffffffffffffffffffffffsssssssssssssssssssssss" << QPlatformIntegration::defaultWindowState(flags);
 +    return QPlatformIntegration::defaultWindowState(flags);
 +}
 +
@@ -3228,7 +3295,7 @@ index 0000000000..e4f06f7f57
 +
 diff --git a/src/plugins/platforms/openharmony/qopenharmonyplatformintegration.h b/src/plugins/platforms/openharmony/qopenharmonyplatformintegration.h
 new file mode 100644
-index 0000000000..a254954f21
+index 0000000000..c2fa994d82
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonyplatformintegration.h
 @@ -0,0 +1,126 @@
@@ -3296,7 +3363,7 @@ index 0000000000..a254954f21
 +#endif
 +
 +    QPlatformInputContext *inputContext() const override;
-+//    QPlatformNativeInterface *nativeInterface() const override;
++    QPlatformNativeInterface *nativeInterface() const override;
 +//    QPlatformServices *services() const override;
 +
 +//#ifndef QT_NO_ACCESSIBILITY
@@ -3786,10 +3853,10 @@ index 0000000000..c4cb6257c3
 +
 diff --git a/src/plugins/platforms/openharmony/qopenharmonyplatformscreen.cpp b/src/plugins/platforms/openharmony/qopenharmonyplatformscreen.cpp
 new file mode 100644
-index 0000000000..ff8af01294
+index 0000000000..3c4e42ec3c
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonyplatformscreen.cpp
-@@ -0,0 +1,293 @@
+@@ -0,0 +1,289 @@
 +#include <QDebug>
 +#include <QTime>
 +
@@ -3843,18 +3910,16 @@ index 0000000000..ff8af01294
 +            return w->window();
 +        }
 +    }
-+    return 0;
++    return nullptr;
 +}
 +
 +QWindow *QOpenHarmonyPlatformScreen::topLevelAt(const QPoint &p) const
 +{
 +    for (QOpenHarmonyPlatformWindow *w : m_windowStack) {
-+        QPoint _p = p + w->geometry().topLeft();
-+        qDebug() << "555555555fffffffffffffffffffffff" << w->geometry() << _p << w->geometry().contains(_p, false) << w->window()->isVisible();
-+        if (w->geometry().contains(_p, false) && w->window()->isVisible())
++        if (w->geometry().contains(p, false) && w->window()->isVisible())
 +            return w->window();
 +    }
-+    return 0;
++    return nullptr;
 +}
 +
 +bool QOpenHarmonyPlatformScreen::event(QEvent *event)
@@ -3882,7 +3947,6 @@ index 0000000000..ff8af01294
 +    QWindowSystemInterface::handleWindowActivated(w);
 +    topWindowChanged(w);
 +}
-+
 +void QOpenHarmonyPlatformScreen::removeWindow(QOpenHarmonyPlatformWindow *window)
 +{
 +    if (window->parent() && window->isRaster())
@@ -4021,7 +4085,7 @@ index 0000000000..ff8af01294
 +        }
 +    }
 +    if (!hasVisibleRasterWindows) {
-+        LOGE("no visible raster windows");
++        qDebug() << "no visible raster windows";
 +        return;
 +    }
 +
@@ -4035,7 +4099,6 @@ index 0000000000..ff8af01294
 +        for (const QRect &rect : std::vector<QRect>(visibleRegion.begin(), visibleRegion.end())) {
 +            QRect targetRect = window->geometry();
 +            targetRect &= rect;
-+
 +            if (targetRect.isNull())
 +                continue;
 +            visibleRegion -= targetRect;
@@ -4051,7 +4114,7 @@ index 0000000000..ff8af01294
 +
 +//    for (const QRect &rect : visibleRegion)
 +//        compositePainter.fillRect(rect, QColor(Qt::transparent));
-+//    m_dirtyRect = QRect();
++    m_dirtyRect = QRect();
 +}
 +
 +QDpi QOpenHarmonyPlatformScreen::logicalDpi() const
@@ -4684,10 +4747,10 @@ index 0000000000..f768f216f2
 +#endif // QOPENHARMONYSURFACE_H
 diff --git a/src/plugins/platforms/openharmony/qopenharmonyxcomponent.cpp b/src/plugins/platforms/openharmony/qopenharmonyxcomponent.cpp
 new file mode 100644
-index 0000000000..2f14c00653
+index 0000000000..b24908cc23
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonyxcomponent.cpp
-@@ -0,0 +1,172 @@
+@@ -0,0 +1,181 @@
 +#include "qopenharmonyxcomponent.h"
 +#include "qopenharmonydefines.h"
 +#include "qopenharmonyplatforminputcontext.h"
@@ -4696,8 +4759,6 @@ index 0000000000..2f14c00653
 +
 +#include <hilog/log.h>
 +#include <ace/xcomponent/native_interface_xcomponent.h>
-+
-+#include <QRect>
 +
 +QOpenHarmonyXComponent::QOpenHarmonyXComponent(OH_NativeXComponent *component)
 +    : m_nativeComponent(component)
@@ -4715,6 +4776,11 @@ index 0000000000..2f14c00653
 +void QOpenHarmonyXComponent::paint(const QImage &image)
 +{
 +    m_egl->drawImage(image);
++}
++
++void QOpenHarmonyXComponent::setGeometry(const QRect &rect)
++{
++    m_geometry = rect;
 +}
 +
 +void QOpenHarmonyXComponent::onSurfaceCreated(OH_NativeXComponent *component, void *window)
@@ -4741,19 +4807,25 @@ index 0000000000..2f14c00653
 +{
 +//    QOpenHarmonyEGLCore::instance()->onSurfaceDestroyed(m_nativeWindow);
 +}
-+#include <QDebug>
++
 +void QOpenHarmonyXComponent::dispatchTouchEvent(OH_NativeXComponent *component, void *window)
 +{
++    QOpenHarmonyXComponent *xc = QOpenHarmonyXComponentManager::instance()->xcomponent(component);
++    if (xc == nullptr)
++        return;
 +    OH_NativeXComponent_TouchEvent touchEvent;
 +    int32_t ret = OH_NativeXComponent_GetTouchEvent(component, window, &touchEvent);
 +    if (ret != OH_NATIVEXCOMPONENT_RESULT_SUCCESS)
 +        return;
 +    QOpenHarmonyPlatformInputContext *context = QOpenHarmonyPlatformInputContext::openHarmonyInputContext();
 +    context->touchBegin();
++    int left = xc->m_geometry.left();
++    int top = xc->m_geometry.top();
 +    for (int i = 0; i < touchEvent.numPoints; i++) {
 +        OH_NativeXComponent_TouchPoint &point = touchEvent.touchPoints[i];
-+        qDebug() << "tyyyyyyyyyyyyyyyyyyyyyyyyyyyyy" << component << point.screenX << point.screenY << point.x << point.y;
-+        context->touchAdd(touchEvent.deviceId, static_cast<int>(point.type), point.force, point.screenX, point.screenY);
++        float x = point.x + left;
++        float y = point.y + top;
++        context->touchAdd(touchEvent.deviceId, static_cast<int>(point.type), point.force, x, y);
 +    }
 +    OH_NativeXComponent_TouchEventType type = touchEvent.type;
 +    switch (type) {
@@ -4862,13 +4934,14 @@ index 0000000000..2f14c00653
 +}
 diff --git a/src/plugins/platforms/openharmony/qopenharmonyxcomponent.h b/src/plugins/platforms/openharmony/qopenharmonyxcomponent.h
 new file mode 100644
-index 0000000000..8968ec1808
+index 0000000000..e8ef9aed95
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonyxcomponent.h
-@@ -0,0 +1,62 @@
+@@ -0,0 +1,64 @@
 +#ifndef QOPENHARMONYXCOMPONENT_H
 +#define QOPENHARMONYXCOMPONENT_H
 +
++#include <QRect>
 +#include <QObject>
 +#include <EGL/egl.h>
 +#include <QScopedPointer>
@@ -4926,14 +4999,15 @@ index 0000000000..8968ec1808
 +    QString m_componentName;
 +    EGLNativeWindowType m_nativeWindow;
 +    QScopedPointer<QOpenHarmonyEGLCore> m_egl;
++    QRect m_geometry;
 +};
 +#endif // QOPENHARMONYXCOMPONENT_H
 diff --git a/src/plugins/platforms/openharmony/qopenharmonyxcomponentmanager.cpp b/src/plugins/platforms/openharmony/qopenharmonyxcomponentmanager.cpp
 new file mode 100644
-index 0000000000..25b7b230ef
+index 0000000000..18138daaa5
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonyxcomponentmanager.cpp
-@@ -0,0 +1,150 @@
+@@ -0,0 +1,151 @@
 +#include "qopenharmonyxcomponentmanager.h"
 +#include "qopenharmonyxcomponent.h"
 +#include "qopenharmonydefines.h"
@@ -5081,6 +5155,7 @@ index 0000000000..25b7b230ef
 +{
 +    if (component == nullptr)
 +        return;
++    component->setGeometry(rect);
 +    m_jsWindowManager->call("setGeometry", component->componentName(), rect.left(), rect.top(), rect.width(), rect.height());
 +    m_jsWindowManager->wait(100);
 +}
