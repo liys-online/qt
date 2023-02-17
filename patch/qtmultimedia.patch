@@ -1,0 +1,838 @@
+diff --git a/src/plugins/android/src/mediaplayer/qandroidmediaservice.cpp b/src/plugins/android/src/mediaplayer/qandroidmediaservice.cpp
+index 2688f3550..f74f6a1d4 100644
+--- a/src/plugins/android/src/mediaplayer/qandroidmediaservice.cpp
++++ b/src/plugins/android/src/mediaplayer/qandroidmediaservice.cpp
+@@ -38,7 +38,6 @@
+ ****************************************************************************/
+ 
+ #include "qandroidmediaservice.h"
+-
+ #include "qandroidmediaplayercontrol.h"
+ #include "qandroidmetadatareadercontrol.h"
+ #include "qandroidmediaplayervideorenderercontrol.h"
+diff --git a/src/plugins/openharmony/openharmony.pro b/src/plugins/openharmony/openharmony.pro
+new file mode 100644
+index 000000000..a3841d703
+--- /dev/null
++++ b/src/plugins/openharmony/openharmony.pro
+@@ -0,0 +1,7 @@
++TEMPLATE = subdirs
++
++SUBDIRS += src
++
++qtHaveModule(quick) {
++    SUBDIRS += videonode
++}
+diff --git a/src/plugins/openharmony/src/openharmony_mediaservice.json b/src/plugins/openharmony/src/openharmony_mediaservice.json
+new file mode 100644
+index 000000000..9f188ebfb
+--- /dev/null
++++ b/src/plugins/openharmony/src/openharmony_mediaservice.json
+@@ -0,0 +1,4 @@
++{
++    "Keys": ["openharmonymultimedia"],
++    "Services": ["org.qt-project.qt.camera", "org.qt-project.qt.mediaplayer", "org.qt-project.qt.audiosource"]
++}
+diff --git a/src/plugins/openharmony/src/qopenharmonymediaserviceplugin.cpp b/src/plugins/openharmony/src/qopenharmonymediaserviceplugin.cpp
+new file mode 100644
+index 000000000..4906c5640
+--- /dev/null
++++ b/src/plugins/openharmony/src/qopenharmonymediaserviceplugin.cpp
+@@ -0,0 +1,85 @@
++#include <QLoggingCategory>
++
++#include "qcamera.h"
++#include "qmediaserviceproviderplugin.h"
++#include "qopenharmonymediaserviceplugin.h"
++
++QT_BEGIN_NAMESPACE
++
++Q_LOGGING_CATEGORY(qtOPenHaronyMediaPlugin, "qt.multimedia.plugins.openharmony")
++
++QOPenHarmonyMediaServicePlugin::QOPenHarmonyMediaServicePlugin()
++{
++}
++
++QOPenHarmonyMediaServicePlugin::~QOPenHarmonyMediaServicePlugin()
++{
++}
++
++QMediaService *QOPenHarmonyMediaServicePlugin::create(const QString &key)
++{
++    if (key == QLatin1String(Q_MEDIASERVICE_MEDIAPLAYER))
++        return nullptr;
++
++    if (key == QLatin1String(Q_MEDIASERVICE_CAMERA)
++            || key == QLatin1String(Q_MEDIASERVICE_AUDIOSOURCE)) {
++        return nullptr;
++    }
++
++    qCWarning(qtOPenHaronyMediaPlugin) << "OPenHarony service plugin: unsupported key:" << key;
++    return 0;
++}
++
++void QOPenHarmonyMediaServicePlugin::release(QMediaService *service)
++{
++    delete service;
++}
++
++QMediaServiceProviderHint::Features QOPenHarmonyMediaServicePlugin::supportedFeatures(const QByteArray &service) const
++{
++    if (service == Q_MEDIASERVICE_MEDIAPLAYER)
++        return QMediaServiceProviderHint::VideoSurface;
++
++    if (service == Q_MEDIASERVICE_CAMERA)
++        return QMediaServiceProviderHint::VideoSurface | QMediaServiceProviderHint::RecordingSupport;
++
++    if (service == Q_MEDIASERVICE_AUDIOSOURCE)
++        return QMediaServiceProviderHint::RecordingSupport;
++
++    return QMediaServiceProviderHint::Features();
++}
++
++QByteArray QOPenHarmonyMediaServicePlugin::defaultDevice(const QByteArray &service) const
++{
++    if (service == Q_MEDIASERVICE_CAMERA)
++        return QByteArray();
++
++    return QByteArray();
++}
++
++QList<QByteArray> QOPenHarmonyMediaServicePlugin::devices(const QByteArray &service) const
++{
++    Q_UNUSED(service);
++    return QList<QByteArray>();
++}
++
++QString QOPenHarmonyMediaServicePlugin::deviceDescription(const QByteArray &service, const QByteArray &device)
++{
++    Q_UNUSED(service);
++    Q_UNUSED(device);
++    return QString();
++}
++
++QCamera::Position QOPenHarmonyMediaServicePlugin::cameraPosition(const QByteArray &device) const
++{
++    Q_UNUSED(device);
++    return QCamera::UnspecifiedPosition;
++}
++
++int QOPenHarmonyMediaServicePlugin::cameraOrientation(const QByteArray &device) const
++{
++    Q_UNUSED(device);
++    return 0;
++}
++
++QT_END_NAMESPACE
+diff --git a/src/plugins/openharmony/src/qopenharmonymediaserviceplugin.h b/src/plugins/openharmony/src/qopenharmonymediaserviceplugin.h
+new file mode 100644
+index 000000000..340e0b7ba
+--- /dev/null
++++ b/src/plugins/openharmony/src/qopenharmonymediaserviceplugin.h
+@@ -0,0 +1,42 @@
++#ifndef QOPENHARMONYMEDIASERVICEPLUGIN_H
++#define QOPENHARMONYMEDIASERVICEPLUGIN_H
++
++#include <QMediaServiceProviderPlugin>
++
++QT_BEGIN_NAMESPACE
++
++class QOPenHarmonyMediaServicePlugin
++        : public QMediaServiceProviderPlugin
++        , public QMediaServiceSupportedDevicesInterface
++        , public QMediaServiceDefaultDeviceInterface
++        , public QMediaServiceCameraInfoInterface
++        , public QMediaServiceFeaturesInterface
++{
++    Q_OBJECT
++    Q_INTERFACES(QMediaServiceSupportedDevicesInterface)
++    Q_INTERFACES(QMediaServiceDefaultDeviceInterface)
++    Q_INTERFACES(QMediaServiceCameraInfoInterface)
++    Q_INTERFACES(QMediaServiceFeaturesInterface)
++    Q_PLUGIN_METADATA(IID "org.qt-project.qt.mediaserviceproviderfactory/5.0"
++                      FILE "openharmony_mediaservice.json")
++
++public:
++    QOPenHarmonyMediaServicePlugin();
++    ~QOPenHarmonyMediaServicePlugin();
++
++    QMediaService* create(QString const& key) override;
++    void release(QMediaService *service) override;
++
++    QMediaServiceProviderHint::Features supportedFeatures(const QByteArray &service) const override;
++
++    QByteArray defaultDevice(const QByteArray &service) const override;
++    QList<QByteArray> devices(const QByteArray &service) const override;
++    QString deviceDescription(const QByteArray &service, const QByteArray &device) override;
++
++    QCamera::Position cameraPosition(const QByteArray &device) const override;
++    int cameraOrientation(const QByteArray &device) const override;
++};
++
++QT_END_NAMESPACE
++
++#endif // QOPENHARMONYMEDIASERVICEPLUGIN_H
+diff --git a/src/plugins/openharmony/src/src.pro b/src/plugins/openharmony/src/src.pro
+new file mode 100644
+index 000000000..9b0c9a5c1
+--- /dev/null
++++ b/src/plugins/openharmony/src/src.pro
+@@ -0,0 +1,17 @@
++TARGET = qtmedia_openharmony
++
++QT += multimedia-private core-private network
++
++HEADERS += \
++    qopenharmonymediaserviceplugin.h
++
++SOURCES += \
++    qopenharmonymediaserviceplugin.cpp
++
++
++OTHER_FILES += \
++    openharmony_mediaservice.json
++
++PLUGIN_TYPE = mediaservice
++PLUGIN_CLASS_NAME = QOPenHarmonyMediaServicePlugin
++load(qt_plugin)
+diff --git a/src/plugins/openharmony/videonode/openharmony_videonode.json b/src/plugins/openharmony/videonode/openharmony_videonode.json
+new file mode 100644
+index 000000000..c82757cb0
+--- /dev/null
++++ b/src/plugins/openharmony/videonode/openharmony_videonode.json
+@@ -0,0 +1,3 @@
++{
++    "Keys": ["openharmony"]
++}
+diff --git a/src/plugins/openharmony/videonode/qopenharmonysgvideonode.cpp b/src/plugins/openharmony/videonode/qopenharmonysgvideonode.cpp
+new file mode 100644
+index 000000000..e329ae8ee
+--- /dev/null
++++ b/src/plugins/openharmony/videonode/qopenharmonysgvideonode.cpp
+@@ -0,0 +1,212 @@
++/****************************************************************************
++**
++** Copyright (C) 2016 The Qt Company Ltd.
++** Contact: https://www.qt.io/licensing/
++**
++** This file is part of the Qt Toolkit.
++**
++** $QT_BEGIN_LICENSE:LGPL$
++** Commercial License Usage
++** Licensees holding valid commercial Qt licenses may use this file in
++** accordance with the commercial license agreement provided with the
++** Software or, alternatively, in accordance with the terms contained in
++** a written agreement between you and The Qt Company. For licensing terms
++** and conditions see https://www.qt.io/terms-conditions. For further
++** information use the contact form at https://www.qt.io/contact-us.
++**
++** GNU Lesser General Public License Usage
++** Alternatively, this file may be used under the terms of the GNU Lesser
++** General Public License version 3 as published by the Free Software
++** Foundation and appearing in the file LICENSE.LGPL3 included in the
++** packaging of this file. Please review the following information to
++** ensure the GNU Lesser General Public License version 3 requirements
++** will be met: https://www.gnu.org/licenses/lgpl-3.0.html.
++**
++** GNU General Public License Usage
++** Alternatively, this file may be used under the terms of the GNU
++** General Public License version 2.0 or (at your option) the GNU General
++** Public license version 3 or any later version approved by the KDE Free
++** Qt Foundation. The licenses are as published by the Free Software
++** Foundation and appearing in the file LICENSE.GPL2 and LICENSE.GPL3
++** included in the packaging of this file. Please review the following
++** information to ensure the GNU General Public License requirements will
++** be met: https://www.gnu.org/licenses/gpl-2.0.html and
++** https://www.gnu.org/licenses/gpl-3.0.html.
++**
++** $QT_END_LICENSE$
++**
++****************************************************************************/
++
++#include "qopenharmonysgvideonode.h"
++
++#include <qsgmaterial.h>
++#include <qmutex.h>
++
++QT_BEGIN_NAMESPACE
++
++class QOPenHarmonySGVideoNodeMaterialShader : public QSGMaterialShader
++{
++public:
++    void updateState(const RenderState &state, QSGMaterial *newMaterial, QSGMaterial *oldMaterial);
++
++    char const *const *attributeNames() const {
++        static const char *names[] = {
++            "qt_VertexPosition",
++            "qt_VertexTexCoord",
++            0
++        };
++        return names;
++    }
++
++protected:
++
++    const char *vertexShader() const {
++        const char *shader =
++        "uniform highp mat4 qt_Matrix;                      \n"
++        "attribute highp vec4 qt_VertexPosition;            \n"
++        "attribute highp vec2 qt_VertexTexCoord;            \n"
++        "varying highp vec2 qt_TexCoord;                    \n"
++        "void main() {                                      \n"
++        "    qt_TexCoord = qt_VertexTexCoord;               \n"
++        "    gl_Position = qt_Matrix * qt_VertexPosition;   \n"
++        "}";
++        return shader;
++    }
++
++    const char *fragmentShader() const {
++        static const char *shader =
++        "uniform sampler2D rgbTexture;"
++        "uniform lowp float opacity;"
++        ""
++        "varying highp vec2 qt_TexCoord;"
++        ""
++        "void main()"
++        "{"
++        "    gl_FragColor = texture2D(rgbTexture, qt_TexCoord) * opacity;"
++        "}";
++        return shader;
++    }
++
++    void initialize() {
++        m_id_matrix = program()->uniformLocation("qt_Matrix");
++        m_id_Texture = program()->uniformLocation("rgbTexture");
++        m_id_opacity = program()->uniformLocation("opacity");
++    }
++
++    int m_id_matrix;
++    int m_id_Texture;
++    int m_id_opacity;
++};
++
++class QOPenHarmonySGVideoNodeMaterial : public QSGMaterial
++{
++public:
++    QOPenHarmonySGVideoNodeMaterial()
++        : m_textureId(0)
++        , m_textureUpdated(false)
++        , m_opacity(1.0)
++    {
++        setFlag(Blending, false);
++    }
++
++    QSGMaterialType *type() const {
++        static QSGMaterialType theType;
++        return &theType;
++    }
++
++    QSGMaterialShader *createShader() const {
++        return new QOPenHarmonySGVideoNodeMaterialShader;
++    }
++
++    int compare(const QSGMaterial *other) const {
++        const QOPenHarmonySGVideoNodeMaterial *m = static_cast<const QOPenHarmonySGVideoNodeMaterial *>(other);
++        int diff = m_textureId - m->m_textureId;
++        if (diff)
++            return diff;
++
++        return (m_opacity > m->m_opacity) ? 1 : -1;
++    }
++
++    void updateBlending() {
++        setFlag(Blending, qFuzzyCompare(m_opacity, qreal(1.0)) ? false : true);
++    }
++
++    void updateTexture(GLuint id, const QSize &size) {
++        if (m_textureId != id || m_textureSize != size) {
++            m_textureId = id;
++            m_textureSize = size;
++            m_textureUpdated = true;
++        }
++    }
++
++    void bind()
++    {
++        glBindTexture(GL_TEXTURE_2D, m_textureId);
++        if (m_textureUpdated) {
++            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
++            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
++            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
++            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
++            m_textureUpdated = false;
++        }
++    }
++
++    QSize m_textureSize;
++    GLuint m_textureId;
++    bool m_textureUpdated;
++    qreal m_opacity;
++};
++
++
++QOPenHarmonySGVideoNode::QOPenHarmonySGVideoNode(const QVideoSurfaceFormat &format)
++    : m_format(format)
++{
++    setFlags(OwnsMaterial | UsePreprocess);
++    m_material = new QOPenHarmonySGVideoNodeMaterial;
++    setMaterial(m_material);
++}
++
++QOPenHarmonySGVideoNode::~QOPenHarmonySGVideoNode()
++{
++    m_frame = QVideoFrame();
++}
++
++void QOPenHarmonySGVideoNode::setCurrentFrame(const QVideoFrame &frame, FrameFlags)
++{
++    QMutexLocker lock(&m_frameMutex);
++    m_frame = frame;
++    markDirty(DirtyMaterial);
++}
++
++void QOPenHarmonySGVideoNodeMaterialShader::updateState(const RenderState &state,
++                                                    QSGMaterial *newMaterial,
++                                                    QSGMaterial *oldMaterial)
++{
++    Q_UNUSED(oldMaterial);
++    QOPenHarmonySGVideoNodeMaterial *mat = static_cast<QOPenHarmonySGVideoNodeMaterial *>(newMaterial);
++    program()->setUniformValue(m_id_Texture, 0);
++
++    mat->bind();
++
++    if (state.isOpacityDirty()) {
++        mat->m_opacity = state.opacity();
++        mat->updateBlending();
++        program()->setUniformValue(m_id_opacity, GLfloat(mat->m_opacity));
++    }
++
++    if (state.isMatrixDirty())
++        program()->setUniformValue(m_id_matrix, state.combinedMatrix());
++}
++
++void QOPenHarmonySGVideoNode::preprocess()
++{
++    QMutexLocker lock(&m_frameMutex);
++
++    GLuint texId = 0;
++    if (m_frame.isValid())
++        texId = m_frame.handle().toUInt();
++
++    m_material->updateTexture(texId, m_frame.size());
++}
++
++QT_END_NAMESPACE
+diff --git a/src/plugins/openharmony/videonode/qopenharmonysgvideonode.h b/src/plugins/openharmony/videonode/qopenharmonysgvideonode.h
+new file mode 100644
+index 000000000..fa731c5af
+--- /dev/null
++++ b/src/plugins/openharmony/videonode/qopenharmonysgvideonode.h
+@@ -0,0 +1,71 @@
++/****************************************************************************
++**
++** Copyright (C) 2016 The Qt Company Ltd.
++** Contact: https://www.qt.io/licensing/
++**
++** This file is part of the Qt Toolkit.
++**
++** $QT_BEGIN_LICENSE:LGPL$
++** Commercial License Usage
++** Licensees holding valid commercial Qt licenses may use this file in
++** accordance with the commercial license agreement provided with the
++** Software or, alternatively, in accordance with the terms contained in
++** a written agreement between you and The Qt Company. For licensing terms
++** and conditions see https://www.qt.io/terms-conditions. For further
++** information use the contact form at https://www.qt.io/contact-us.
++**
++** GNU Lesser General Public License Usage
++** Alternatively, this file may be used under the terms of the GNU Lesser
++** General Public License version 3 as published by the Free Software
++** Foundation and appearing in the file LICENSE.LGPL3 included in the
++** packaging of this file. Please review the following information to
++** ensure the GNU Lesser General Public License version 3 requirements
++** will be met: https://www.gnu.org/licenses/lgpl-3.0.html.
++**
++** GNU General Public License Usage
++** Alternatively, this file may be used under the terms of the GNU
++** General Public License version 2.0 or (at your option) the GNU General
++** Public license version 3 or any later version approved by the KDE Free
++** Qt Foundation. The licenses are as published by the Free Software
++** Foundation and appearing in the file LICENSE.GPL2 and LICENSE.GPL3
++** included in the packaging of this file. Please review the following
++** information to ensure the GNU General Public License requirements will
++** be met: https://www.gnu.org/licenses/gpl-2.0.html and
++** https://www.gnu.org/licenses/gpl-3.0.html.
++**
++** $QT_END_LICENSE$
++**
++****************************************************************************/
++
++#ifndef QOPENHARMONYSGVIDEONODE_H
++#define QOPENHARMONYSGVIDEONODE_H
++
++#include <private/qsgvideonode_p.h>
++#include <qmutex.h>
++
++QT_BEGIN_NAMESPACE
++
++class QOPenHarmonySGVideoNodeMaterial;
++
++class QOPenHarmonySGVideoNode : public QSGVideoNode
++{
++public:
++    QOPenHarmonySGVideoNode(const QVideoSurfaceFormat &format);
++    ~QOPenHarmonySGVideoNode();
++
++    void setCurrentFrame(const QVideoFrame &frame, FrameFlags flags);
++    QVideoFrame::PixelFormat pixelFormat() const { return m_format.pixelFormat(); }
++    QAbstractVideoBuffer::HandleType handleType() const { return QAbstractVideoBuffer::GLTextureHandle; }
++
++    void preprocess();
++
++private:
++    QOPenHarmonySGVideoNodeMaterial *m_material;
++    QMutex m_frameMutex;
++    QVideoFrame m_frame;
++    QVideoSurfaceFormat m_format;
++};
++
++QT_END_NAMESPACE
++
++#endif // QOPENHARMONYSGVIDEONODE_H
+diff --git a/src/plugins/openharmony/videonode/qopenharmonysgvideonodeplugin.cpp b/src/plugins/openharmony/videonode/qopenharmonysgvideonodeplugin.cpp
+new file mode 100644
+index 000000000..ae79b8627
+--- /dev/null
++++ b/src/plugins/openharmony/videonode/qopenharmonysgvideonodeplugin.cpp
+@@ -0,0 +1,65 @@
++/****************************************************************************
++**
++** Copyright (C) 2016 The Qt Company Ltd.
++** Contact: https://www.qt.io/licensing/
++**
++** This file is part of the Qt Toolkit.
++**
++** $QT_BEGIN_LICENSE:LGPL$
++** Commercial License Usage
++** Licensees holding valid commercial Qt licenses may use this file in
++** accordance with the commercial license agreement provided with the
++** Software or, alternatively, in accordance with the terms contained in
++** a written agreement between you and The Qt Company. For licensing terms
++** and conditions see https://www.qt.io/terms-conditions. For further
++** information use the contact form at https://www.qt.io/contact-us.
++**
++** GNU Lesser General Public License Usage
++** Alternatively, this file may be used under the terms of the GNU Lesser
++** General Public License version 3 as published by the Free Software
++** Foundation and appearing in the file LICENSE.LGPL3 included in the
++** packaging of this file. Please review the following information to
++** ensure the GNU Lesser General Public License version 3 requirements
++** will be met: https://www.gnu.org/licenses/lgpl-3.0.html.
++**
++** GNU General Public License Usage
++** Alternatively, this file may be used under the terms of the GNU
++** General Public License version 2.0 or (at your option) the GNU General
++** Public license version 3 or any later version approved by the KDE Free
++** Qt Foundation. The licenses are as published by the Free Software
++** Foundation and appearing in the file LICENSE.GPL2 and LICENSE.GPL3
++** included in the packaging of this file. Please review the following
++** information to ensure the GNU General Public License requirements will
++** be met: https://www.gnu.org/licenses/gpl-2.0.html and
++** https://www.gnu.org/licenses/gpl-3.0.html.
++**
++** $QT_END_LICENSE$
++**
++****************************************************************************/
++
++#include "qopenharmonysgvideonodeplugin.h"
++#include "qopenharmonysgvideonode.h"
++
++QT_BEGIN_NAMESPACE
++
++QList<QVideoFrame::PixelFormat> QOPenHarmonySGVideoNodeFactoryPlugin::supportedPixelFormats(
++        QAbstractVideoBuffer::HandleType handleType) const
++{
++    QList<QVideoFrame::PixelFormat> pixelFormats;
++
++    if (handleType == QAbstractVideoBuffer::GLTextureHandle)
++        pixelFormats.append(QVideoFrame::Format_BGR32);
++
++    return pixelFormats;
++}
++
++QSGVideoNode *QOPenHarmonySGVideoNodeFactoryPlugin::createNode(const QVideoSurfaceFormat &format)
++{
++    if (supportedPixelFormats(format.handleType()).contains(format.pixelFormat()))
++        return new QOPenHarmonySGVideoNode(format);
++
++    return 0;
++}
++
++
++QT_END_NAMESPACE
+diff --git a/src/plugins/openharmony/videonode/qopenharmonysgvideonodeplugin.h b/src/plugins/openharmony/videonode/qopenharmonysgvideonodeplugin.h
+new file mode 100644
+index 000000000..d2cc4359f
+--- /dev/null
++++ b/src/plugins/openharmony/videonode/qopenharmonysgvideonodeplugin.h
+@@ -0,0 +1,60 @@
++/****************************************************************************
++**
++** Copyright (C) 2016 The Qt Company Ltd.
++** Contact: https://www.qt.io/licensing/
++**
++** This file is part of the Qt Toolkit.
++**
++** $QT_BEGIN_LICENSE:LGPL$
++** Commercial License Usage
++** Licensees holding valid commercial Qt licenses may use this file in
++** accordance with the commercial license agreement provided with the
++** Software or, alternatively, in accordance with the terms contained in
++** a written agreement between you and The Qt Company. For licensing terms
++** and conditions see https://www.qt.io/terms-conditions. For further
++** information use the contact form at https://www.qt.io/contact-us.
++**
++** GNU Lesser General Public License Usage
++** Alternatively, this file may be used under the terms of the GNU Lesser
++** General Public License version 3 as published by the Free Software
++** Foundation and appearing in the file LICENSE.LGPL3 included in the
++** packaging of this file. Please review the following information to
++** ensure the GNU Lesser General Public License version 3 requirements
++** will be met: https://www.gnu.org/licenses/lgpl-3.0.html.
++**
++** GNU General Public License Usage
++** Alternatively, this file may be used under the terms of the GNU
++** General Public License version 2.0 or (at your option) the GNU General
++** Public license version 3 or any later version approved by the KDE Free
++** Qt Foundation. The licenses are as published by the Free Software
++** Foundation and appearing in the file LICENSE.GPL2 and LICENSE.GPL3
++** included in the packaging of this file. Please review the following
++** information to ensure the GNU General Public License requirements will
++** be met: https://www.gnu.org/licenses/gpl-2.0.html and
++** https://www.gnu.org/licenses/gpl-3.0.html.
++**
++** $QT_END_LICENSE$
++**
++****************************************************************************/
++
++#ifndef QOPENHARMONYSGVIDEONODEPLUGIN_H
++#define QOPENHARMONYSGVIDEONODEPLUGIN_H
++
++#include <private/qsgvideonode_p.h>
++
++QT_BEGIN_NAMESPACE
++
++class QOPenHarmonySGVideoNodeFactoryPlugin : public QSGVideoNodeFactoryPlugin
++{
++    Q_OBJECT
++    Q_PLUGIN_METADATA(IID QSGVideoNodeFactoryInterface_iid
++                      FILE "openharmony_videonode.json")
++
++public:
++    QList<QVideoFrame::PixelFormat> supportedPixelFormats(QAbstractVideoBuffer::HandleType handleType) const;
++    QSGVideoNode *createNode(const QVideoSurfaceFormat &format);
++};
++
++QT_END_NAMESPACE
++
++#endif // QOPENHARMONYSGVIDEONODEPLUGIN_H
+diff --git a/src/plugins/openharmony/videonode/videonode.pro b/src/plugins/openharmony/videonode/videonode.pro
+new file mode 100644
+index 000000000..e4aa287f2
+--- /dev/null
++++ b/src/plugins/openharmony/videonode/videonode.pro
+@@ -0,0 +1,18 @@
++TARGET = qtsgvideonode_openharmony
++
++QT += quick multimedia-private qtmultimediaquicktools-private
++
++HEADERS += \
++    qopenharmonysgvideonode.h \
++    qopenharmonysgvideonodeplugin.h
++
++SOURCES += \
++    qopenharmonysgvideonode.cpp \
++    qopenharmonysgvideonodeplugin.cpp
++
++OTHER_FILES += openharmony_videonode.json
++
++PLUGIN_TYPE = video/videonode
++PLUGIN_EXTENDS = quick
++PLUGIN_CLASS_NAME = QOPenharmonySGVideoNodeFactoryPlugin
++load(qt_plugin)
+diff --git a/src/plugins/opensles/qopenslesaudioinput.cpp b/src/plugins/opensles/qopenslesaudioinput.cpp
+index ad87cb057..fd35d0dac 100644
+--- a/src/plugins/opensles/qopenslesaudioinput.cpp
++++ b/src/plugins/opensles/qopenslesaudioinput.cpp
+@@ -207,9 +207,10 @@ QIODevice *QOpenSLESAudioInput::start()
+ 
+ bool QOpenSLESAudioInput::startRecording()
+ {
++#ifdef ANDROID
+     if (!hasRecordingPermission())
+         return false;
+-
++#endif
+     m_processedBytes = 0;
+     m_clockStamp.restart();
+     m_lastNotifyTime = 0;
+diff --git a/src/plugins/opensles/qopenslesengine.cpp b/src/plugins/opensles/qopenslesengine.cpp
+index 43cdcb276..ac83040bc 100644
+--- a/src/plugins/opensles/qopenslesengine.cpp
++++ b/src/plugins/opensles/qopenslesengine.cpp
+@@ -38,7 +38,8 @@
+ ****************************************************************************/
+ 
+ #include "qopenslesengine.h"
+-
++#include <QtCore/QOpenHarmonyJsObject>
++#include <QtCore/QOpenHarmonyJsEnvironment>
+ #include "qopenslesaudioinput.h"
+ #include <qdebug.h>
+ 
+@@ -59,6 +60,9 @@ QOpenSLESEngine::QOpenSLESEngine()
+     : m_engineObject(0)
+     , m_engine(0)
+     , m_checkedInputFormats(false)
++#if defined(Q_OS_OPENHARMONY)
++      , m_jsObj(Q_NULLPTR)
++#endif
+ {
+     SLresult result;
+ 
+@@ -70,6 +74,10 @@ QOpenSLESEngine::QOpenSLESEngine()
+ 
+     result = (*m_engineObject)->GetInterface(m_engineObject, SL_IID_ENGINE, &m_engine);
+     CheckError("Failed to get engine interface");
++
++#if defined(Q_OS_OPENHARMONY)
++    m_jsObj.reset(new QOpenHarmonyJsObject("qtaudiomanager"));
++#endif
+ }
+ 
+ QOpenSLESEngine::~QOpenSLESEngine()
+@@ -92,11 +100,11 @@ SLDataFormat_PCM QOpenSLESEngine::audioFormatToSLFormatPCM(const QAudioFormat &f
+     format_pcm.bitsPerSample = format.sampleSize();
+     format_pcm.containerSize = format.sampleSize();
+     format_pcm.channelMask = (format.channelCount() == 1 ?
+-                                  SL_SPEAKER_FRONT_CENTER :
+-                                  SL_SPEAKER_FRONT_LEFT | SL_SPEAKER_FRONT_RIGHT);
++                                      SL_SPEAKER_FRONT_CENTER :
++                                      SL_SPEAKER_FRONT_LEFT | SL_SPEAKER_FRONT_RIGHT);
+     format_pcm.endianness = (format.byteOrder() == QAudioFormat::LittleEndian ?
+-                                 SL_BYTEORDER_LITTLEENDIAN :
+-                                 SL_BYTEORDER_BIGENDIAN);
++                                     SL_BYTEORDER_LITTLEENDIAN :
++                                     SL_BYTEORDER_BIGENDIAN);
+     return format_pcm;
+ 
+ }
+@@ -115,11 +123,19 @@ QList<QByteArray> QOpenSLESEngine::availableDevices(QAudio::Mode mode) const
+         devices << QT_ANDROID_PRESET_MIC
+                 << QT_ANDROID_PRESET_CAMCORDER
+                 << QT_ANDROID_PRESET_VOICE_RECOGNITION;
++#elif defined(Q_OS_OPENHARMONY)
++        m_jsObj->call("availableInputDevices");
++        devices << "default"; //TODO del
+ #else
+         devices << "default";
+ #endif
+     } else {
++#if defined(Q_OS_OPENHARMONY)
++        m_jsObj->call("availableOutputDevices");
++        devices << "default"; //TODO del
++#else
+         devices << "default";
++#endif
+     }
+     return devices;
+ }
+@@ -205,6 +221,13 @@ int QOpenSLESEngine::getOutputValue(QOpenSLESEngine::OutputValue type, int defau
+ 
+ #endif // Q_OS_ANDROID
+ 
++#if defined(Q_OS_OPENHARMONY)
++    qDebug() << type << "<------------------------QOpenSLESEngine OPEN_HARMONY----------->"
++             << defaultValue;
++
++    return defaultValue;
++#endif
++
+     return defaultValue;
+ }
+ 
+@@ -318,7 +341,7 @@ void QOpenSLESEngine::checkSupportedInputFormats()
+                                 SL_SAMPLINGRATE_48 };
+ 
+ 
+-    // Test sampling rates
++         // Test sampling rates
+     for (int i = 0 ; i < 9; ++i) {
+         SLDataFormat_PCM format = defaultFormat;
+         format.samplesPerSec = rates[i];
+@@ -328,7 +351,7 @@ void QOpenSLESEngine::checkSupportedInputFormats()
+ 
+     }
+ 
+-    // Test if stereo is supported
++         // Test if stereo is supported
+     {
+         SLDataFormat_PCM format = defaultFormat;
+         format.numChannels = 2;
+diff --git a/src/plugins/opensles/qopenslesengine.h b/src/plugins/opensles/qopenslesengine.h
+index c36b21488..75d8bc31a 100644
+--- a/src/plugins/opensles/qopenslesengine.h
++++ b/src/plugins/opensles/qopenslesengine.h
+@@ -48,6 +48,10 @@
+ 
+ QT_BEGIN_NAMESPACE
+ 
++#if defined(Q_OS_OPENHARMONY)
++class QOpenHarmonyJsObject;
++#endif
++
+ class QOpenSLESEngine
+ {
+ public:
+@@ -83,6 +87,9 @@ private:
+     QList<int> m_supportedInputChannelCounts;
+     QList<int> m_supportedInputSampleRates;
+     bool m_checkedInputFormats;
++#if defined(Q_OS_OPENHARMONY)
++    QScopedPointer<QOpenHarmonyJsObject> m_jsObj;
++#endif
+ };
+ 
+ QT_END_NAMESPACE
+diff --git a/src/plugins/plugins.pro b/src/plugins/plugins.pro
+index 71b9ec6e1..c7cfe9970 100644
+--- a/src/plugins/plugins.pro
++++ b/src/plugins/plugins.pro
+@@ -17,6 +17,10 @@ android {
+    SUBDIRS += android opensles
+ }
+ 
++openharmony {
++    SUBDIRS += openharmony opensles
++}
++
+ qnx {
+     qtConfig(mmrenderer): SUBDIRS += qnx
+     SUBDIRS += audiocapture
+diff --git a/src/plugins/videonode/egl/qsgvideonode_egl.cpp b/src/plugins/videonode/egl/qsgvideonode_egl.cpp
+index c3694f533..fbb6dc609 100644
+--- a/src/plugins/videonode/egl/qsgvideonode_egl.cpp
++++ b/src/plugins/videonode/egl/qsgvideonode_egl.cpp
+@@ -40,8 +40,11 @@
+ #include "qsgvideonode_egl.h"
+ 
+ #include <QtMultimedia/qvideosurfaceformat.h>
+-
++#ifdef Q_OS_OPENHARMONY
++#include <EGL/eglext.h>
++#else
+ #include <GLES2/gl2ext.h>
++#endif
+ 
+ QT_BEGIN_NAMESPACE
+ 

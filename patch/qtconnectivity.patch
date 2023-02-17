@@ -1,0 +1,1070 @@
+diff --git a/src/bluetooth/bluetooth.pro b/src/bluetooth/bluetooth.pro
+index 0b253942..6d88b40c 100644
+--- a/src/bluetooth/bluetooth.pro
++++ b/src/bluetooth/bluetooth.pro
+@@ -155,6 +155,20 @@ qtConfig(bluez) {
+ 
+     PRIVATE_HEADERS += qlowenergycontroller_android_p.h \
+                        qbluetoothsocket_android_p.h
++} else:openharmony {
++    DEFINES += QT_OPENHARMONY_BLUETOOTH
++
++    SOURCES += \
++               qbluetoothserver_ohos.cpp \
++               qbluetoothsocket_ohos.cpp \
++               qbluetoothlocaldevice_ohos.cpp \
++               qbluetoothserviceinfo_ohos.cpp \
++               qlowenergycontroller_ohos.cpp \
++               qbluetoothdevicediscoveryagent_ohos.cpp \
++               qbluetoothservicediscoveryagent_ohos.cpp
++
++    PRIVATE_HEADERS += qbluetoothsocket_ohos_p.h \
++                       qlowenergycontroller_ohos_p.h
+ } else:osx {
+     QT_PRIVATE = concurrent
+     DEFINES += QT_OSX_BLUETOOTH
+diff --git a/src/bluetooth/qbluetooth.cpp b/src/bluetooth/qbluetooth.cpp
+index 6eab11fb..49d27923 100644
+--- a/src/bluetooth/qbluetooth.cpp
++++ b/src/bluetooth/qbluetooth.cpp
+@@ -102,5 +102,6 @@ Q_LOGGING_CATEGORY(QT_BT, "qt.bluetooth")
+ Q_LOGGING_CATEGORY(QT_BT_ANDROID, "qt.bluetooth.android")
+ Q_LOGGING_CATEGORY(QT_BT_BLUEZ, "qt.bluetooth.bluez")
+ Q_LOGGING_CATEGORY(QT_BT_WINRT, "qt.bluetooth.winrt")
++Q_LOGGING_CATEGORY(QT_BT_OPENHARMONY, "qt.bluetooth.openharmony")
+ 
+ QT_END_NAMESPACE
+diff --git a/src/bluetooth/qbluetoothdevicediscoveryagent_ohos.cpp b/src/bluetooth/qbluetoothdevicediscoveryagent_ohos.cpp
+new file mode 100644
+index 00000000..cea4acbc
+--- /dev/null
++++ b/src/bluetooth/qbluetoothdevicediscoveryagent_ohos.cpp
+@@ -0,0 +1,190 @@
++#include <QtCore/QLoggingCategory>
++#include <QtBluetooth/QBluetoothAddress>
++#include <QtBluetooth/QBluetoothDeviceInfo>
++
++#include <QtCore/QOpenHarmonyJsObject>
++#include <QtCore/QOpenHarmonyJsEnvironment>
++#include "qbluetoothdevicediscoveryagent_p.h"
++
++QT_BEGIN_NAMESPACE
++
++Q_DECLARE_LOGGING_CATEGORY(QT_BT_OPENHARMONY)
++
++enum {
++    NoScanActive = 0,
++    SDPScanActive = 1,
++    BtleScanActive = 2
++};
++
++enum {
++    STATE_OFF = 0,          /* 表示蓝牙已关闭 */
++    STATE_TURNING_ON,       /* 表示蓝牙正在打开 */
++    STATE_ON,               /* 表示蓝牙已打开 */
++    STATE_TURNING_OFF,      /* 表示蓝牙正在关闭 */
++    STATE_BLE_TURNING_ON,   /* 表示蓝牙正在打开LE-only模式 */
++    STATE_BLE_ON,           /* 表示蓝牙正处于LE-only模式 */
++    STATE_BLE_TURNING_OFF   /* 表示蓝牙正在关闭LE-only模式 */
++};
++
++QBluetoothDeviceDiscoveryAgentPrivate::QBluetoothDeviceDiscoveryAgentPrivate(
++        const QBluetoothAddress &deviceAdapter, QBluetoothDeviceDiscoveryAgent *parent) :
++      inquiryType(QBluetoothDeviceDiscoveryAgent::GeneralUnlimitedInquiry),
++      lastError(QBluetoothDeviceDiscoveryAgent::NoError),      
++      m_adapterAddress(deviceAdapter),
++      m_active(NoScanActive),
++      leScanTimeout(Q_NULLPTR),
++      pendingCancel(false),
++      pendingStart(false),
++      m_jsDiscoverAgent(Q_NULLPTR),
++      lowEnergySearchTimeout(25000),
++      q_ptr(parent)
++{
++    m_jsDiscoverAgent.reset(new QOpenHarmonyJsObject("qtbtdevicediscoveryagent"));
++}
++
++QBluetoothDeviceDiscoveryAgentPrivate::~QBluetoothDeviceDiscoveryAgentPrivate()
++{
++
++}
++
++bool QBluetoothDeviceDiscoveryAgentPrivate::isActive() const
++{
++    if (pendingStart)
++        return true;
++    if (pendingCancel)
++        return false;
++    return m_active != NoScanActive;
++}
++
++QBluetoothDeviceDiscoveryAgent::DiscoveryMethods QBluetoothDeviceDiscoveryAgent::supportedDiscoveryMethods()
++{
++    return (LowEnergyMethod | ClassicMethod);
++}
++
++void QBluetoothDeviceDiscoveryAgentPrivate::start(QBluetoothDeviceDiscoveryAgent::DiscoveryMethods methods)
++{
++    requestedMethods = methods;
++
++    if (pendingCancel) {
++        pendingStart = true;
++        return;
++    }
++
++    Q_Q(QBluetoothDeviceDiscoveryAgent);
++/* TODO */
++//    if (!m_adapterAddress.isNull()
++//        && adapter.callObjectMethod<jstring>("getAddress").toString()
++//                != m_adapterAddress.toString()) {
++//        qCWarning(QT_BT_OPENHARMONY) << "Incorrect local adapter passed.";
++//        lastError = QBluetoothDeviceDiscoveryAgent::InvalidBluetoothAdapterError;
++//        errorString = QBluetoothDeviceDiscoveryAgent::tr("Passed address is not a local device.");
++//        emit q->error(lastError);
++//        return;
++//    }
++
++    int state = m_jsDiscoverAgent->call<int>("getState");
++    if (STATE_ON != state) {
++        lastError = QBluetoothDeviceDiscoveryAgent::PoweredOffError;
++        errorString = QBluetoothDeviceDiscoveryAgent::tr("Device is powered off");
++        emit q->error(lastError);
++        return;
++    }
++
++    discoveredDevices.clear();
++
++         // by arbitrary definition we run classic search first
++    if (requestedMethods & QBluetoothDeviceDiscoveryAgent::ClassicMethod) {
++        const bool success = m_jsDiscoverAgent->call<bool>("startBluetoothDiscovery");
++        if (!success) {
++            qCDebug(QT_BT_OPENHARMONY) << "Classic Discovery cannot be started";
++            if (requestedMethods == QBluetoothDeviceDiscoveryAgent::ClassicMethod) {
++                //only classic discovery requested -> error out
++                lastError = QBluetoothDeviceDiscoveryAgent::InputOutputError;
++                errorString = QBluetoothDeviceDiscoveryAgent::tr("Classic Discovery cannot be started");
++
++                emit q->error(lastError);
++                return;
++            } // else fall through to LE discovery
++        } else {
++            m_active = SDPScanActive;
++            qCDebug(QT_BT_OPENHARMONY)
++                    << "QBluetoothDeviceDiscoveryAgentPrivate::start() - Classic search successfully started.";
++            return;
++        }
++    }
++
++    if (requestedMethods & QBluetoothDeviceDiscoveryAgent::LowEnergyMethod) {
++        // LE search only requested or classic discovery failed but lets try LE scan anyway
++        Q_ASSERT(requestedMethods & QBluetoothDeviceDiscoveryAgent::LowEnergyMethod);
++
++        startLowEnergyScan();
++    }
++}
++
++void QBluetoothDeviceDiscoveryAgentPrivate::stop()
++{
++    Q_Q(QBluetoothDeviceDiscoveryAgent);
++
++    if (m_active == NoScanActive)
++        return;
++
++    if (m_active == SDPScanActive) {
++        if (pendingCancel)
++            return;
++
++        pendingCancel = true;
++        pendingStart = false;
++        bool success = m_jsDiscoverAgent->call<bool>("stopBluetoothDiscovery");
++        if (!success) {
++            lastError = QBluetoothDeviceDiscoveryAgent::InputOutputError;
++            errorString = QBluetoothDeviceDiscoveryAgent::tr("Discovery cannot be stopped");
++            emit q->error(lastError);
++            return;
++        }
++    } else if (m_active == BtleScanActive) {
++        stopLowEnergyScan();
++    }
++}
++void QBluetoothDeviceDiscoveryAgentPrivate::startLowEnergyScan()
++{
++    Q_Q(QBluetoothDeviceDiscoveryAgent);
++
++    m_active = BtleScanActive;
++
++
++    m_jsDiscoverAgent->call("startBLEScan");
++
++         // wait interval and sum up what was found
++    if (!leScanTimeout) {
++        leScanTimeout = new QTimer(this);
++        leScanTimeout->setSingleShot(true);
++        connect(leScanTimeout, &QTimer::timeout,
++                this, &QBluetoothDeviceDiscoveryAgentPrivate::stopLowEnergyScan);
++    }
++
++    if (lowEnergySearchTimeout > 0) { // otherwise no timeout and stop() required
++        leScanTimeout->setInterval(lowEnergySearchTimeout);
++        leScanTimeout->start();
++    }
++
++    qCDebug(QT_BT_OPENHARMONY)
++            << "QBluetoothDeviceDiscoveryAgentPrivate::start() - Low Energy search successfully started.";
++}
++
++void QBluetoothDeviceDiscoveryAgentPrivate::stopLowEnergyScan()
++{
++    m_jsDiscoverAgent->call("stopBLEScan");
++
++    m_active = NoScanActive;
++
++    Q_Q(QBluetoothDeviceDiscoveryAgent);
++    if (leScanTimeout->isActive()) {
++        // still active if this function was called from stop()
++        leScanTimeout->stop();
++        emit q->canceled();
++    } else {
++        // timeout -> regular stop
++        emit q->finished();
++    }
++}
++QT_END_NAMESPACE
+diff --git a/src/bluetooth/qbluetoothdevicediscoveryagent_p.h b/src/bluetooth/qbluetoothdevicediscoveryagent_p.h
+index ce31392f..62f53c24 100644
+--- a/src/bluetooth/qbluetoothdevicediscoveryagent_p.h
++++ b/src/bluetooth/qbluetoothdevicediscoveryagent_p.h
+@@ -83,6 +83,11 @@ QT_END_NAMESPACE
+ #include <QtCore/QTimer>
+ #endif
+ 
++#ifdef QT_OPENHARMONY_BLUETOOTH
++#include <QtCore/QTimer>
++class QOpenHarmonyJsObject;
++#endif
++
+ QT_BEGIN_NAMESPACE
+ 
+ #ifdef QT_WINRT_BLUETOOTH
+@@ -90,7 +95,7 @@ class QWinRTBluetoothDeviceDiscoveryWorker;
+ #endif
+ 
+ class QBluetoothDeviceDiscoveryAgentPrivate
+-#if defined(QT_ANDROID_BLUETOOTH) || defined(QT_WINRT_BLUETOOTH)
++#if defined(QT_ANDROID_BLUETOOTH) || defined(QT_WINRT_BLUETOOTH) || defined(QT_OPENHARMONY_BLUETOOTH)
+     : public QObject
+ {
+     Q_OBJECT
+@@ -164,6 +169,21 @@ private:
+     QTimer extendedDiscoveryTimer;
+ #endif
+ 
++#ifdef QT_OPENHARMONY_BLUETOOTH
++private slots:
++    void stopLowEnergyScan();
++
++private:
++    void startLowEnergyScan();
++
++private:
++    QBluetoothAddress m_adapterAddress;
++    short m_active;
++    QTimer *leScanTimeout;
++    bool pendingCancel, pendingStart;
++    QScopedPointer<QOpenHarmonyJsObject> m_jsDiscoverAgent;
++#endif
++
+ #ifdef QT_WINRT_BLUETOOTH
+ private slots:
+     void registerDevice(const QBluetoothDeviceInfo &info);
+diff --git a/src/bluetooth/qbluetoothlocaldevice_ohos.cpp b/src/bluetooth/qbluetoothlocaldevice_ohos.cpp
+new file mode 100644
+index 00000000..bcb13980
+--- /dev/null
++++ b/src/bluetooth/qbluetoothlocaldevice_ohos.cpp
+@@ -0,0 +1,140 @@
++#include <QtCore/QLoggingCategory>
++#include <QtCore/QOpenHarmonyJsObject>
++#include <QtBluetooth/QBluetoothAddress>
++#include <QtBluetooth/QBluetoothLocalDevice>
++
++#include "qbluetoothlocaldevice_p.h"
++
++QT_BEGIN_NAMESPACE
++
++Q_DECLARE_LOGGING_CATEGORY(QT_BT_OPENHARMONY)
++
++QBluetoothLocalDevicePrivate::QBluetoothLocalDevicePrivate(QBluetoothLocalDevice *q,
++                                                           const QBluetoothAddress &address)
++    : q_ptr(q)
++    , m_jsLocalDevice(Q_NULLPTR)
++{
++    m_jsLocalDevice.reset(new QOpenHarmonyJsObject("qtbtlocaldevice"));
++}
++
++QBluetoothLocalDevicePrivate::~QBluetoothLocalDevicePrivate()
++{
++
++}
++
++bool QBluetoothLocalDevicePrivate::isValid() const
++{
++    return false;
++}
++
++QBluetoothLocalDevice::QBluetoothLocalDevice(QObject *parent) :
++      QObject(parent),
++      d_ptr(new QBluetoothLocalDevicePrivate(this, QBluetoothAddress()))
++{
++}
++
++QBluetoothLocalDevice::QBluetoothLocalDevice(const QBluetoothAddress &address, QObject *parent) :
++      QObject(parent),
++      d_ptr(new QBluetoothLocalDevicePrivate(this, address))
++{
++}
++
++QString QBluetoothLocalDevice::name() const
++{
++    QString localName = d_ptr->m_jsLocalDevice->call<QString>("getLocalName");
++    return localName;
++}
++
++QBluetoothAddress QBluetoothLocalDevice::address() const
++{
++    return QBluetoothAddress();
++}
++
++void QBluetoothLocalDevice::powerOn()
++{
++    if (hostMode() != HostPoweredOff)
++        return;
++
++
++    bool ret = d_ptr->m_jsLocalDevice->call<bool>("enableBluetooth");
++    if (!ret)
++        emit error(QBluetoothLocalDevice::UnknownError);
++}
++
++void QBluetoothLocalDevice::setHostMode(QBluetoothLocalDevice::HostMode requestedMode)
++{
++    QBluetoothLocalDevice::HostMode mode = requestedMode;
++    if (mode == hostMode())
++        return;
++
++    bool success = false;
++    if (mode == QBluetoothLocalDevice::HostPoweredOff) {
++        success = d_ptr->m_jsLocalDevice->call<bool>("disableBluetooth");
++
++        if (!success)
++            emit error(QBluetoothLocalDevice::UnknownError);
++    } else if (mode == QBluetoothLocalDevice::HostConnectable) {
++        success = d_ptr->m_jsLocalDevice->call<bool>("setBluetoothScanMode", 1);
++        if (!success)
++            emit error(QBluetoothLocalDevice::UnknownError);
++    } else if (mode == QBluetoothLocalDevice::HostDiscoverable) {
++        success = d_ptr->m_jsLocalDevice->call<bool>("setBluetoothScanMode", 4);
++        if (!success)
++            emit error(QBluetoothLocalDevice::UnknownError);
++    } else if (mode == QBluetoothLocalDevice::HostDiscoverableLimitedInquiry) {
++        success = d_ptr->m_jsLocalDevice->call<bool>("setBluetoothScanMode", 5);
++        if (!success)
++            emit error(QBluetoothLocalDevice::UnknownError);
++    }
++}
++
++QBluetoothLocalDevice::HostMode QBluetoothLocalDevice::hostMode() const
++{
++    int scanMode = d_ptr->m_jsLocalDevice->call<int>("getBluetoothScanMode");
++
++    switch (scanMode) {
++    case 0:
++        return HostPoweredOff;
++    case 1:
++        return HostConnectable;
++    case 4:
++        return HostDiscoverable;
++    case 5:
++        return HostDiscoverableLimitedInquiry;
++    default:
++        break;
++    }
++
++    return HostPoweredOff;
++}
++
++QList<QBluetoothHostInfo> QBluetoothLocalDevice::allDevices()
++{
++    QList<QBluetoothHostInfo> localDevices;
++    return localDevices;
++}
++
++void QBluetoothLocalDevice::requestPairing(const QBluetoothAddress &address, Pairing pairing)
++{
++
++}
++
++QBluetoothLocalDevice::Pairing QBluetoothLocalDevice::pairingStatus(
++        const QBluetoothAddress &address) const
++{
++    return Unpaired;
++}
++
++void QBluetoothLocalDevice::pairingConfirmation(bool confirmation)
++{
++
++}
++
++QList<QBluetoothAddress> QBluetoothLocalDevice::connectedDevices() const
++{
++//    d_ptr->m_jsLocalDevice->call("getConnectionDevices");
++
++    return QList<QBluetoothAddress>();
++}
++
++QT_END_NAMESPACE
+diff --git a/src/bluetooth/qbluetoothlocaldevice_p.h b/src/bluetooth/qbluetoothlocaldevice_p.h
+index 1f99f27e..9c32c9eb 100644
+--- a/src/bluetooth/qbluetoothlocaldevice_p.h
++++ b/src/bluetooth/qbluetoothlocaldevice_p.h
+@@ -97,7 +97,7 @@ class QBluetoothLocalDevicePrivate : public QObject
+     Q_OBJECT
+ public:
+     QBluetoothLocalDevicePrivate(
+-        QBluetoothLocalDevice *q, const QBluetoothAddress &address = QBluetoothAddress());
++            QBluetoothLocalDevice *q, const QBluetoothAddress &address = QBluetoothAddress());
+     ~QBluetoothLocalDevicePrivate();
+ 
+     QAndroidJniObject *adapter();
+@@ -207,6 +207,23 @@ private:
+     void initializeAdapter();
+     void initializeAdapterBluez5();
+ };
++#elif QT_OPENHARMONY_BLUETOOTH
++class QOpenHarmonyJsObject;
++class QBluetoothLocalDevicePrivate : public QObject
++{
++    Q_OBJECT
++    Q_DECLARE_PUBLIC(QBluetoothLocalDevice)
++
++public:
++    QBluetoothLocalDevicePrivate(
++            QBluetoothLocalDevice *q, const QBluetoothAddress &address = QBluetoothAddress());
++    ~QBluetoothLocalDevicePrivate();
++
++    bool isValid() const;
++private:
++    QBluetoothLocalDevice *q_ptr;
++    QScopedPointer<QOpenHarmonyJsObject> m_jsLocalDevice;
++};
+ #elif !defined(QT_OSX_BLUETOOTH) // winrt and dummy backend
+ class QBluetoothLocalDevicePrivate : public QObject
+ {
+diff --git a/src/bluetooth/qbluetoothserver_ohos.cpp b/src/bluetooth/qbluetoothserver_ohos.cpp
+new file mode 100644
+index 00000000..f188e049
+--- /dev/null
++++ b/src/bluetooth/qbluetoothserver_ohos.cpp
+@@ -0,0 +1,83 @@
++#include <QtCore/QLoggingCategory>
++#include "qbluetoothserver.h"
++#include "qbluetoothserver_p.h"
++#include "qbluetoothsocket.h"
++#include "qbluetoothsocket_ohos_p.h"
++#include "qbluetoothlocaldevice.h"
++
++
++#include <QCoreApplication>
++
++QT_BEGIN_NAMESPACE
++
++Q_DECLARE_LOGGING_CATEGORY(QT_BT_OPENHARMONY)
++
++QBluetoothServerPrivate::QBluetoothServerPrivate(QBluetoothServiceInfo::Protocol sType)
++    : socket(0),maxPendingConnections(1), securityFlags(QBluetooth::NoSecurity), serverType(sType),
++      m_lastError(QBluetoothServer::NoError)
++{
++
++}
++
++QBluetoothServerPrivate::~QBluetoothServerPrivate()
++{
++
++}
++
++
++void QBluetoothServer::close()
++{
++
++}
++
++bool QBluetoothServer::listen(const QBluetoothAddress &localAdapter, quint16 port)
++{
++    return true;
++}
++
++void QBluetoothServer::setMaxPendingConnections(int numConnections)
++{
++
++}
++
++QBluetoothAddress QBluetoothServer::serverAddress() const
++{
++    //Android only supports one local adapter
++    QList<QBluetoothHostInfo> hosts = QBluetoothLocalDevice::allDevices();
++    Q_ASSERT(hosts.count() <= 1);
++
++    if (hosts.isEmpty())
++        return QBluetoothAddress();
++    else
++        return hosts.at(0).address();
++}
++
++quint16 QBluetoothServer::serverPort() const
++{
++    return 0;
++}
++
++bool QBluetoothServer::hasPendingConnections() const
++{
++    return false;
++}
++
++QBluetoothSocket *QBluetoothServer::nextPendingConnection()
++{
++    return Q_NULLPTR;
++}
++
++void QBluetoothServer::setSecurityFlags(QBluetooth::SecurityFlags security)
++{
++    Q_D(QBluetoothServer);
++    d->securityFlags = security;
++}
++
++QBluetooth::SecurityFlags QBluetoothServer::securityFlags() const
++{
++    Q_D(const QBluetoothServer);
++    return d->securityFlags;
++}
++
++QT_END_NAMESPACE
++
+diff --git a/src/bluetooth/qbluetoothservicediscoveryagent_ohos.cpp b/src/bluetooth/qbluetoothservicediscoveryagent_ohos.cpp
+new file mode 100644
+index 00000000..cbf91c3d
+--- /dev/null
++++ b/src/bluetooth/qbluetoothservicediscoveryagent_ohos.cpp
+@@ -0,0 +1,42 @@
++#include <QtCore/QTimer>
++#include <QtCore/QLoggingCategory>
++#include <QtCore/qcoreapplication.h>
++#include <QtBluetooth/QBluetoothHostInfo>
++#include <QtBluetooth/QBluetoothLocalDevice>
++#include <QtBluetooth/QBluetoothServiceDiscoveryAgent>
++
++#include "qbluetoothservicediscoveryagent_p.h"
++
++QT_BEGIN_NAMESPACE
++
++Q_DECLARE_LOGGING_CATEGORY(QT_BT_OPENHARMONY)
++
++QBluetoothServiceDiscoveryAgentPrivate::QBluetoothServiceDiscoveryAgentPrivate(
++        QBluetoothServiceDiscoveryAgent *qp, const QBluetoothAddress &deviceAdapter)
++    : error(QBluetoothServiceDiscoveryAgent::NoError),
++      m_deviceAdapterAddress(deviceAdapter),
++      state(Inactive),
++      mode(QBluetoothServiceDiscoveryAgent::MinimalDiscovery),
++      singleDevice(false),
++      q_ptr(qp)
++
++{
++
++}
++
++QBluetoothServiceDiscoveryAgentPrivate::~QBluetoothServiceDiscoveryAgentPrivate()
++{
++
++}
++
++void QBluetoothServiceDiscoveryAgentPrivate::start(const QBluetoothAddress &address)
++{
++
++}
++
++void QBluetoothServiceDiscoveryAgentPrivate::stop()
++{
++
++}
++
++QT_END_NAMESPACE
+diff --git a/src/bluetooth/qbluetoothserviceinfo_ohos.cpp b/src/bluetooth/qbluetoothserviceinfo_ohos.cpp
+new file mode 100644
+index 00000000..13f62564
+--- /dev/null
++++ b/src/bluetooth/qbluetoothserviceinfo_ohos.cpp
+@@ -0,0 +1,41 @@
++#include <QtCore/QLoggingCategory>
++
++#include "qbluetoothhostinfo.h"
++#include "qbluetoothlocaldevice.h"
++#include "qbluetoothserviceinfo.h"
++#include "qbluetoothserviceinfo_p.h"
++#include "qbluetoothserver_p.h"
++#include "qbluetoothserver.h"
++
++QT_BEGIN_NAMESPACE
++
++Q_DECLARE_LOGGING_CATEGORY(QT_BT_OPENHARMONY)
++
++QBluetoothServiceInfoPrivate::QBluetoothServiceInfoPrivate()
++    :  registered(false)
++{
++}
++
++QBluetoothServiceInfoPrivate::~QBluetoothServiceInfoPrivate()
++{
++}
++
++bool QBluetoothServiceInfoPrivate::isRegistered() const
++{
++    return registered;
++}
++
++bool QBluetoothServiceInfoPrivate::unregisterService()
++{
++    if (!registered)
++        return false;
++    return true;
++}
++
++bool QBluetoothServiceInfoPrivate::registerService(const QBluetoothAddress& localAdapter)
++{
++    return true;
++}
++
++
++QT_END_NAMESPACE
+diff --git a/src/bluetooth/qbluetoothsocket.cpp b/src/bluetooth/qbluetoothsocket.cpp
+index daa589bb..77bab75c 100644
+--- a/src/bluetooth/qbluetoothsocket.cpp
++++ b/src/bluetooth/qbluetoothsocket.cpp
+@@ -45,6 +45,8 @@
+ #include "bluez/bluez5_helper_p.h"
+ #elif defined(QT_ANDROID_BLUETOOTH)
+ #include "qbluetoothsocket_android_p.h"
++#elif defined(QT_OPENHARMONY_BLUETOOTH)
++#include "qbluetoothsocket_ohos_p.h"
+ #elif defined(QT_WINRT_BLUETOOTH)
+ #include "qbluetoothsocket_winrt_p.h"
+ #else
+@@ -52,7 +54,6 @@
+ #endif
+ 
+ #include "qbluetoothservicediscoveryagent.h"
+-
+ #include <QtCore/QLoggingCategory>
+ #include <QSocketNotifier>
+ 
+@@ -267,6 +268,8 @@ static QBluetoothSocketBasePrivate *createSocketPrivate()
+     return new QBluetoothSocketPrivateAndroid();
+ #elif defined(QT_WINRT_BLUETOOTH)
+     return new QBluetoothSocketPrivateWinRT();
++#elif defined(QT_OPENHARMONY_BLUETOOTH)
++    return new QBluetoothSocketPrivateOPenHarmony();
+ #else
+     return new QBluetoothSocketPrivateDummy();
+ #endif
+diff --git a/src/bluetooth/qbluetoothsocket.h b/src/bluetooth/qbluetoothsocket.h
+index d2535544..2b4718c7 100644
+--- a/src/bluetooth/qbluetoothsocket.h
++++ b/src/bluetooth/qbluetoothsocket.h
+@@ -76,6 +76,7 @@ class Q_BLUETOOTH_EXPORT QBluetoothSocket : public QIODevice
+     friend class QBluetoothSocketPrivateBluezDBus;
+     friend class QBluetoothSocketPrivateDummy;
+     friend class QBluetoothSocketPrivateWinRT;
++    friend class QBluetoothSocketPrivateOPenharmony;
+ 
+ public:
+ 
+diff --git a/src/bluetooth/qbluetoothsocket_ohos.cpp b/src/bluetooth/qbluetoothsocket_ohos.cpp
+new file mode 100644
+index 00000000..adeee8ae
+--- /dev/null
++++ b/src/bluetooth/qbluetoothsocket_ohos.cpp
+@@ -0,0 +1,130 @@
++#include <QtCore/QTime>
++#include <QtCore/QThread>
++#include <QtCore/QLoggingCategory>
++
++#include "qbluetoothsocket.h"
++#include "qbluetoothaddress.h"
++#include "qbluetoothdeviceinfo.h"
++#include "qbluetoothserviceinfo.h"
++#include "qbluetoothsocket_ohos_p.h"
++
++QBluetoothSocketPrivateOPenHarmony::QBluetoothSocketPrivateOPenHarmony()
++{
++
++}
++
++QBluetoothSocketPrivateOPenHarmony::~QBluetoothSocketPrivateOPenHarmony()
++{
++
++}
++
++bool QBluetoothSocketPrivateOPenHarmony::ensureNativeSocket(QBluetoothServiceInfo::Protocol type)
++{
++    Q_UNUSED(type);
++    return false;
++}
++
++QString QBluetoothSocketPrivateOPenHarmony::localName() const
++{
++    return QString();
++}
++
++QBluetoothAddress QBluetoothSocketPrivateOPenHarmony::localAddress() const
++{
++    return QBluetoothAddress();
++}
++
++quint16 QBluetoothSocketPrivateOPenHarmony::localPort() const
++{
++    return 0;
++}
++
++QString QBluetoothSocketPrivateOPenHarmony::peerName() const
++{
++    return QString();
++}
++
++QBluetoothAddress QBluetoothSocketPrivateOPenHarmony::peerAddress() const
++{
++    return QBluetoothAddress();
++}
++
++quint16 QBluetoothSocketPrivateOPenHarmony::peerPort() const
++{
++    return 0;
++}
++
++void QBluetoothSocketPrivateOPenHarmony::abort()
++{
++
++}
++
++void QBluetoothSocketPrivateOPenHarmony::close()
++{
++
++}
++
++qint64 QBluetoothSocketPrivateOPenHarmony::writeData(const char *data, qint64 maxSize)
++{
++    Q_UNUSED(data);
++    Q_UNUSED(maxSize);
++    return 0;
++}
++
++qint64 QBluetoothSocketPrivateOPenHarmony::readData(char *data, qint64 maxSize)
++{
++    Q_UNUSED(data);
++    Q_UNUSED(maxSize);
++    return 0;
++}
++
++qint64 QBluetoothSocketPrivateOPenHarmony::bytesAvailable() const
++{
++    return 0;
++}
++
++bool QBluetoothSocketPrivateOPenHarmony::canReadLine() const
++{
++    return false;
++}
++
++qint64 QBluetoothSocketPrivateOPenHarmony::bytesToWrite() const
++{
++    return 0;
++}
++
++bool QBluetoothSocketPrivateOPenHarmony::setSocketDescriptor(int socketDescriptor, QBluetoothServiceInfo::Protocol socketType, QBluetoothSocket::SocketState socketState, QIODevice::OpenMode openMode)
++{
++    Q_UNUSED(socketDescriptor);
++    Q_UNUSED(socketType);
++    Q_UNUSED(socketState);
++    Q_UNUSED(openMode);
++    return false;
++}
++
++void QBluetoothSocketPrivateOPenHarmony::connectToServiceHelper(const QBluetoothAddress &address, quint16 port, QIODevice::OpenMode openMode)
++{
++    Q_UNUSED(address);
++    Q_UNUSED(port);
++    Q_UNUSED(openMode);
++}
++
++void QBluetoothSocketPrivateOPenHarmony::connectToService(const QBluetoothServiceInfo &service, QIODevice::OpenMode openMode)
++{
++    Q_UNUSED(service);
++    Q_UNUSED(openMode);
++}
++
++void QBluetoothSocketPrivateOPenHarmony::connectToService(const QBluetoothAddress &address, const QBluetoothUuid &uuid, QIODevice::OpenMode openMode)
++{
++    Q_UNUSED(address);
++    Q_UNUSED(uuid);
++    Q_UNUSED(openMode);
++}
++
++void QBluetoothSocketPrivateOPenHarmony::connectToService(const QBluetoothAddress &address, quint16 port, QIODevice::OpenMode openMode)
++{
++    Q_UNUSED(address);
++    Q_UNUSED(port);
++    Q_UNUSED(openMode);
++}
+diff --git a/src/bluetooth/qbluetoothsocket_ohos_p.h b/src/bluetooth/qbluetoothsocket_ohos_p.h
+new file mode 100644
+index 00000000..44989042
+--- /dev/null
++++ b/src/bluetooth/qbluetoothsocket_ohos_p.h
+@@ -0,0 +1,38 @@
++#include <QtCore/QPointer>
++
++#include "qbluetoothsocketbase_p.h"
++
++QT_BEGIN_NAMESPACE
++
++class QBluetoothSocketPrivateOPenHarmony final : public QBluetoothSocketBasePrivate
++{
++    Q_OBJECT
++    friend class QBluetoothServerPrivate;
++
++public:
++    QBluetoothSocketPrivateOPenHarmony();
++    ~QBluetoothSocketPrivateOPenHarmony() override;
++
++public:
++    bool ensureNativeSocket(QBluetoothServiceInfo::Protocol type) override;
++    QString localName() const override;
++    QBluetoothAddress localAddress() const override;
++    quint16 localPort() const override;
++    QString peerName() const override;
++    QBluetoothAddress peerAddress() const override;
++    quint16 peerPort() const override;
++    void abort() override;
++    void close() override;
++    qint64 writeData(const char *data, qint64 maxSize) override;
++    qint64 readData(char *data, qint64 maxSize) override;
++    qint64 bytesAvailable() const override;
++    bool canReadLine() const override;
++    qint64 bytesToWrite() const override;
++    bool setSocketDescriptor(int socketDescriptor, QBluetoothServiceInfo::Protocol socketType, QBluetoothSocket::SocketState socketState, QIODevice::OpenMode openMode) override;
++    void connectToServiceHelper(const QBluetoothAddress &address, quint16 port, QIODevice::OpenMode openMode) override;
++    void connectToService(const QBluetoothServiceInfo &service, QIODevice::OpenMode openMode) override;
++    void connectToService(const QBluetoothAddress &address, const QBluetoothUuid &uuid, QIODevice::OpenMode openMode) override;
++    void connectToService(const QBluetoothAddress &address, quint16 port, QIODevice::OpenMode openMode) override;
++};
++
++QT_END_NAMESPACE
+diff --git a/src/bluetooth/qbluetoothtransfermanager.cpp b/src/bluetooth/qbluetoothtransfermanager.cpp
+index 165faceb..f00ac1c7 100644
+--- a/src/bluetooth/qbluetoothtransfermanager.cpp
++++ b/src/bluetooth/qbluetoothtransfermanager.cpp
+@@ -122,7 +122,7 @@ QBluetoothTransferReply *QBluetoothTransferManager::put(const QBluetoothTransfer
+     return reply;
+ #else
+     // Android, iOS, and WinRT have no implementation
+-#if !defined(QT_ANDROID_BLUETOOTH) && !defined(QT_IOS_BLUETOOTH) && !defined(QT_WINRT_BLUETOOTH)
++#if !defined(QT_ANDROID_BLUETOOTH) && !defined(QT_IOS_BLUETOOTH) && !defined(QT_WINRT_BLUETOOTH) && !defined(QT_OPENHARMONY_BLUETOOTH)
+     printDummyWarning();
+ #endif
+     Q_UNUSED(request);
+diff --git a/src/bluetooth/qlowenergycontroller.cpp b/src/bluetooth/qlowenergycontroller.cpp
+index 6b4c17d6..2ef76bd1 100644
+--- a/src/bluetooth/qlowenergycontroller.cpp
++++ b/src/bluetooth/qlowenergycontroller.cpp
+@@ -54,6 +54,8 @@
+ #include "qlowenergycontroller_bluez_p.h"
+ #elif defined(QT_ANDROID_BLUETOOTH)
+ #include "qlowenergycontroller_android_p.h"
++#elif defined(QT_OPENHARMONY_BLUETOOTH)
++#include "qlowenergycontroller_ohos_p.h"
+ #elif defined(QT_WINRT_BLUETOOTH)
+ #include "qlowenergycontroller_winrt_p.h"
+ #else
+@@ -308,6 +310,8 @@ static QLowEnergyControllerPrivate *privateController(QLowEnergyController::Role
+ #elif defined(QT_ANDROID_BLUETOOTH)
+     Q_UNUSED(role);
+     return new QLowEnergyControllerPrivateAndroid();
++#elif defined(QT_OPENHARMONY_BLUETOOTH)
++    return new QLowEnergyControllerPrivateOPenHarmony();
+ #elif defined(QT_WINRT_BLUETOOTH)
+     Q_UNUSED(role);
+     return new QLowEnergyControllerPrivateWinRT();
+diff --git a/src/bluetooth/qlowenergycontroller_ohos.cpp b/src/bluetooth/qlowenergycontroller_ohos.cpp
+new file mode 100644
+index 00000000..d262d723
+--- /dev/null
++++ b/src/bluetooth/qlowenergycontroller_ohos.cpp
+@@ -0,0 +1,96 @@
++#include <QtCore/QLoggingCategory>
++#include <QtBluetooth/QLowEnergyServiceData>
++#include <QtBluetooth/QLowEnergyDescriptorData>
++#include <QtBluetooth/QLowEnergyAdvertisingData>
++#include <QtBluetooth/QLowEnergyCharacteristicData>
++#include <QtBluetooth/QLowEnergyAdvertisingParameters>
++#include <QtBluetooth/QLowEnergyConnectionParameters>
++
++#include "qlowenergycontroller_ohos_p.h"
++
++QLowEnergyControllerPrivateOPenHarmony::QLowEnergyControllerPrivateOPenHarmony()
++{
++
++}
++
++QLowEnergyControllerPrivateOPenHarmony::~QLowEnergyControllerPrivateOPenHarmony()
++{
++
++}
++
++void QLowEnergyControllerPrivateOPenHarmony::init()
++{
++
++}
++
++void QLowEnergyControllerPrivateOPenHarmony::connectToDevice()
++{
++
++}
++
++void QLowEnergyControllerPrivateOPenHarmony::disconnectFromDevice()
++{
++
++}
++
++void QLowEnergyControllerPrivateOPenHarmony::discoverServices()
++{
++
++}
++
++void QLowEnergyControllerPrivateOPenHarmony::discoverServiceDetails(const QBluetoothUuid &service)
++{
++
++}
++
++void QLowEnergyControllerPrivateOPenHarmony::startAdvertising(const QLowEnergyAdvertisingParameters &params, const QLowEnergyAdvertisingData &advertisingData, const QLowEnergyAdvertisingData &scanResponseData)
++{
++    Q_UNUSED(params);
++    Q_UNUSED(advertisingData);
++    Q_UNUSED(scanResponseData);
++}
++
++void QLowEnergyControllerPrivateOPenHarmony::stopAdvertising()
++{
++
++}
++
++void QLowEnergyControllerPrivateOPenHarmony::requestConnectionUpdate(const QLowEnergyConnectionParameters &params)
++{
++    Q_UNUSED(params);
++}
++
++void QLowEnergyControllerPrivateOPenHarmony::readCharacteristic(const QSharedPointer<QLowEnergyServicePrivate> service, const QLowEnergyHandle charHandle)
++{
++    Q_UNUSED(service);
++    Q_UNUSED(charHandle);
++}
++
++void QLowEnergyControllerPrivateOPenHarmony::readDescriptor(const QSharedPointer<QLowEnergyServicePrivate> service, const QLowEnergyHandle charHandle, const QLowEnergyHandle descriptorHandle)
++{
++    Q_UNUSED(service);
++    Q_UNUSED(charHandle);
++    Q_UNUSED(descriptorHandle);
++}
++
++void QLowEnergyControllerPrivateOPenHarmony::writeCharacteristic(const QSharedPointer<QLowEnergyServicePrivate> service, const QLowEnergyHandle charHandle, const QByteArray &newValue, QLowEnergyService::WriteMode mode)
++{
++    Q_UNUSED(service);
++    Q_UNUSED(charHandle);
++    Q_UNUSED(newValue);
++    Q_UNUSED(mode);
++}
++
++void QLowEnergyControllerPrivateOPenHarmony::writeDescriptor(const QSharedPointer<QLowEnergyServicePrivate> service, const QLowEnergyHandle charHandle, const QLowEnergyHandle descriptorHandle, const QByteArray &newValue)
++{
++    Q_UNUSED(service);
++    Q_UNUSED(charHandle);
++    Q_UNUSED(descriptorHandle);
++    Q_UNUSED(newValue);
++}
++
++void QLowEnergyControllerPrivateOPenHarmony::addToGenericAttributeList(const QLowEnergyServiceData &service, QLowEnergyHandle startHandle)
++{
++    Q_UNUSED(service);
++    Q_UNUSED(startHandle);
++}
+diff --git a/src/bluetooth/qlowenergycontroller_ohos_p.h b/src/bluetooth/qlowenergycontroller_ohos_p.h
+new file mode 100644
+index 00000000..f09db144
+--- /dev/null
++++ b/src/bluetooth/qlowenergycontroller_ohos_p.h
+@@ -0,0 +1,59 @@
++#include <qglobal.h>
++#include <QtCore/QQueue>
++#include <QtCore/QVector>
++#include <QtBluetooth/qbluetooth.h>
++#include <QtBluetooth/qlowenergycharacteristic.h>
++#include "qlowenergycontroller.h"
++#include "qlowenergycontrollerbase_p.h"
++
++#include <functional>
++
++QT_BEGIN_NAMESPACE
++
++class QLowEnergyServiceData;
++class QTimer;
++
++class QLowEnergyControllerPrivateOPenHarmony final : public QLowEnergyControllerPrivate
++{
++    Q_OBJECT
++public:
++    QLowEnergyControllerPrivateOPenHarmony();
++    ~QLowEnergyControllerPrivateOPenHarmony() override;
++
++    void init() override;
++
++    void connectToDevice() override;
++    void disconnectFromDevice() override;
++
++    void discoverServices() override;
++    void discoverServiceDetails(const QBluetoothUuid &service) override;
++
++    void startAdvertising(const QLowEnergyAdvertisingParameters &params,
++                          const QLowEnergyAdvertisingData &advertisingData,
++                          const QLowEnergyAdvertisingData &scanResponseData) override;
++    void stopAdvertising() override;
++
++    void requestConnectionUpdate(const QLowEnergyConnectionParameters &params) override;
++
++         // read data
++    void readCharacteristic(const QSharedPointer<QLowEnergyServicePrivate> service,
++                            const QLowEnergyHandle charHandle) override;
++    void readDescriptor(const QSharedPointer<QLowEnergyServicePrivate> service,
++                        const QLowEnergyHandle charHandle,
++                        const QLowEnergyHandle descriptorHandle) override;
++
++         // write data
++    void writeCharacteristic(const QSharedPointer<QLowEnergyServicePrivate> service,
++                             const QLowEnergyHandle charHandle,
++                             const QByteArray &newValue, QLowEnergyService::WriteMode mode) override;
++    void writeDescriptor(const QSharedPointer<QLowEnergyServicePrivate> service,
++                         const QLowEnergyHandle charHandle,
++                         const QLowEnergyHandle descriptorHandle,
++                         const QByteArray &newValue) override;
++
++    void addToGenericAttributeList(const QLowEnergyServiceData &service,
++                                   QLowEnergyHandle startHandle) override;
++
++};
++
++QT_END_NAMESPACE
