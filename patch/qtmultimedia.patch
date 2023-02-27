@@ -1,3 +1,35 @@
+diff --git a/src/multimedia/audio/qsoundeffect_qaudio_p.cpp b/src/multimedia/audio/qsoundeffect_qaudio_p.cpp
+index 13df416f3..f247bc79a 100644
+--- a/src/multimedia/audio/qsoundeffect_qaudio_p.cpp
++++ b/src/multimedia/audio/qsoundeffect_qaudio_p.cpp
+@@ -333,13 +333,14 @@ void PrivateSoundSource::sampleReady()
+         if (!m_muted)
+             m_audioOutput->setVolume(m_volume);
+         else
+-            m_audioOutput->setVolume(0);
++            m_audioOutput->setVolume(0);        
+     }
+     m_sampleReady = true;
+     soundeffect->setStatus(QSoundEffect::Ready);
+ 
+-    if (m_playing && m_audioOutput->state() == QAudio::StoppedState)
++    if (m_playing && m_audioOutput->state() == QAudio::StoppedState) {
+         m_audioOutput->start(this);
++    }
+ }
+ 
+ void PrivateSoundSource::decoderError()
+@@ -362,9 +363,8 @@ void PrivateSoundSource::stateChanged(QAudio::State state)
+ }
+ 
+ qint64 PrivateSoundSource::readData(char *data, qint64 len)
+-{
++{    
+     if ((m_runningCount > 0  || m_runningCount == QSoundEffect::Infinite) && m_playing) {
+-
+         if (m_sample->state() != QSample::Ready)
+             return 0;
+ 
 diff --git a/src/plugins/android/src/mediaplayer/qandroidmediaservice.cpp b/src/plugins/android/src/mediaplayer/qandroidmediaservice.cpp
 index 2688f3550..f74f6a1d4 100644
 --- a/src/plugins/android/src/mediaplayer/qandroidmediaservice.cpp
@@ -23,6 +55,495 @@ index 000000000..a3841d703
 +qtHaveModule(quick) {
 +    SUBDIRS += videonode
 +}
+diff --git a/src/plugins/openharmony/src/mediacapture/mediacapture.pri b/src/plugins/openharmony/src/mediacapture/mediacapture.pri
+new file mode 100644
+index 000000000..f590598ee
+--- /dev/null
++++ b/src/plugins/openharmony/src/mediacapture/mediacapture.pri
+@@ -0,0 +1,14 @@
++INCLUDEPATH += $$PWD
++
++HEADERS += \
++    $$PWD/qopenharmonycameracontrol.h \
++    $$PWD/qopenharmonycamerainfocontrol.h \
++    $$PWD/qopenharmonycamerasession.h \
++    $$PWD/qopenharmonycaptureservice.h
++
++SOURCES += \
++    $$PWD/qopenharmonycameracontrol.cpp \
++    $$PWD/qopenharmonycamerainfocontrol.cpp \
++    $$PWD/qopenharmonycamerasession.cpp \
++    $$PWD/qopenharmonycaptureservice.cpp
++
+diff --git a/src/plugins/openharmony/src/mediacapture/qopenharmonycameracontrol.cpp b/src/plugins/openharmony/src/mediacapture/qopenharmonycameracontrol.cpp
+new file mode 100644
+index 000000000..6bb8d7954
+--- /dev/null
++++ b/src/plugins/openharmony/src/mediacapture/qopenharmonycameracontrol.cpp
+@@ -0,0 +1,72 @@
++#include "qopenharmonycamerasession.h"
++#include "qopenharmonycameracontrol.h"
++
++QT_BEGIN_NAMESPACE
++
++QOPenHarmonyCameraControl::QOPenHarmonyCameraControl(QOPenHarmonyCameraSession *session)
++    : QCameraControl(Q_NULLPTR)
++      , m_cameraSession(session)
++{
++    connect(m_cameraSession, SIGNAL(statusChanged(QCamera::Status)),
++            this, SIGNAL(statusChanged(QCamera::Status)));
++
++    connect(m_cameraSession, SIGNAL(stateChanged(QCamera::State)),
++            this, SIGNAL(stateChanged(QCamera::State)));
++
++    connect(m_cameraSession, SIGNAL(error(int,QString)), this, SIGNAL(error(int,QString)));
++
++    connect(m_cameraSession, SIGNAL(captureModeChanged(QCamera::CaptureModes)),
++            this, SIGNAL(captureModeChanged(QCamera::CaptureModes)));
++}
++
++QOPenHarmonyCameraControl::~QOPenHarmonyCameraControl()
++{
++
++}
++
++QCamera::CaptureModes QOPenHarmonyCameraControl::captureMode() const
++{
++    return m_cameraSession->captureMode();
++}
++
++void QOPenHarmonyCameraControl::setCaptureMode(QCamera::CaptureModes mode)
++{
++    m_cameraSession->setCaptureMode(mode);
++}
++
++bool QOPenHarmonyCameraControl::isCaptureModeSupported(QCamera::CaptureModes mode) const
++{
++    return m_cameraSession->isCaptureModeSupported(mode);
++}
++
++void QOPenHarmonyCameraControl::setState(QCamera::State state)
++{
++    m_cameraSession->setState(state);
++}
++
++QCamera::State QOPenHarmonyCameraControl::state() const
++{
++    return m_cameraSession->state();
++}
++
++QCamera::Status QOPenHarmonyCameraControl::status() const
++{
++    return m_cameraSession->status();
++}
++
++bool QOPenHarmonyCameraControl::canChangeProperty(PropertyChangeType changeType, QCamera::Status status) const
++{
++    Q_UNUSED(status);
++
++    switch (changeType) {
++    case QCameraControl::CaptureMode:
++    case QCameraControl::ImageEncodingSettings:
++    case QCameraControl::VideoEncodingSettings:
++    case QCameraControl::Viewfinder:
++        return true;
++    default:
++        return false;
++    }
++}
++
++QT_END_NAMESPACE
+diff --git a/src/plugins/openharmony/src/mediacapture/qopenharmonycameracontrol.h b/src/plugins/openharmony/src/mediacapture/qopenharmonycameracontrol.h
+new file mode 100644
+index 000000000..1ad328351
+--- /dev/null
++++ b/src/plugins/openharmony/src/mediacapture/qopenharmonycameracontrol.h
+@@ -0,0 +1,35 @@
++#ifndef QOPENHARMONYCAMERACONTROL_H
++#define QOPENHARMONYCAMERACONTROL_H
++
++#include <qcameracontrol.h>
++
++QT_BEGIN_NAMESPACE
++
++class QOPenHarmonyCameraSession;
++
++class QOPenHarmonyCameraControl : public QCameraControl
++{
++    Q_OBJECT
++
++public:
++    explicit QOPenHarmonyCameraControl(QOPenHarmonyCameraSession *session);
++    virtual ~QOPenHarmonyCameraControl();
++
++    QCamera::State state() const;
++    void setState(QCamera::State state);
++
++    QCamera::Status status() const;
++
++    QCamera::CaptureModes captureMode() const;
++    void setCaptureMode(QCamera::CaptureModes mode);
++    bool isCaptureModeSupported(QCamera::CaptureModes mode) const;
++
++    bool canChangeProperty(PropertyChangeType changeType, QCamera::Status status) const;
++
++private:
++    QOPenHarmonyCameraSession *m_cameraSession;
++};
++
++QT_END_NAMESPACE
++
++#endif // QOPENHARMONYCAMERACONTROL_H
+diff --git a/src/plugins/openharmony/src/mediacapture/qopenharmonycamerainfocontrol.cpp b/src/plugins/openharmony/src/mediacapture/qopenharmonycamerainfocontrol.cpp
+new file mode 100644
+index 000000000..68ee24365
+--- /dev/null
++++ b/src/plugins/openharmony/src/mediacapture/qopenharmonycamerainfocontrol.cpp
+@@ -0,0 +1,40 @@
++#include "qopenharmonycamerasession.h"
++#include "qopenharmonycamerainfocontrol.h"
++
++QT_BEGIN_NAMESPACE
++
++QCamera::Position QOPenHarmonyCameraInfoControl::cameraPosition(const QString &deviceName) const
++{
++    return position(deviceName);
++}
++
++int QOPenHarmonyCameraInfoControl::cameraOrientation(const QString &deviceName) const
++{
++    return orientation(deviceName);
++}
++
++QCamera::Position QOPenHarmonyCameraInfoControl::position(const QString &deviceName)
++{
++    const QList<OPenHarmonyCameraInfo> &cameras = QOPenHarmonyCameraSession::availableCameras();
++    for (int i = 0; i < cameras.count(); ++i) {
++        const OPenHarmonyCameraInfo &info = cameras.at(i);
++        if (QString::fromLatin1(info.name) == deviceName)
++            return info.position;
++    }
++
++    return QCamera::UnspecifiedPosition;
++}
++
++int QOPenHarmonyCameraInfoControl::orientation(const QString &deviceName)
++{
++    const QList<OPenHarmonyCameraInfo> &cameras = QOPenHarmonyCameraSession::availableCameras();
++    for (int i = 0; i < cameras.count(); ++i) {
++        const OPenHarmonyCameraInfo &info = cameras.at(i);
++        if (QString::fromLatin1(info.name) == deviceName)
++            return info.orientation;
++    }
++
++    return 0;
++}
++
++QT_END_NAMESPACE
+diff --git a/src/plugins/openharmony/src/mediacapture/qopenharmonycamerainfocontrol.h b/src/plugins/openharmony/src/mediacapture/qopenharmonycamerainfocontrol.h
+new file mode 100644
+index 000000000..f58accd1c
+--- /dev/null
++++ b/src/plugins/openharmony/src/mediacapture/qopenharmonycamerainfocontrol.h
+@@ -0,0 +1,22 @@
++#ifndef QOPENHARMONYCAMERAINFOCONTROL_H
++#define QOPENHARMONYCAMERAINFOCONTROL_H
++
++#include <qcamerainfocontrol.h>
++
++QT_BEGIN_NAMESPACE
++
++class QOPenHarmonyCameraInfoControl : public QCameraInfoControl
++{
++    Q_OBJECT
++
++public:
++    QCamera::Position cameraPosition(const QString &deviceName) const;
++    int cameraOrientation(const QString &deviceName) const;
++
++    static QCamera::Position position(const QString &deviceName);
++    static int orientation(const QString &deviceName);
++};
++
++QT_END_NAMESPACE
++
++#endif // QOPENHARMONYCAMERAINFOCONTROL_H
+diff --git a/src/plugins/openharmony/src/mediacapture/qopenharmonycamerasession.cpp b/src/plugins/openharmony/src/mediacapture/qopenharmonycamerasession.cpp
+new file mode 100644
+index 000000000..2f30e4e80
+--- /dev/null
++++ b/src/plugins/openharmony/src/mediacapture/qopenharmonycamerasession.cpp
+@@ -0,0 +1,125 @@
++#include "qopenharmonycamerasession.h"
++
++QT_BEGIN_NAMESPACE
++
++Q_GLOBAL_STATIC(QList<OPenHarmonyCameraInfo>, g_availableCameras)
++
++QOPenHarmonyCameraSession::QOPenHarmonyCameraSession(QObject *parent)
++    : QObject{ parent }
++      , m_camera(Q_NULLPTR)
++      , m_captureMode(QCamera::CaptureStillImage)
++      , m_state(QCamera::UnloadedState)
++{
++
++}
++
++QOPenHarmonyCameraSession::~QOPenHarmonyCameraSession()
++{
++
++}
++
++const QList<OPenHarmonyCameraInfo> &QOPenHarmonyCameraSession::availableCameras()
++{    
++    if (g_availableCameras->isEmpty())
++        updateAvailableCameras();
++
++    return *g_availableCameras;
++}
++
++void QOPenHarmonyCameraSession::setState(QCamera::State state)
++{
++
++}
++
++void QOPenHarmonyCameraSession::setStateHelper(QCamera::State state)
++{
++    switch (state) {
++    case QCamera::UnloadedState:
++        close();
++        break;
++    case QCamera::LoadedState:
++    case QCamera::ActiveState:
++        if (!m_camera && !open()) {
++            m_state = QCamera::UnloadedState;
++            emit stateChanged(m_state);
++            emit error(QCamera::CameraError, QStringLiteral("Failed to open camera"));
++            m_status = QCamera::UnloadedStatus;
++            emit statusChanged(m_status);
++            return;
++        }
++        if (state == QCamera::ActiveState)
++            startPreview();
++        else if (state == QCamera::LoadedState)
++            stopPreview();
++        break;
++    }
++}
++
++
++void QOPenHarmonyCameraSession::setCaptureMode(QCamera::CaptureModes mode)
++{
++
++}
++
++bool QOPenHarmonyCameraSession::isCaptureModeSupported(QCamera::CaptureModes mode) const
++{
++
++}
++
++void QOPenHarmonyCameraSession::onApplicationStateChanged(Qt::ApplicationState state)
++{
++    switch (state) {
++    case Qt::ApplicationInactive:
++        if (m_state != QCamera::UnloadedState) {
++            m_savedState = m_state;
++            //close(); TODO
++            m_state = QCamera::UnloadedState;
++            emit stateChanged(m_state);
++        }
++        break;
++    case Qt::ApplicationActive:
++        if (m_savedState != -1) {
++            setStateHelper(QCamera::State(m_savedState));
++            m_savedState = -1;
++        }
++        break;
++    default:
++        break;
++    }
++}
++
++void QOPenHarmonyCameraSession::updateAvailableCameras()
++{    
++    g_availableCameras->clear();
++
++    const QStringList &ids = OPenHarmonyCamera::getIdOfCameras();
++    for (const QString &id : qAsConst(ids)) {
++        OPenHarmonyCameraInfo info;
++        OPenHarmonyCamera::getCameraInfo(id, &info);
++
++        if (!info.name.isNull())
++            g_availableCameras->append(info);
++    }
++}
++
++bool QOPenHarmonyCameraSession::open()
++{
++    return false;
++}
++
++void QOPenHarmonyCameraSession::close()
++{
++
++}
++
++bool QOPenHarmonyCameraSession::startPreview()
++{
++    return false;
++}
++
++void QOPenHarmonyCameraSession::stopPreview()
++{
++
++}
++
++QT_END_NAMESPACE
+diff --git a/src/plugins/openharmony/src/mediacapture/qopenharmonycamerasession.h b/src/plugins/openharmony/src/mediacapture/qopenharmonycamerasession.h
+new file mode 100644
+index 000000000..756c91c45
+--- /dev/null
++++ b/src/plugins/openharmony/src/mediacapture/qopenharmonycamerasession.h
+@@ -0,0 +1,55 @@
++#ifndef QOPENHARMONYCAMERASESSION_H
++#define QOPENHARMONYCAMERASESSION_H
++
++#include <QObject>
++#include <qcamera.h>
++
++#include "openharmonycamera.h"
++
++QT_BEGIN_NAMESPACE
++
++class QOPenHarmonyCameraSession : public QObject
++{
++    Q_OBJECT
++public:
++    explicit QOPenHarmonyCameraSession(QObject *parent = nullptr);
++    ~QOPenHarmonyCameraSession();
++    static const QList<OPenHarmonyCameraInfo> &availableCameras();
++
++    QCamera::State state() const { return m_state; }
++    void setState(QCamera::State state);
++
++    QCamera::Status status() const { return m_status; }
++
++    QCamera::CaptureModes captureMode() const { return m_captureMode; }
++    void setCaptureMode(QCamera::CaptureModes mode);
++    bool isCaptureModeSupported(QCamera::CaptureModes mode) const;
++
++Q_SIGNALS:
++    void statusChanged(QCamera::Status status);
++    void stateChanged(QCamera::State);
++    void error(int error, const QString &errorString);
++    void captureModeChanged(QCamera::CaptureModes);
++
++private Q_SLOTS:
++    void onApplicationStateChanged(Qt::ApplicationState state);
++
++private:
++    static void updateAvailableCameras();
++    bool open();
++    void close();
++
++    bool startPreview();
++    void stopPreview();
++
++    void setStateHelper(QCamera::State state);
++
++    OPenHarmonyCamera *m_camera;
++    QCamera::State m_state;
++    int m_savedState;
++    QCamera::Status m_status;
++    QCamera::CaptureModes m_captureMode;
++};
++
++QT_END_NAMESPACE
++#endif // QOPENHARMONYCAMERASESSION_H
+diff --git a/src/plugins/openharmony/src/mediacapture/qopenharmonycaptureservice.cpp b/src/plugins/openharmony/src/mediacapture/qopenharmonycaptureservice.cpp
+new file mode 100644
+index 000000000..e0734d35b
+--- /dev/null
++++ b/src/plugins/openharmony/src/mediacapture/qopenharmonycaptureservice.cpp
+@@ -0,0 +1,38 @@
++#include "qopenharmonycamerasession.h"
++#include "qopenharmonycameracontrol.h"
++#include "qopenharmonycaptureservice.h"
++#include "qmediaserviceproviderplugin.h"
++#include "qopenharmonycamerainfocontrol.h"
++
++QOPenHarmonyCaptureService::QOPenHarmonyCaptureService(const QString &service, QObject *parent)
++    : QMediaService{ parent }
++    , m_service(service)
++{
++    if (m_service == QLatin1String(Q_MEDIASERVICE_CAMERA)) {
++        m_cameraSession = new QOPenHarmonyCameraSession();
++        m_cameraControl = new QOPenHarmonyCameraControl(m_cameraSession);
++        m_cameraInfoControl = new QOPenHarmonyCameraInfoControl();
++    } else {
++        m_cameraSession = Q_NULLPTR;
++        m_cameraControl = Q_NULLPTR;
++        m_cameraInfoControl = Q_NULLPTR;
++    }
++}
++
++QOPenHarmonyCaptureService::~QOPenHarmonyCaptureService()
++{
++    delete m_cameraInfoControl;
++    delete m_cameraControl;
++    delete m_cameraSession;
++}
++
++QMediaControl *QOPenHarmonyCaptureService::requestControl(const char *name)
++{
++    if (qstrcmp(name, QCameraInfoControl_iid) == 0)
++        return m_cameraInfoControl;
++}
++
++void QOPenHarmonyCaptureService::releaseControl(QMediaControl *)
++{
++
++}
+diff --git a/src/plugins/openharmony/src/mediacapture/qopenharmonycaptureservice.h b/src/plugins/openharmony/src/mediacapture/qopenharmonycaptureservice.h
+new file mode 100644
+index 000000000..2856fc62e
+--- /dev/null
++++ b/src/plugins/openharmony/src/mediacapture/qopenharmonycaptureservice.h
+@@ -0,0 +1,34 @@
++#ifndef QOPENHARMONYCAPTURESERVICE_H
++#define QOPENHARMONYCAPTURESERVICE_H
++
++#include <qmediaservice.h>
++#include <qmediacontrol.h>
++
++QT_BEGIN_NAMESPACE
++
++class QOPenHarmonyCameraControl;
++class QOPenHarmonyCameraSession;
++class QOPenHarmonyCameraInfoControl;
++
++class QOPenHarmonyCaptureService : public QMediaService
++{
++    Q_OBJECT
++
++public:
++    explicit QOPenHarmonyCaptureService(const QString &service, QObject *parent = nullptr);
++    virtual ~QOPenHarmonyCaptureService();
++
++    QMediaControl *requestControl(const char *name);
++    void releaseControl(QMediaControl *);
++
++private:
++    QString m_service;
++    QOPenHarmonyCameraSession *m_cameraSession;
++
++    QOPenHarmonyCameraControl *m_cameraControl;
++    QOPenHarmonyCameraInfoControl *m_cameraInfoControl;
++};
++
++QT_END_NAMESPACE
++
++#endif // QOPENHARMONYCAPTURESERVICE_H
 diff --git a/src/plugins/openharmony/src/openharmony_mediaservice.json b/src/plugins/openharmony/src/openharmony_mediaservice.json
 new file mode 100644
 index 000000000..9f188ebfb
@@ -35,15 +556,18 @@ index 000000000..9f188ebfb
 +}
 diff --git a/src/plugins/openharmony/src/qopenharmonymediaserviceplugin.cpp b/src/plugins/openharmony/src/qopenharmonymediaserviceplugin.cpp
 new file mode 100644
-index 000000000..4906c5640
+index 000000000..f7cc1314d
 --- /dev/null
 +++ b/src/plugins/openharmony/src/qopenharmonymediaserviceplugin.cpp
-@@ -0,0 +1,85 @@
+@@ -0,0 +1,101 @@
 +#include <QLoggingCategory>
 +
 +#include "qcamera.h"
 +#include "qmediaserviceproviderplugin.h"
 +#include "qopenharmonymediaserviceplugin.h"
++#include "mediacapture/qopenharmonycamerasession.h"
++#include "mediacapture/qopenharmonycaptureservice.h"
++#include "mediacapture/qopenharmonycamerainfocontrol.h"
 +
 +QT_BEGIN_NAMESPACE
 +
@@ -64,7 +588,7 @@ index 000000000..4906c5640
 +
 +    if (key == QLatin1String(Q_MEDIASERVICE_CAMERA)
 +            || key == QLatin1String(Q_MEDIASERVICE_AUDIOSOURCE)) {
-+        return nullptr;
++        return new QOPenHarmonyCaptureService(key);
 +    }
 +
 +    qCWarning(qtOPenHaronyMediaPlugin) << "OPenHarony service plugin: unsupported key:" << key;
@@ -92,8 +616,8 @@ index 000000000..4906c5640
 +
 +QByteArray QOPenHarmonyMediaServicePlugin::defaultDevice(const QByteArray &service) const
 +{
-+    if (service == Q_MEDIASERVICE_CAMERA)
-+        return QByteArray();
++    if (service == Q_MEDIASERVICE_CAMERA && !QOPenHarmonyCameraSession::availableCameras().isEmpty())
++        return QOPenHarmonyCameraSession::availableCameras().first().name;
 +
 +    return QByteArray();
 +}
@@ -101,26 +625,39 @@ index 000000000..4906c5640
 +QList<QByteArray> QOPenHarmonyMediaServicePlugin::devices(const QByteArray &service) const
 +{
 +    Q_UNUSED(service);
++    if (service == Q_MEDIASERVICE_CAMERA) {
++        QList<QByteArray> devices;
++        const QList<OPenHarmonyCameraInfo> &cameras = QOPenHarmonyCameraSession::availableCameras();
++        for (int i = 0; i < cameras.count(); ++i)
++            devices.append(cameras.at(i).name);
++        return devices;
++    }
++
 +    return QList<QByteArray>();
 +}
 +
 +QString QOPenHarmonyMediaServicePlugin::deviceDescription(const QByteArray &service, const QByteArray &device)
 +{
-+    Q_UNUSED(service);
-+    Q_UNUSED(device);
++    if (service == Q_MEDIASERVICE_CAMERA) {
++        const QList<OPenHarmonyCameraInfo> &cameras = QOPenHarmonyCameraSession::availableCameras();
++        for (int i = 0; i < cameras.count(); ++i) {
++            const OPenHarmonyCameraInfo &info = cameras.at(i);
++            if (info.name == device)
++                return info.description;
++        }
++    }
++
 +    return QString();
 +}
 +
 +QCamera::Position QOPenHarmonyMediaServicePlugin::cameraPosition(const QByteArray &device) const
 +{
-+    Q_UNUSED(device);
-+    return QCamera::UnspecifiedPosition;
++return QOPenHarmonyCameraInfoControl::position(device);
 +}
 +
 +int QOPenHarmonyMediaServicePlugin::cameraOrientation(const QByteArray &device) const
 +{
-+    Q_UNUSED(device);
-+    return 0;
++    return QOPenHarmonyCameraInfoControl::orientation(device);
 +}
 +
 +QT_END_NAMESPACE
@@ -174,10 +711,13 @@ index 000000000..340e0b7ba
 +#endif // QOPENHARMONYMEDIASERVICEPLUGIN_H
 diff --git a/src/plugins/openharmony/src/src.pro b/src/plugins/openharmony/src/src.pro
 new file mode 100644
-index 000000000..9b0c9a5c1
+index 000000000..2ff2a0020
 --- /dev/null
 +++ b/src/plugins/openharmony/src/src.pro
-@@ -0,0 +1,17 @@
+@@ -0,0 +1,20 @@
++include (wrappers/napi/napi.pri)
++include (mediacapture/mediacapture.pri)
++
 +TARGET = qtmedia_openharmony
 +
 +QT += multimedia-private core-private network
@@ -195,6 +735,242 @@ index 000000000..9b0c9a5c1
 +PLUGIN_TYPE = mediaservice
 +PLUGIN_CLASS_NAME = QOPenHarmonyMediaServicePlugin
 +load(qt_plugin)
+diff --git a/src/plugins/openharmony/src/wrappers/napi/napi.pri b/src/plugins/openharmony/src/wrappers/napi/napi.pri
+new file mode 100644
+index 000000000..ff823b555
+--- /dev/null
++++ b/src/plugins/openharmony/src/wrappers/napi/napi.pri
+@@ -0,0 +1,7 @@
++INCLUDEPATH += $$PWD
++
++HEADERS += \
++    $$PWD/openharmonycamera.h
++
++SOURCES += \
++    $$PWD/openharmonycamera.cpp
+diff --git a/src/plugins/openharmony/src/wrappers/napi/openharmonycamera.cpp b/src/plugins/openharmony/src/wrappers/napi/openharmonycamera.cpp
+new file mode 100644
+index 000000000..a24a15156
+--- /dev/null
++++ b/src/plugins/openharmony/src/wrappers/napi/openharmonycamera.cpp
+@@ -0,0 +1,168 @@
++#include <QDebug>
++#include <QThread>
++#include <QWriteLocker>
++#include <QReadWriteLock>
++#include <QSharedPointer>
++#include <QtCore/QJsonValue>
++#include <QtCore/QJsonArray>
++#include <QtCore/QJsonObject>
++#include <QtCore/QJsonDocument>
++#include <QtCore/QJsonParseError>
++#include <QtCore/QLoggingCategory>
++
++#include "openharmonycamera.h"
++#include "QtCore/QOpenHarmonyJsObject"
++#include "QtCore/QOpenHarmonyJsEnvironment"
++#include "QtCore/QOpenHarmonyJsObjectLoader"
++
++QT_BEGIN_NAMESPACE
++
++Q_LOGGING_CATEGORY(qtCameraInfo, "qt.multimedia.plugins.openharmony.camerainfo")
++
++using CameraMap = QHash<QString, OPenHarmonyCamera *>;
++
++Q_GLOBAL_STATIC(CameraMap, cameras)
++Q_GLOBAL_STATIC(QReadWriteLock, rwLock)
++
++class OPenHarmonyCameraPrivate : public QObject
++{
++    Q_OBJECT
++
++public:
++    OPenHarmonyCameraPrivate();
++    ~OPenHarmonyCameraPrivate();
++
++    Q_INVOKABLE bool init(const QString &cameraId);
++
++    static QStringList getIdOfCameras();
++    static void getCameraInfo(const QString &id, OPenHarmonyCameraInfo *info);
++public:
++    QString m_cameraId;
++    static QSharedPointer<QOpenHarmonyJsObject> m_jsCamera;
++};
++QSharedPointer<QOpenHarmonyJsObject> OPenHarmonyCameraPrivate::m_jsCamera(Q_NULLPTR);
++
++OPenHarmonyCameraPrivate::OPenHarmonyCameraPrivate()
++    : QObject()
++{
++    m_jsCamera = qJsObjectLoader->create("qtcameramanager");
++}
++
++OPenHarmonyCameraPrivate::~OPenHarmonyCameraPrivate()
++{
++
++}
++
++bool OPenHarmonyCameraPrivate::init(const QString &cameraId)
++{
++    Q_UNUSED(cameraId);
++    return false;
++}
++
++QStringList OPenHarmonyCameraPrivate::getIdOfCameras()
++{
++    if (m_jsCamera.isNull()){
++        m_jsCamera = qJsObjectLoader->create("qtcameramanager");
++    }
++    QStringList ids = m_jsCamera->call<QStringList>("idOfCameras");
++    return ids;
++}
++
++void OPenHarmonyCameraPrivate::getCameraInfo(const QString &id, OPenHarmonyCameraInfo *info)
++{
++    Q_ASSERT(info);
++    if (m_jsCamera.isNull()){
++        m_jsCamera = qJsObjectLoader->create("qtcameramanager");
++    }
++
++    QString json = m_jsCamera->call<QString>("cameraInfo", id);
++    if (json.isEmpty())
++        return;
++
++    QJsonParseError error;
++    QJsonDocument doc = QJsonDocument::fromJson(json.toLocal8Bit(), &error);
++    if (QJsonParseError::NoError != error.error) {
++        qCWarning(qtCameraInfo) << "parase camera info from openharmony: " << error.errorString();
++        return;
++    }
++
++    QJsonObject obj = doc.object();
++    QString cameraId = obj.value(QStringLiteral("cameraId")).toString();
++    info->name = cameraId.toLocal8Bit();
++    int pos = obj.value(QStringLiteral("cameraPosition")).toInt();
++    info->position = QCamera::Position(pos);
++
++    static QHash<int, QString> sCameraTypeDes{
++        { 3, QStringLiteral("Telephoto camera") },
++        { 1, QStringLiteral("Wide Angle Len Camera") },
++        { 2, QStringLiteral("Ultra wide Angle camera") },
++        { 0, QStringLiteral("The camera type was not specified") },
++        { 4, QStringLiteral("Camera with depth of field information") }
++    };
++
++            static QHash<int, QString> sConnectionTypeDes{
++                                                            { 0, QStringLiteral(" Built-in Camera") },
++                                                            { 1, QStringLiteral(" Usb-connected camera") },
++                                                            { 2, QStringLiteral(" Remotely connected camera") },
++                                                            };
++
++    int cameraType = obj.value("cameraType").toInt();
++    int connectType = obj.value("connectionType").toInt();
++    info->description = sCameraTypeDes.value(cameraType) + sConnectionTypeDes.value(connectType);
++    info->orientation = 0; //TODO Returns the physical orientation of the camera sensor.
++}
++
++OPenHarmonyCamera::~OPenHarmonyCamera()
++{
++
++}
++
++QString OPenHarmonyCamera::cameraId() const
++{
++    Q_D(const OPenHarmonyCamera);
++    return d->m_cameraId;
++}
++
++QStringList OPenHarmonyCamera::getIdOfCameras()
++{
++    return std::move(OPenHarmonyCameraPrivate::getIdOfCameras());
++}
++
++OPenHarmonyCamera *OPenHarmonyCamera::open(const QString &cameraId)
++{
++    OPenHarmonyCameraPrivate *d = new OPenHarmonyCameraPrivate();
++    QThread *worker = new QThread;
++    worker->start();
++    d->moveToThread(worker);
++    connect(worker, &QThread::finished, d, &OPenHarmonyCameraPrivate::deleteLater);
++    bool ok = true;
++    QMetaObject::invokeMethod(d, "init", Qt::BlockingQueuedConnection, Q_RETURN_ARG(bool, ok), Q_ARG(const QString&, cameraId));
++    if (!ok) {
++        worker->quit();
++        worker->wait(5000);
++        delete worker;
++        return 0;
++    }
++
++    OPenHarmonyCamera *q = new OPenHarmonyCamera(d, worker);
++    QWriteLocker locker(rwLock);
++    cameras->insert(cameraId, q);
++
++    return q;
++}
++
++void OPenHarmonyCamera::getCameraInfo(const QString &id, OPenHarmonyCameraInfo *info)
++{
++    OPenHarmonyCameraPrivate::getCameraInfo(id, info);
++}
++
++OPenHarmonyCamera::OPenHarmonyCamera(OPenHarmonyCameraPrivate *d, QThread *worker) : QObject()
++      , d_ptr(d)
++      , m_worker(worker)
++{
++
++}
++
++QT_END_NAMESPACE
++
++#include "openharmonycamera.moc"
+diff --git a/src/plugins/openharmony/src/wrappers/napi/openharmonycamera.h b/src/plugins/openharmony/src/wrappers/napi/openharmonycamera.h
+new file mode 100644
+index 000000000..61baab6d8
+--- /dev/null
++++ b/src/plugins/openharmony/src/wrappers/napi/openharmonycamera.h
+@@ -0,0 +1,43 @@
++#ifndef OPENHARMONYCAMERA_H
++#define OPENHARMONYCAMERA_H
++
++#include <QObject>
++#include <QtMultimedia/qcamera.h>
++
++QT_BEGIN_NAMESPACE
++
++class QThread;
++class OPenHarmonyCameraPrivate;
++
++struct OPenHarmonyCameraInfo
++{
++    QByteArray name;
++    QString description;
++    QCamera::Position position;
++    int orientation;
++};
++Q_DECLARE_TYPEINFO(OPenHarmonyCameraInfo, Q_MOVABLE_TYPE);
++
++class OPenHarmonyCamera : public QObject
++{
++    Q_OBJECT    
++
++public:    
++    ~OPenHarmonyCamera();
++
++    QString cameraId() const;
++    static QStringList getIdOfCameras();
++    static OPenHarmonyCamera *open(const QString &cameraId);
++    static void getCameraInfo(const QString &id, OPenHarmonyCameraInfo *info);
++
++Q_SIGNALS:
++
++private:
++    OPenHarmonyCameraPrivate *d_ptr;
++    QScopedPointer<QThread> m_worker;
++    Q_DECLARE_PRIVATE(OPenHarmonyCamera)
++    OPenHarmonyCamera(OPenHarmonyCameraPrivate *d, QThread *worker);
++};
++
++QT_END_NAMESPACE
++#endif // OPENHARMONYCAMERA_H
 diff --git a/src/plugins/openharmony/videonode/openharmony_videonode.json b/src/plugins/openharmony/videonode/openharmony_videonode.json
 new file mode 100644
 index 000000000..c82757cb0
@@ -676,42 +1452,500 @@ index ad87cb057..fd35d0dac 100644
      m_processedBytes = 0;
      m_clockStamp.restart();
      m_lastNotifyTime = 0;
+diff --git a/src/plugins/opensles/qopenslesaudiooutput.cpp b/src/plugins/opensles/qopenslesaudiooutput.cpp
+index 381ce0ec2..20ccc72a5 100644
+--- a/src/plugins/opensles/qopenslesaudiooutput.cpp
++++ b/src/plugins/opensles/qopenslesaudiooutput.cpp
+@@ -89,10 +89,10 @@ QOpenSLESAudioOutput::QOpenSLESAudioOutput(const QByteArray &device)
+       m_startRequiresInit(true)
+ {
+ #ifndef ANDROID
+-      m_streamType = -1;
++    m_streamType = -1;
+ #else
+-      m_streamType = SL_ANDROID_STREAM_MEDIA;
+-      m_category = QLatin1String("media");
++    m_streamType = SL_ANDROID_STREAM_MEDIA;
++    m_category = QLatin1String("media");
+ #endif // ANDROID
+ }
+ 
+@@ -114,22 +114,20 @@ QAudio::State QOpenSLESAudioOutput::state() const
+ void QOpenSLESAudioOutput::start(QIODevice *device)
+ {
+     Q_ASSERT(device);
+-
+     if (m_state != QAudio::StoppedState)
+         stop();
+-
+     if (!preparePlayer())
+         return;
+ 
+     m_pullMode = true;
+-    m_audioSource = device;
++    m_audioSource = device;    
+     m_nextBuffer = 0;
+     m_processedBytes = 0;
+     m_availableBuffers = BUFFER_COUNT;
+     setState(QAudio::ActiveState);
+     setError(QAudio::NoError);
+ 
+-    // Attempt to fill buffers first.
++         // Attempt to fill buffers first.
+     for (int i = 0; i != BUFFER_COUNT; ++i) {
+         const int index = i * m_bufferSize;
+         const qint64 readSize = m_audioSource->read(m_buffers + index, m_bufferSize);
+@@ -146,8 +144,8 @@ void QOpenSLESAudioOutput::start(QIODevice *device)
+     if (m_processedBytes < 1)
+         onEOSEvent();
+ 
+-    // Change the state to playing.
+-    // We need to do this after filling the buffers or processedBytes might get corrupted.
++         // Change the state to playing.
++         // We need to do this after filling the buffers or processedBytes might get corrupted.
+     startPlayer();
+ }
+ 
+@@ -165,7 +163,7 @@ QIODevice *QOpenSLESAudioOutput::start()
+     m_audioSource = new SLIODevicePrivate(this);
+     m_audioSource->open(QIODevice::WriteOnly | QIODevice::Unbuffered);
+ 
+-    // Change the state to playing
++         // Change the state to playing
+     startPlayer();
+ 
+     setState(QAudio::IdleState);
+@@ -361,10 +359,13 @@ void QOpenSLESAudioOutput::onEOSEvent()
+     if (m_state != QAudio::ActiveState)
+         return;
+ 
++#if defined(Q_OS_OPENHARMONY)
++    SLOHBufferQueueState state;
++#else
+     SLBufferQueueState state;
++#endif
+     if (SL_RESULT_SUCCESS != (*m_bufferQueueItf)->GetState(m_bufferQueueItf, &state))
+         return;
+-
+     if (state.count > 0)
+         return;
+ 
+@@ -381,7 +382,6 @@ void QOpenSLESAudioOutput::bufferAvailable(quint32 count, quint32 playIndex)
+ {
+     Q_UNUSED(count);
+     Q_UNUSED(playIndex);
+-
+     if (m_state == QAudio::StoppedState)
+         return;
+ 
+@@ -394,7 +394,7 @@ void QOpenSLESAudioOutput::bufferAvailable(quint32 count, quint32 playIndex)
+         return;
+     }
+ 
+-    // We're in pull mode.
++         // We're in pull mode.
+     const int index = m_nextBuffer * m_bufferSize;
+     const qint64 readSize = m_audioSource->read(m_buffers + index, m_bufferSize);
+ 
+@@ -427,6 +427,15 @@ void QOpenSLESAudioOutput::playCallback(SLPlayItf player, void *ctx, SLuint32 ev
+ 
+ }
+ 
++#if defined(Q_OS_OPENHARMONY)
++void QOpenSLESAudioOutput::bufferQueueCallback (SLOHBufferQueueItf bufferQueue, void *ctx, SLuint32 size)
++{
++    SLOHBufferQueueState state;
++    (*bufferQueue)->GetState(bufferQueue, &state);
++    QOpenSLESAudioOutput *audioOutput = reinterpret_cast<QOpenSLESAudioOutput *>(ctx);
++    audioOutput->bufferAvailable(state.count, state.index);
++}
++#else
+ void QOpenSLESAudioOutput::bufferQueueCallback(SLBufferQueueItf bufferQueue, void *ctx)
+ {
+     SLBufferQueueState state;
+@@ -434,7 +443,7 @@ void QOpenSLESAudioOutput::bufferQueueCallback(SLBufferQueueItf bufferQueue, voi
+     QOpenSLESAudioOutput *audioOutput = reinterpret_cast<QOpenSLESAudioOutput *>(ctx);
+     audioOutput->bufferAvailable(state.count, state.playIndex);
+ }
+-
++#endif
+ bool QOpenSLESAudioOutput::preparePlayer()
+ {
+     if (m_startRequiresInit)
+@@ -454,7 +463,7 @@ bool QOpenSLESAudioOutput::preparePlayer()
+ 
+     SLDataSource audioSrc = { &bufferQueueLocator, &pcmFormat };
+ 
+-    // OutputMix
++         // OutputMix
+     if (SL_RESULT_SUCCESS != (*engine)->CreateOutputMix(engine,
+                                                         &m_outputMixObject,
+                                                         0,
+@@ -476,7 +485,11 @@ bool QOpenSLESAudioOutput::preparePlayer()
+ 
+ #ifndef ANDROID
+     const int iids = 2;
++#if defined(Q_OS_OPENHARMONY)
++    const SLInterfaceID ids[iids] = { SL_IID_OH_BUFFERQUEUE, SL_IID_VOLUME };
++#else
+     const SLInterfaceID ids[iids] = { SL_IID_BUFFERQUEUE, SL_IID_VOLUME };
++#endif
+     const SLboolean req[iids] = { SL_BOOLEAN_TRUE, SL_BOOLEAN_TRUE };
+ #else
+     const int iids = 3;
+@@ -486,14 +499,22 @@ bool QOpenSLESAudioOutput::preparePlayer()
+     const SLboolean req[iids] = { SL_BOOLEAN_TRUE, SL_BOOLEAN_TRUE, SL_BOOLEAN_TRUE };
+ #endif // ANDROID
+ 
+-    // AudioPlayer
++         // AudioPlayer
+     if (SL_RESULT_SUCCESS != (*engine)->CreateAudioPlayer(engine,
+                                                           &m_playerObject,
+                                                           &audioSrc,
++#if defined(Q_OS_OPENHARMONY)
++                                                          nullptr,
++                                                          0,
++                                                          nullptr,
++                                                          nullptr
++#else
+                                                           &audioSink,
+                                                           iids,
+                                                           ids,
+-                                                          req)) {
++                                                          req
++#endif
++                                                          )) {
+         qWarning() << "Unable to create AudioPlayer";
+         setError(QAudio::OpenError);
+         return false;
+@@ -520,8 +541,13 @@ bool QOpenSLESAudioOutput::preparePlayer()
+ 
+     // Buffer interface
+     if (SL_RESULT_SUCCESS != (*m_playerObject)->GetInterface(m_playerObject,
++#if defined(Q_OS_OPENHARMONY)
++                                                             SL_IID_OH_BUFFERQUEUE,
++#else
+                                                              SL_IID_BUFFERQUEUE,
++#endif
+                                                              &m_bufferQueueItf)) {
++
+         setError(QAudio::FatalError);
+         return false;
+     }
+@@ -531,32 +557,31 @@ bool QOpenSLESAudioOutput::preparePlayer()
+                                                                    this)) {
+         setError(QAudio::FatalError);
+         return false;
+-    }
+-
+-    // Play interface
++    }    
++         // Play interface
+     if (SL_RESULT_SUCCESS != (*m_playerObject)->GetInterface(m_playerObject,
+                                                              SL_IID_PLAY,
+                                                              &m_playItf)) {
+         setError(QAudio::FatalError);
+         return false;
+     }
++    //TODO
++//    if (SL_RESULT_SUCCESS != (*m_playItf)->RegisterCallback(m_playItf, playCallback, this)) {
++//        setError(QAudio::FatalError);
++//        return false;
++//    }
+ 
+-    if (SL_RESULT_SUCCESS != (*m_playItf)->RegisterCallback(m_playItf, playCallback, this)) {
+-        setError(QAudio::FatalError);
+-        return false;
+-    }
+-
+-    if (m_notifyInterval && SL_RESULT_SUCCESS == (*m_playItf)->SetPositionUpdatePeriod(m_playItf,
+-                                                                                       m_notifyInterval)) {
+-        m_eventMask |= SL_PLAYEVENT_HEADATNEWPOS;
+-    }
++//    if (m_notifyInterval && SL_RESULT_SUCCESS == (*m_playItf)->SetPositionUpdatePeriod(m_playItf,
++//                                                                                       m_notifyInterval)) {
++//        m_eventMask |= SL_PLAYEVENT_HEADATNEWPOS;
++//    }
+ 
+-    if (SL_RESULT_SUCCESS != (*m_playItf)->SetCallbackEventsMask(m_playItf, m_eventMask)) {
+-        setError(QAudio::FatalError);
+-        return false;
+-    }
++//    if (SL_RESULT_SUCCESS != (*m_playItf)->SetCallbackEventsMask(m_playItf, m_eventMask)) {
++//        setError(QAudio::FatalError);
++//        return false;
++//    }
+ 
+-    // Volume interface
++         // Volume interface
+     if (SL_RESULT_SUCCESS != (*m_playerObject)->GetInterface(m_playerObject,
+                                                              SL_IID_VOLUME,
+                                                              &m_volumeItf)) {
+@@ -575,7 +600,7 @@ bool QOpenSLESAudioOutput::preparePlayer()
+         return false;
+     }
+ 
+-    // Buffer size
++         // Buffer size
+     if (m_bufferSize <= 0) {
+         m_bufferSize = defaultBufferSize;
+     } else if (QOpenSLESEngine::supportsLowLatency()) {
+@@ -639,7 +664,7 @@ void QOpenSLESAudioOutput::stopPlayer()
+         m_audioSource = nullptr;
+     }
+ 
+-    // We need to change the state manually...
++         // We need to change the state manually...
+     if (m_playItf)
+         (*m_playItf)->SetPlayState(m_playItf, SL_PLAYSTATE_STOPPED);
+ 
+@@ -666,10 +691,10 @@ qint64 QOpenSLESAudioOutput::writeData(const char *data, qint64 len)
+     if (len > m_bufferSize)
+         len = m_bufferSize;
+ 
+-    // Acquire one slot in the buffer
++         // Acquire one slot in the buffer
+     const int before = m_availableBuffers.fetchAndAddAcquire(-1);
+ 
+-    // If there where no vacant slots, then we just overdrew the buffer account...
++         // If there where no vacant slots, then we just overdrew the buffer account...
+     if (before < 1) {
+         m_availableBuffers.fetchAndAddRelease(1);
+         return 0;
+@@ -681,7 +706,7 @@ qint64 QOpenSLESAudioOutput::writeData(const char *data, qint64 len)
+                                                       m_buffers + index,
+                                                       len);
+ 
+-    // If we where unable to enqueue a new buffer, give back the acquired slot.
++         // If we where unable to enqueue a new buffer, give back the acquired slot.
+     if (res == SL_RESULT_BUFFER_INSUFFICIENT) {
+         m_availableBuffers.fetchAndAddRelease(1);
+         return 0;
+diff --git a/src/plugins/opensles/qopenslesaudiooutput.h b/src/plugins/opensles/qopenslesaudiooutput.h
+index b480f00e6..b8c561aa0 100644
+--- a/src/plugins/opensles/qopenslesaudiooutput.h
++++ b/src/plugins/opensles/qopenslesaudiooutput.h
+@@ -42,6 +42,10 @@
+ 
+ #include <qaudiosystem.h>
+ #include <SLES/OpenSLES.h>
++#if defined(Q_OS_OPENHARMONY)
++#include <SLES/OpenSLES_OpenHarmony.h>
++#include <SLES/OpenSLES_Platform.h>
++#endif
+ #include <qbytearray.h>
+ #include <qmap.h>
+ #include <QTime>
+@@ -90,8 +94,12 @@ private:
+     void bufferAvailable(quint32 count, quint32 playIndex);
+ 
+     static void playCallback(SLPlayItf playItf, void *ctx, SLuint32 event);
+-    static void bufferQueueCallback(SLBufferQueueItf bufferQueue, void *ctx);
+ 
++#if defined(Q_OS_OPENHARMONY)
++    static void bufferQueueCallback(SLOHBufferQueueItf bufferQueue, void *ctx, SLuint32 size);
++#else
++    static void bufferQueueCallback(SLBufferQueueItf bufferQueue, void *ctx);
++#endif
+     bool preparePlayer();
+     void destroyPlayer();
+     void stopPlayer();
+@@ -110,7 +118,11 @@ private:
+     SLObjectItf m_playerObject;
+     SLPlayItf m_playItf;
+     SLVolumeItf m_volumeItf;
++#if defined(Q_OS_OPENHARMONY)
++    SLOHBufferQueueItf m_bufferQueueItf;
++#else
+     SLBufferQueueItf m_bufferQueueItf;
++#endif
+     QIODevice *m_audioSource;
+     char *m_buffers;
+     qreal m_volume;
+diff --git a/src/plugins/opensles/qopenslesdeviceinfo.cpp b/src/plugins/opensles/qopenslesdeviceinfo.cpp
+index 8aaf67c76..f8bedaee2 100644
+--- a/src/plugins/opensles/qopenslesdeviceinfo.cpp
++++ b/src/plugins/opensles/qopenslesdeviceinfo.cpp
+@@ -41,13 +41,26 @@
+ 
+ #include "qopenslesengine.h"
+ 
++#if defined(Q_OS_OPENHARMONY)
++#include <QList>
++#include "QtCore/QOpenHarmonyJsObject"
++#include "QtCore/QOpenHarmonyJsEnvironment"
++#include "QtCore/QOpenHarmonyJsObjectLoader"
++#endif
++
+ QT_BEGIN_NAMESPACE
+ 
+ QOpenSLESDeviceInfo::QOpenSLESDeviceInfo(const QByteArray &device, QAudio::Mode mode)
+     : m_engine(QOpenSLESEngine::instance())
+-    , m_device(device)
+-    , m_mode(mode)
++      , m_device(device)
++      , m_mode(mode)
++#if defined(Q_OS_OPENHARMONY)
++      , m_jsAudioMgr(Q_NULLPTR)
++#endif
+ {
++#if defined(Q_OS_OPENHARMONY)
++    m_jsAudioMgr = qJsObjectLoader->create("qtaudiomanager");
++#endif
+ }
+ 
+ bool QOpenSLESDeviceInfo::isFormatSupported(const QAudioFormat &format) const
+@@ -67,8 +80,14 @@ QAudioFormat QOpenSLESDeviceInfo::preferredFormat() const
+     format.setCodec(QStringLiteral("audio/pcm"));
+     format.setSampleSize(16);
+     format.setSampleType(QAudioFormat::SignedInt);
++
++#if defined(Q_OS_OPENHARMONY)
++    format.setSampleRate(QOpenSLESEngine::getOutputValue(QOpenSLESEngine::SampleRate, 44100));
++    format.setChannelCount(2);
++#else
+     format.setSampleRate(QOpenSLESEngine::getOutputValue(QOpenSLESEngine::SampleRate, 48000));
+     format.setChannelCount(m_mode == QAudio::AudioInput ? 1 : 2);
++#endif
+     return format;
+ }
+ 
+@@ -84,20 +103,39 @@ QStringList QOpenSLESDeviceInfo::supportedCodecs()
+ 
+ QList<int> QOpenSLESDeviceInfo::supportedSampleRates()
+ {
++#if defined(Q_OS_OPENHARMONY)
++    if (QAudio::AudioInput == m_mode) {
++        return m_jsAudioMgr->call<QList<int>>("inputSupportedSampleRates", m_device);
++    } else {
++        return m_jsAudioMgr->call<QList<int>>("outputSupportedSampleRates", m_device);
++    }
++#else
+     return m_engine->supportedSampleRates(m_mode);
++#endif
+ }
+ 
+ QList<int> QOpenSLESDeviceInfo::supportedChannelCounts()
+ {
++#if defined(Q_OS_OPENHARMONY)
++    if (QAudio::AudioInput == m_mode)
++        return m_jsAudioMgr->call<QList<int>>("inputChannelCounts", m_device);
++    else
++        return m_jsAudioMgr->call<QList<int>>("outputChannelCounts", m_device);
++#else
+     return m_engine->supportedChannelCounts(m_mode);
++#endif
+ }
+ 
+ QList<int> QOpenSLESDeviceInfo::supportedSampleSizes()
+ {
++#if defined(Q_OS_OPENHARMONY)
++    return QList<int>() << 8 << 16 << 24 << 32;
++#else
+     if (m_mode == QAudio::AudioInput)
+         return QList<int>() << 16;
+     else
+         return QList<int>() << 8 << 16;
++#endif
+ }
+ 
+ QList<QAudioFormat::Endian> QOpenSLESDeviceInfo::supportedByteOrders()
+@@ -107,7 +145,13 @@ QList<QAudioFormat::Endian> QOpenSLESDeviceInfo::supportedByteOrders()
+ 
+ QList<QAudioFormat::SampleType> QOpenSLESDeviceInfo::supportedSampleTypes()
+ {
++#if defined(Q_OS_OPENHARMONY)
++    return QList<QAudioFormat::SampleType>() << QAudioFormat::Float
++                                             << QAudioFormat::SignedInt
++                                             << QAudioFormat::UnSignedInt;
++#else
+     return QList<QAudioFormat::SampleType>() << QAudioFormat::SignedInt;
++#endif
+ }
+ 
+ QT_END_NAMESPACE
+diff --git a/src/plugins/opensles/qopenslesdeviceinfo.h b/src/plugins/opensles/qopenslesdeviceinfo.h
+index ebeb6b4b2..f7ee584ec 100644
+--- a/src/plugins/opensles/qopenslesdeviceinfo.h
++++ b/src/plugins/opensles/qopenslesdeviceinfo.h
+@@ -41,11 +41,18 @@
+ #define QOPENSLESDEVICEINFO_H
+ 
+ #include <qaudiosystem.h>
++#if defined(Q_OS_OPENHARMONY)
++#include <QSharedPointer>
++#endif
+ 
+ QT_BEGIN_NAMESPACE
+ 
+ class QOpenSLESEngine;
+ 
++#if defined(Q_OS_OPENHARMONY)
++class QOpenHarmonyJsObject;
++#endif
++
+ class QOpenSLESDeviceInfo : public QAbstractAudioDeviceInfo
+ {
+     Q_OBJECT
+@@ -68,6 +75,9 @@ private:
+     QOpenSLESEngine *m_engine;
+     QByteArray m_device;
+     QAudio::Mode m_mode;
++#if defined(Q_OS_OPENHARMONY)
++    QSharedPointer<QOpenHarmonyJsObject> m_jsAudioMgr;
++#endif
+ };
+ 
+ QT_END_NAMESPACE
 diff --git a/src/plugins/opensles/qopenslesengine.cpp b/src/plugins/opensles/qopenslesengine.cpp
-index 43cdcb276..ac83040bc 100644
+index 43cdcb276..a0858d5aa 100644
 --- a/src/plugins/opensles/qopenslesengine.cpp
 +++ b/src/plugins/opensles/qopenslesengine.cpp
-@@ -38,7 +38,8 @@
+@@ -38,7 +38,11 @@
  ****************************************************************************/
  
  #include "qopenslesengine.h"
 -
-+#include <QtCore/QOpenHarmonyJsObject>
-+#include <QtCore/QOpenHarmonyJsEnvironment>
++#if defined(Q_OS_OPENHARMONY)
++#include "QtCore/QOpenHarmonyJsObject"
++#include "QtCore/QOpenHarmonyJsEnvironment"
++#include "QtCore/QOpenHarmonyJsObjectLoader"
++#endif
  #include "qopenslesaudioinput.h"
  #include <qdebug.h>
  
-@@ -59,6 +60,9 @@ QOpenSLESEngine::QOpenSLESEngine()
+@@ -48,6 +52,9 @@
+ #include <QtCore/private/qjni_p.h>
+ #endif
+ 
++#if defined(Q_OS_OPENHARMONY)
++#define OHOS_OPENSLES_BUFFER 16384
++#endif
+ #define MINIMUM_PERIOD_TIME_MS 5
+ #define DEFAULT_PERIOD_TIME_MS 50
+ 
+@@ -59,6 +66,9 @@ QOpenSLESEngine::QOpenSLESEngine()
      : m_engineObject(0)
      , m_engine(0)
      , m_checkedInputFormats(false)
 +#if defined(Q_OS_OPENHARMONY)
-+      , m_jsObj(Q_NULLPTR)
++    , m_jsAudioMgr(Q_NULLPTR)
 +#endif
  {
      SLresult result;
  
-@@ -70,6 +74,10 @@ QOpenSLESEngine::QOpenSLESEngine()
+@@ -70,6 +80,10 @@ QOpenSLESEngine::QOpenSLESEngine()
  
      result = (*m_engineObject)->GetInterface(m_engineObject, SL_IID_ENGINE, &m_engine);
      CheckError("Failed to get engine interface");
 +
-+#if defined(Q_OS_OPENHARMONY)
-+    m_jsObj.reset(new QOpenHarmonyJsObject("qtaudiomanager"));
-+#endif
++#if defined(Q_OS_OPENHARMONY)    
++    m_jsAudioMgr = qJsObjectLoader->create("qtaudiomanager");    
++#endif    
  }
  
  QOpenSLESEngine::~QOpenSLESEngine()
-@@ -92,11 +100,11 @@ SLDataFormat_PCM QOpenSLESEngine::audioFormatToSLFormatPCM(const QAudioFormat &f
+@@ -92,11 +106,11 @@ SLDataFormat_PCM QOpenSLESEngine::audioFormatToSLFormatPCM(const QAudioFormat &f
      format_pcm.bitsPerSample = format.sampleSize();
      format_pcm.containerSize = format.sampleSize();
      format_pcm.channelMask = (format.channelCount() == 1 ?
@@ -727,41 +1961,63 @@ index 43cdcb276..ac83040bc 100644
      return format_pcm;
  
  }
-@@ -115,11 +123,19 @@ QList<QByteArray> QOpenSLESEngine::availableDevices(QAudio::Mode mode) const
+@@ -108,18 +122,24 @@ QByteArray QOpenSLESEngine::defaultDevice(QAudio::Mode mode) const
+ }
+ 
+ QList<QByteArray> QOpenSLESEngine::availableDevices(QAudio::Mode mode) const
+-{
++{    
+     QList<QByteArray> devices;
+     if (mode == QAudio::AudioInput) {
+ #ifdef ANDROID
          devices << QT_ANDROID_PRESET_MIC
                  << QT_ANDROID_PRESET_CAMCORDER
                  << QT_ANDROID_PRESET_VOICE_RECOGNITION;
-+#elif defined(Q_OS_OPENHARMONY)
-+        m_jsObj->call("availableInputDevices");
-+        devices << "default"; //TODO del
++#elif defined(Q_OS_OPENHARMONY)        
++        devices << m_jsAudioMgr->call<QByteArrayList>("availableInputDevices");        
  #else
          devices << "default";
  #endif
      } else {
 +#if defined(Q_OS_OPENHARMONY)
-+        m_jsObj->call("availableOutputDevices");
-+        devices << "default"; //TODO del
++        devices << m_jsAudioMgr->call<QByteArrayList>("availableOutputDevices");
 +#else
          devices << "default";
 +#endif
      }
      return devices;
  }
-@@ -205,6 +221,13 @@ int QOpenSLESEngine::getOutputValue(QOpenSLESEngine::OutputValue type, int defau
+@@ -204,7 +224,6 @@ int QOpenSLESEngine::getOutputValue(QOpenSLESEngine::OutputValue type, int defau
+         return sampleRate;
  
  #endif // Q_OS_ANDROID
- 
-+#if defined(Q_OS_OPENHARMONY)
-+    qDebug() << type << "<------------------------QOpenSLESEngine OPEN_HARMONY----------->"
-+             << defaultValue;
-+
-+    return defaultValue;
-+#endif
-+
+-
      return defaultValue;
  }
  
-@@ -318,7 +341,7 @@ void QOpenSLESEngine::checkSupportedInputFormats()
+@@ -246,6 +265,8 @@ int QOpenSLESEngine::getDefaultBufferSize(const QAudioFormat &format)
+                                                                         channelConfig,
+                                                                         audioFormat);
+     return minBufferSize > 0 ? minBufferSize : format.bytesForDuration(DEFAULT_PERIOD_TIME_MS);
++#elif defined(Q_OS_OPENHARMONY)
++    return OHOS_OPENSLES_BUFFER;;
+ #else
+     return format.bytesForDuration(DEFAULT_PERIOD_TIME_MS);
+ #endif // Q_OS_ANDROID
+@@ -253,8 +274,12 @@ int QOpenSLESEngine::getDefaultBufferSize(const QAudioFormat &format)
+ 
+ int QOpenSLESEngine::getLowLatencyBufferSize(const QAudioFormat &format)
+ {
++#if defined(Q_OS_OPENHARMONY)
++    return OHOS_OPENSLES_BUFFER;
++#else
+     return format.bytesForFrames(QOpenSLESEngine::getOutputValue(QOpenSLESEngine::FramesPerBuffer,
+                                                                  format.framesForDuration(MINIMUM_PERIOD_TIME_MS)));
++#endif
+ }
+ 
+ bool QOpenSLESEngine::supportsLowLatency()
+@@ -318,7 +343,7 @@ void QOpenSLESEngine::checkSupportedInputFormats()
                                  SL_SAMPLINGRATE_48 };
  
  
@@ -770,7 +2026,7 @@ index 43cdcb276..ac83040bc 100644
      for (int i = 0 ; i < 9; ++i) {
          SLDataFormat_PCM format = defaultFormat;
          format.samplesPerSec = rates[i];
-@@ -328,7 +351,7 @@ void QOpenSLESEngine::checkSupportedInputFormats()
+@@ -328,7 +353,7 @@ void QOpenSLESEngine::checkSupportedInputFormats()
  
      }
  
@@ -779,11 +2035,31 @@ index 43cdcb276..ac83040bc 100644
      {
          SLDataFormat_PCM format = defaultFormat;
          format.numChannels = 2;
+@@ -350,8 +375,12 @@ bool QOpenSLESEngine::inputFormatIsSupported(SLDataFormat_PCM format)
+ 
+ #ifdef ANDROID
+     SLDataLocator_AndroidSimpleBufferQueue loc_bq = { SL_DATALOCATOR_ANDROIDSIMPLEBUFFERQUEUE, 1 };
++#else
++#if defined(Q_OS_OPENHARMONY)
++    SLDataLocator_BufferQueue loc_bq = { SL_DATALOCATOR_BUFFERQUEUE, 0 };
+ #else
+     SLDataLocator_BufferQueue loc_bq = { SL_DATALOCATOR_BUFFERQUEUE, 1 };
++#endif
+ #endif
+     SLDataSink audioSnk = { &loc_bq, &format };
+ 
 diff --git a/src/plugins/opensles/qopenslesengine.h b/src/plugins/opensles/qopenslesengine.h
-index c36b21488..75d8bc31a 100644
+index c36b21488..e45d0524a 100644
 --- a/src/plugins/opensles/qopenslesengine.h
 +++ b/src/plugins/opensles/qopenslesengine.h
-@@ -48,6 +48,10 @@
+@@ -44,10 +44,17 @@
+ #include <qaudio.h>
+ #include <qlist.h>
+ #include <qaudioformat.h>
++#if defined(Q_OS_OPENHARMONY)
++#include <QSharedPointer>
++#endif
+ #include <SLES/OpenSLES.h>
  
  QT_BEGIN_NAMESPACE
  
@@ -794,12 +2070,12 @@ index c36b21488..75d8bc31a 100644
  class QOpenSLESEngine
  {
  public:
-@@ -83,6 +87,9 @@ private:
+@@ -83,6 +90,9 @@ private:
      QList<int> m_supportedInputChannelCounts;
      QList<int> m_supportedInputSampleRates;
      bool m_checkedInputFormats;
 +#if defined(Q_OS_OPENHARMONY)
-+    QScopedPointer<QOpenHarmonyJsObject> m_jsObj;
++    QSharedPointer<QOpenHarmonyJsObject> m_jsAudioMgr;
 +#endif
  };
  
