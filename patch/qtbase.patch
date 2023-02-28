@@ -630,10 +630,10 @@ index 0000000000..7480dc1c20
 +#endif // QOPENHARMONYDEFINES_H
 diff --git a/src/corelib/kernel/qopenharmonyjsenvironment.cpp b/src/corelib/kernel/qopenharmonyjsenvironment.cpp
 new file mode 100644
-index 0000000000..8d2b0632d5
+index 0000000000..be0666367a
 --- /dev/null
 +++ b/src/corelib/kernel/qopenharmonyjsenvironment.cpp
-@@ -0,0 +1,296 @@
+@@ -0,0 +1,322 @@
 +#include "qopenharmonyjsenvironment.h"
 +#include "qopenharmonydefines.h"
 +
@@ -690,6 +690,44 @@ index 0000000000..8d2b0632d5
 +    NAPI_CALL_BASE(m_env, napi_get_value_string_utf8(m_env, value, strBuffer.get(), bufLen, &strLen), QString());
 +    QString str = QString::fromUtf8(strBuffer.get());
 +    return str;
++}
++
++QList<int> QOpenHarmonyJsEnvironment::getNumbers(napi_value value)
++{
++    bool result = false;
++    NAPI_CALL_BASE(m_env, napi_is_array(m_env, value, &result), QList<int>());
++    if (!result)
++        return QList<int>();
++    uint32_t length = 0;
++    NAPI_CALL_BASE(m_env, napi_get_array_length(m_env, value, &length), QList<int>());
++    QList<int> ret;
++    for (uint32_t i = 0; i < length; ++i) {
++        napi_value temp = nullptr;
++        napi_get_element(m_env, value, i, &temp);
++        if (temp == nullptr)
++            continue;
++        ret << getInt32(temp);
++    }
++    return ret;
++}
++
++QList<double> QOpenHarmonyJsEnvironment::getRealNumbers(napi_value value)
++{
++    bool result = false;
++    NAPI_CALL_BASE(m_env, napi_is_array(m_env, value, &result), QList<double>());
++    if (!result)
++        return QList<double>();
++    uint32_t length = 0;
++    NAPI_CALL_BASE(m_env, napi_get_array_length(m_env, value, &length), QList<double>());
++    QList<double> ret;
++    for (uint32_t i = 0; i < length; ++i) {
++        napi_value temp = nullptr;
++        napi_get_element(m_env, value, i, &temp);
++        if (temp == nullptr)
++            continue;
++        ret << getDouble(temp);
++    }
++    return ret;
 +}
 +
 +QStringList QOpenHarmonyJsEnvironment::getStringList(napi_value value)
@@ -890,21 +928,9 @@ index 0000000000..8d2b0632d5
 +}
 +
 +template<>
-+QByteArrayList QOpenHarmonyJsEnvironment::getValue<QByteArrayList>(napi_value value)
-+{
-+    return getByteArrayList(value);
-+}
-+
-+template<>
 +QString QOpenHarmonyJsEnvironment::getValue<QString>(napi_value value)
 +{
 +    return getString(value);
-+}
-+
-+template<>
-+QStringList QOpenHarmonyJsEnvironment::getValue<QStringList>(napi_value value)
-+{
-+    return getStringList(value);
 +}
 +
 +template<>
@@ -932,16 +958,15 @@ index 0000000000..8d2b0632d5
 +}
 diff --git a/src/corelib/kernel/qopenharmonyjsenvironment.h b/src/corelib/kernel/qopenharmonyjsenvironment.h
 new file mode 100644
-index 0000000000..d29f8b73ba
+index 0000000000..00a69df90f
 --- /dev/null
 +++ b/src/corelib/kernel/qopenharmonyjsenvironment.h
-@@ -0,0 +1,83 @@
+@@ -0,0 +1,109 @@
 +#ifndef QOPENHARMONYJSENVIRONMENT_H
 +#define QOPENHARMONYJSENVIRONMENT_H
 +
 +#include <napi/native_api.h>
 +#include <QtCore/qvariant.h>
-+
 +
 +QT_BEGIN_NAMESPACE
 +#define qJs QOpenHarmonyJsEnvironment
@@ -998,6 +1023,9 @@ index 0000000000..d29f8b73ba
 +
 +    static QString getString(napi_value value);
 +
++    static QList<int> getNumbers(napi_value value);
++    static QList<double> getRealNumbers(napi_value value);
++
 +    static QStringList getStringList(napi_value value);
 +
 +    static QByteArray getByteArray(napi_value value);
@@ -1017,11 +1045,35 @@ index 0000000000..d29f8b73ba
 +    static napi_env m_env;
 +};
 +
++template<>
++inline QList<int> QOpenHarmonyJsEnvironment::getValue<QList<int>>(napi_value value)
++{
++    return getNumbers(value);
++}
++
++template<>
++inline QList<double> QOpenHarmonyJsEnvironment::getValue(napi_value value)
++{
++    return getRealNumbers(value);
++}
++
++template<>
++inline QByteArrayList QOpenHarmonyJsEnvironment::getValue<QByteArrayList>(napi_value value)
++{
++    return getByteArrayList(value);
++}
++
++template<>
++inline QStringList QOpenHarmonyJsEnvironment::getValue<QStringList>(napi_value value)
++{
++    return getStringList(value);
++}
++
 +QT_END_NAMESPACE
 +#endif // QOPENHARMONYJSENVIRONMENT_H
 diff --git a/src/corelib/kernel/qopenharmonyjsfunction.cpp b/src/corelib/kernel/qopenharmonyjsfunction.cpp
 new file mode 100644
-index 0000000000..535742b5be
+index 0000000000..0482b8e9bd
 --- /dev/null
 +++ b/src/corelib/kernel/qopenharmonyjsfunction.cpp
 @@ -0,0 +1,199 @@
@@ -1109,7 +1161,7 @@ index 0000000000..535742b5be
 +}
 +
 +void QOpenHarmonyJsFunctionPrivate::wait(int timeout)
-+{
++{    
 +    m_timer->start(timeout);
 +    m_loop.exec();
 +}
@@ -1197,7 +1249,7 @@ index 0000000000..535742b5be
 +    if (q->m_ref != nullptr)
 +        napi_delete_reference(qJs::env(), q->m_ref);
 +    napi_create_reference(qJs::env(), (napi_value)result, 1, &q->m_ref);
-+    cancelWait();
++    cancelWait();    
 +}
 +
 +QOpenHarmonyJsFunction::QOpenHarmonyJsFunction(QOpenHarmonyJsObject *nativeObject, const QString &functionName, napi_value function, QObject *parent)
@@ -1216,7 +1268,7 @@ index 0000000000..535742b5be
 +}
 +
 +void QOpenHarmonyJsFunction::call(const QVariantList &args)
-+{
++{    
 +    Q_D(QOpenHarmonyJsFunction);
 +    d->m_args = args;
 +    qDebug() << QString("call js function: %1 with args").arg(d->m_name) << d->m_args << napi_call_threadsafe_function(d->m_function, d, napi_tsfn_blocking);
@@ -1445,7 +1497,7 @@ index 0000000000..c7ebde8396
 +#endif // QOPENHARMONYEGLCORE_H
 diff --git a/src/corelib/kernel/qopenharmonyjsobjectloader.cpp b/src/corelib/kernel/qopenharmonyjsobjectloader.cpp
 new file mode 100644
-index 0000000000..fc750fe031
+index 0000000000..50569f5a73
 --- /dev/null
 +++ b/src/corelib/kernel/qopenharmonyjsobjectloader.cpp
 @@ -0,0 +1,58 @@
@@ -1496,7 +1548,7 @@ index 0000000000..fc750fe031
 +        return d_ptr->m_objects.value(name);
 +
 +    bool result = d_ptr->m_loader->call<bool>("createObject", name);
-+    if (!result) {
++     if (!result) {
 +        qDebug() << "create js object failed.";
 +        return QSharedPointer<QOpenHarmonyJsObject>();
 +    }
@@ -3527,7 +3579,7 @@ index 0000000000..7676f9fa31
 +#endif // QOPENHARMONYPLATFORMFOREIGNWINDOW_H
 diff --git a/src/plugins/platforms/openharmony/qopenharmonyplatforminputcontext.cpp b/src/plugins/platforms/openharmony/qopenharmonyplatforminputcontext.cpp
 new file mode 100644
-index 0000000000..6efda90b33
+index 0000000000..0eb82b74f2
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonyplatforminputcontext.cpp
 @@ -0,0 +1,451 @@
@@ -3783,8 +3835,8 @@ index 0000000000..6efda90b33
 +}
 +
 +void QOpenHarmonyPlatformInputContext::showInputPanel()
-+{    
-+//    qInfo() << "QOpenHarmonyPlatformInputContext<===================showInputPanel:";
++{
++    qInfo() << "QOpenHarmonyPlatformInputContext<===================showInputPanel:";
 +//    if (QGuiApplication::applicationState() != Qt::ApplicationActive) {
 +//        connect(qGuiApp, SIGNAL(applicationStateChanged(Qt::ApplicationState)), this, SLOT(showInputPanelLater(Qt::ApplicationState)));
 +//        return;
@@ -3799,7 +3851,7 @@ index 0000000000..6efda90b33
 +    else
 +        m_updateCursorPosConnection = connect(qGuiApp->focusObject(), SIGNAL(cursorPositionChanged()), this, SLOT(updateCursorPosition()));
 +
-+//    m_jsInputManager->call("open", m_composingText);
++    m_jsInputManager->call("open", m_composingText);
 +}
 +
 +void QOpenHarmonyPlatformInputContext::hideInputPanel()
@@ -4656,10 +4708,10 @@ index 0000000000..c885aa5fec
 +#endif // QOPENHARMONYPLATFORMOPENGLCONTEXT_H
 diff --git a/src/plugins/platforms/openharmony/qopenharmonyplatformopenglwindow.cpp b/src/plugins/platforms/openharmony/qopenharmonyplatformopenglwindow.cpp
 new file mode 100644
-index 0000000000..2b0f2a8fe3
+index 0000000000..82af35a536
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonyplatformopenglwindow.cpp
-@@ -0,0 +1,174 @@
+@@ -0,0 +1,173 @@
 +#include "qopenharmonyplatformopenglwindow.h"
 +#include "qopenharmonyxcomponent.h"
 +#include "qopenharmonyplatformscreen.h"
@@ -4718,8 +4770,7 @@ index 0000000000..2b0f2a8fe3
 +}
 +
 +void QOpenHarmonyPlatformOpenGLWindow::setGeometry(const QRect &rect)
-+{
-+    qDebug() << "<--------------------------rect::::::::::::" << rect;
++{    
 +    QOpenHarmonyXComponentManager::instance()->setGeometry(m_component, rect);
 +    if (rect == geometry())
 +        return;
