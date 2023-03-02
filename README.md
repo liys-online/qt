@@ -15,6 +15,8 @@ OpenHarmony - Qt
 │
 └───patch - 源码补丁
 │   │   qtbase.patch - qtbase子模块代码补丁
+|	|	qtmultimedia.patch - qtmultimedia子模块补丁
+|	|	qtconnectivity.patch - qtconnectivity子模块补丁		
 |	|   qtremoteobjects.patch - qtremoteobjects子模块代码补丁
 └───windows_build.bat - windows环境下的交叉编译脚本
 └───linux_build.sh - Linux环境下的交叉编译脚本
@@ -42,9 +44,10 @@ OpenHarmony - Qt
 
 ## Windows环境下
 ### 前置条件
-1. 安装git, 如果已安装跳过，下载链接：https://gitforwindows.org/
-2. 安装mingw, 如果已安装跳过，下载链接：https://sourceforge.net/projects/mingw/
-3. 把%GIT_DIR%\cmd %GIT_DIR%\usr\bin和ming32-make.exe的路径设置到系统环境Path中，%GIT_DIR%替换成实际的安装目录
+1. 安装git, 如果已安装则跳过，下载链接：https://gitforwindows.org/
+2. 安装Perl，如果已安装则跳过，下载链接：https://strawberryperl.com/
+3. 安装mingw, 如果已安装则跳过，下载链接：https://sourceforge.net/projects/mingw/
+4. 将以上安装的程序运行路径设置到系统环境Path中，例：把ming32-make.exe的所在路径设置到系统环境Path中
 
 ### 编译步骤
 1. 执行windows_build.bat脚本，完成qt5源码、OpenHarmony NDK及代码补丁应用和编译安装
