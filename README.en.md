@@ -42,9 +42,10 @@ OpenHarmony - Qt
 
 ## Windows
 ### Precondition
-1. Install git, skip if installed，download link：https://gitforwindows.org/
-2. Install mingw, skip if installed，download link：https://sourceforge.net/projects/mingw/
-3. Add the path of %GIT_DIR%\cmd、%GIT_DIR%\usr\bin and ming32-make.exe to the system environment Path，replace %GIT_DIR% with the actual installation directory
+1.  Install git, if installed skip, download link: https://gitforwindows.org/
+2. Install Perl, if installed skip, download link: https://strawberryperl.com/
+3. Install mingw, if installed skip, download link: https://sourceforge.net/projects/mingw/
+3. Set the running Path of the above installed program to the Path of the system environment. For example, set the path of ming32-make.exe to the path of the system environment
 
 ### Compilation Steps
 1. Execute the windows_build.bat script to complete the qt5 source code, OpenHarmony NDK and code patch application, compilation and installation
