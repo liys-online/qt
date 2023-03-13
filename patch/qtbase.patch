@@ -2719,10 +2719,10 @@ index 0000000000..1a88d88b24
 +#endif // QOPENHARMONYDEFINES_H
 diff --git a/src/plugins/platforms/openharmony/qopenharmonymain.cpp b/src/plugins/platforms/openharmony/qopenharmonymain.cpp
 new file mode 100644
-index 0000000000..9551d0b3a0
+index 0000000000..eb6e3f97d8
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonymain.cpp
-@@ -0,0 +1,244 @@
+@@ -0,0 +1,245 @@
 +#include <memory>
 +#include <dlfcn.h>
 +#include <pthread.h>
@@ -2923,6 +2923,7 @@ index 0000000000..9551d0b3a0
 +        QOpenHarmonyEGLCore::init();
 +        QOpenHarmonyPlatformInputContext::init(env, exports);
 +        QOpenHarmonyPlatformMessageDialogHelper::init(env, exports);
++        QOpenHarmonyPlatformFileDialogHelper::init(env, exports);
 +
 +    #ifndef QT_NO_CLIPBOARD
 +        QOpenHarmonyPlatformClipboard::init(env, exports);
@@ -3214,10 +3215,10 @@ index 0000000000..40b3576be4
 +#endif // QOPENHARMONYPLATFORMCLIPBOARD_H
 diff --git a/src/plugins/platforms/openharmony/qopenharmonyplatformdialoghelpers.cpp b/src/plugins/platforms/openharmony/qopenharmonyplatformdialoghelpers.cpp
 new file mode 100644
-index 0000000000..a26be1c904
+index 0000000000..8b4a8dc6d4
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonyplatformdialoghelpers.cpp
-@@ -0,0 +1,149 @@
+@@ -0,0 +1,242 @@
 +#include "qopenharmonyplatformdialoghelpers.h"
 +#include "qopenharmonymain.h"
 +#include "qopenharmonyjsobjectloader.h"
@@ -3230,6 +3231,19 @@ index 0000000000..a26be1c904
 +#include <qpa/qplatformtheme.h>
 +#include <QTextDocument>
 +#include <QTimer>
++
++void QWaiter::wait(int timeout)
++{
++    if (timeout != -1)
++        QTimer::singleShot(timeout, &m_loop, &QEventLoop::quit);
++    m_loop.exec();
++}
++
++void QWaiter::cancelWait()
++{
++    if (m_loop.isRunning())
++        m_loop.exit();
++}
 +
 +QOpenHarmonyPlatformMessageDialogHelper::QOpenHarmonyPlatformMessageDialogHelper()
 +    : m_buttonId(-1)
@@ -3355,24 +3369,104 @@ index 0000000000..a26be1c904
 +    return nullptr;
 +}
 +
-+void QOpenHarmonyPlatformMessageDialogHelper::wait(int timeout)
++static napi_value selectedFilesResult(napi_env env, napi_callback_info info)
 +{
-+    if (timeout != -1)
-+        QTimer::singleShot(timeout, &m_loop, &QEventLoop::quit);
-+    m_loop.exec();
++    size_t argc = 1;
++    napi_value args[1];
++    NAPI_CALL(env, napi_get_cb_info(env, info, &argc, args, nullptr, nullptr));
++
++    if (argc != 1) {
++        napi_throw_type_error(env, NULL, "Wrong number of arguments");
++        return nullptr;
++    }
++    return nullptr;
 +}
 +
-+void QOpenHarmonyPlatformMessageDialogHelper::cancelWait()
++napi_value QOpenHarmonyPlatformFileDialogHelper::init(napi_env env, napi_value exports)
 +{
-+    if (m_loop.isRunning())
-+        m_loop.exit();
++    napi_property_descriptor desc[] ={
++        DECLARE_NAPI_FUNCTION("selectedFilesResult", selectedFilesResult),
++    };
++    NAPI_CALL(env, napi_define_properties(env, exports, sizeof(desc) / sizeof(desc[0]), desc));
++    return nullptr;
 +}
++
++#include <QDebug>
++QOpenHarmonyPlatformFileDialogHelper::QOpenHarmonyPlatformFileDialogHelper()
++    : m_shown(false)
++{
++    m_jsDialog = qJsObjectLoader->create("qtdialog");
++}
++QOpenHarmonyPlatformFileDialogHelper::~QOpenHarmonyPlatformFileDialogHelper()
++{
++
++}
++
++bool QOpenHarmonyPlatformFileDialogHelper::defaultNameFilterDisables() const
++{
++    return true;
++}
++void QOpenHarmonyPlatformFileDialogHelper::setDirectory(const QUrl &directory)
++{
++
++}
++QUrl QOpenHarmonyPlatformFileDialogHelper::directory() const
++{
++    return QUrl::fromLocalFile("11111");
++}
++
++void QOpenHarmonyPlatformFileDialogHelper::selectFile(const QUrl &filename)
++{
++
++}
++
++QList<QUrl> QOpenHarmonyPlatformFileDialogHelper::selectedFiles() const
++{
++    return QList<QUrl>();
++}
++
++void QOpenHarmonyPlatformFileDialogHelper::setFilter()
++{
++
++}
++
++void QOpenHarmonyPlatformFileDialogHelper::selectNameFilter(const QString &filter)
++{
++
++}
++
++QString QOpenHarmonyPlatformFileDialogHelper::selectedNameFilter() const
++{
++    return "2222";
++}
++
++void QOpenHarmonyPlatformFileDialogHelper::exec()
++{
++    if (!m_shown)
++        show(Qt::Dialog, Qt::ApplicationModal, 0);
++}
++
++bool QOpenHarmonyPlatformFileDialogHelper::show(Qt::WindowFlags windowFlags, Qt::WindowModality windowModality, QWindow *parent)
++{
++    QSharedPointer<QFileDialogOptions> opt = options();
++    if (!opt.data())
++        return false;
++    bool open = (opt->acceptMode() == QFileDialogOptions::AcceptOpen);
++    m_jsDialog->call<QByteArrayList>("fileDialog", open);
++    return true;
++}
++
++void QOpenHarmonyPlatformFileDialogHelper::hide()
++{
++
++}
++
 diff --git a/src/plugins/platforms/openharmony/qopenharmonyplatformdialoghelpers.h b/src/plugins/platforms/openharmony/qopenharmonyplatformdialoghelpers.h
 new file mode 100644
-index 0000000000..ae491d5cb0
+index 0000000000..bd83065243
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonyplatformdialoghelpers.h
-@@ -0,0 +1,46 @@
+@@ -0,0 +1,80 @@
 +#ifndef QOPENHARMONYPLATFORMDIALOGHELPERS_H
 +#define QOPENHARMONYPLATFORMDIALOGHELPERS_H
 +
@@ -3385,7 +3479,18 @@ index 0000000000..ae491d5cb0
 +
 +class QOpenHarmonyJsObject;
 +
-+class QOpenHarmonyPlatformMessageDialogHelper: public QPlatformMessageDialogHelper
++class QWaiter
++{
++public:
++    QWaiter() {}
++
++    void wait(int timeout = 1000);
++    void cancelWait();
++private:
++    QEventLoop m_loop;
++};
++
++class QOpenHarmonyPlatformMessageDialogHelper: public QPlatformMessageDialogHelper, public QWaiter
 +{
 +    Q_OBJECT
 +public:
@@ -3403,18 +3508,41 @@ index 0000000000..ae491d5cb0
 +    void setDialogResult(int buttonID);
 +
 +private:
-+
-+    void wait(int timeout = 1000);
-+    void cancelWait();
-+
 +    void addButtons(QSharedPointer<QMessageDialogOptions> opt, ButtonRole role);
 +
 +private:
 +    int m_buttonId;
 +    bool m_shown;
 +    QStringList m_buttons;
-+    QEventLoop m_loop;
 +    QList<QPlatformDialogHelper::StandardButton> m_stanardButton;
++    QSharedPointer<QOpenHarmonyJsObject> m_jsDialog;
++};
++
++class QOpenHarmonyPlatformFileDialogHelper: public QPlatformFileDialogHelper, public QWaiter
++{
++    Q_OBJECT
++public:
++    QOpenHarmonyPlatformFileDialogHelper();
++    ~QOpenHarmonyPlatformFileDialogHelper();
++
++    virtual bool defaultNameFilterDisables() const override;
++    virtual void setDirectory(const QUrl &directory) override;
++    virtual QUrl directory() const override;
++    virtual void selectFile(const QUrl &filename) override;
++    virtual QList<QUrl> selectedFiles() const override;
++    virtual void setFilter() override;
++    virtual void selectNameFilter(const QString &filter) override;
++    virtual QString selectedNameFilter() const override;
++
++    virtual void exec() override;
++    virtual bool show(Qt::WindowFlags windowFlags,
++                          Qt::WindowModality windowModality,
++                          QWindow *parent) override;
++    virtual void hide() override;
++
++    static napi_value init(napi_env env, napi_value exports);
++private:
++    bool m_shown;
 +    QSharedPointer<QOpenHarmonyJsObject> m_jsDialog;
 +};
 +
@@ -5357,10 +5485,10 @@ index 0000000000..8399f10ba9
 +#endif
 diff --git a/src/plugins/platforms/openharmony/qopenharmonyplatformtheme.cpp b/src/plugins/platforms/openharmony/qopenharmonyplatformtheme.cpp
 new file mode 100644
-index 0000000000..37dc1ad040
+index 0000000000..e10fd6b9a1
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonyplatformtheme.cpp
-@@ -0,0 +1,40 @@
+@@ -0,0 +1,42 @@
 +#include "qopenharmonyplatformtheme.h"
 +#include "qopenharmonyplatformdialoghelpers.h"
 +
@@ -5397,6 +5525,8 @@ index 0000000000..37dc1ad040
 +    switch (type) {
 +    case MessageDialog:
 +        return new QOpenHarmonyPlatformMessageDialogHelper;
++    case FileDialog:
++        return new QOpenHarmonyPlatformFileDialogHelper;
 +    default:
 +        return 0;
 +    }
