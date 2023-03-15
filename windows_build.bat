@@ -1,6 +1,6 @@
 @echo off
 set "e=|| exit /b 1"
-set PATH=%PATH%;%cd%;F:\QtComplete\Tools\mingw730_64\bin;F:\Python310;%ROOT_DIR%\ohos-sdk\windows\native\llvm\bin
+set PATH=%PATH%;%cd%;ROOT_DIR%\ohos-sdk\windows\native\llvm\bin
 
 set ARGS=%*
 call :doargs %ARGS%
