@@ -1768,6 +1768,408 @@ index bd409c124f..29bb587b12 100644
      m_drag_icon_window->updateGeometry(pos);
      m_drag_icon_window->setVisible(true);
  }
+diff --git a/src/openharmony/entryability/EntryAbility.ts b/src/openharmony/entryability/EntryAbility.ts
+new file mode 100644
+index 0000000000..e90088613e
+--- /dev/null
++++ b/src/openharmony/entryability/EntryAbility.ts
+@@ -0,0 +1,64 @@
++import hilog from '@ohos.hilog';
++import UIAbility from '@ohos.app.ability.UIAbility';
++import Window from '@ohos.window'
++import display from '@ohos.display';
++import qtCore from "libQt5Core.so"
++import qpa from "libplugins_platforms_qopenharmony.so"
++import { QtObjectLoader } from '../native/QtObjectLoader'
++
++export default class EntryAbility extends UIAbility {
++    onCreate(want, launchParam) {
++        globalThis.abilityContext = this.context
++    }
++
++    onDestroy() {
++        hilog.isLoggable(0x0000, 'testTag', hilog.LogLevel.INFO);
++        hilog.info(0x0000, 'testTag', '%{public}s', 'Ability onDestroy');
++        qpa.quitQtApplication();
++    }
++
++    onWindowStageCreate(windowStage: Window.WindowStage) {
++        // Main window is created, set main page for this ability
++        let mainWindow = windowStage.getMainWindowSync();
++        let property = mainWindow.getWindowProperties();
++        var appContext = this.context.getApplicationContext();
++        var dirs = {
++            "tempDir": appContext.tempDir,
++            "filesDir": appContext.filesDir,
++            "cacheDir": appContext.cacheDir,
++            "databaseDir": appContext.databaseDir,
++            "bundleCodeDir": appContext.bundleCodeDir,
++            "preferencesDir": appContext.preferencesDir,
++            "distributedFilesDir": appContext.distributedFilesDir
++        };
++        globalThis.qtobjectloader = new QtObjectLoader();
++        globalThis.qpa = qpa;
++        let d = display.getDefaultDisplaySync();
++        qpa.setDisplayMetrics(d.densityDPI, d.densityPixels, d.scaledDensity, d.width, d.height, property.windowRect.width, property.windowRect.height);
++        qpa.startQtApplication(dirs, "libQtForHarmony.so");
++        mainWindow.on('windowSizeChange', (data) => {
++            console.info('Succeeded in enabling the listener for window size. Data: ' + JSON.stringify(data));
++            let d = display.getDefaultDisplaySync();
++            qpa.setDisplayMetrics(d.densityDPI, d.densityPixels, d.scaledDensity, d.width, d.height, data.width, data.height);
++        });
++        AppStorage.SetOrCreate("windowStage", windowStage);
++    }
++
++    onWindowStageDestroy() {
++        // Main window is destroyed, release UI related resources
++        hilog.isLoggable(0x0000, 'testTag', hilog.LogLevel.INFO);
++        hilog.info(0x0000, 'testTag', '%{public}s', 'Ability onWindowStageDestroy');
++    }
++
++    onForeground() {
++        // Ability has brought to foreground
++        hilog.isLoggable(0x0000, 'testTag', hilog.LogLevel.INFO);
++        hilog.info(0x0000, 'testTag', '%{public}s', 'Ability onForeground');
++    }
++
++    onBackground() {
++        // Ability has back to background
++        hilog.isLoggable(0x0000, 'testTag', hilog.LogLevel.INFO);
++        hilog.info(0x0000, 'testTag', '%{public}s', 'Ability onBackground');
++    }
++};
+diff --git a/src/openharmony/native/QtDialog.ts b/src/openharmony/native/QtDialog.ts
+new file mode 100644
+index 0000000000..62dd66aa5e
+--- /dev/null
++++ b/src/openharmony/native/QtDialog.ts
+@@ -0,0 +1,49 @@
++import prompt from '@ohos.prompt'
++
++export class QtDialog {
++
++    constructor() {
++    }
++
++    messageBox(handler, title, text, buttons) {
++        var opt: prompt.ShowDialogOptions = {
++            title: title,
++            message: text,
++            buttons: [{
++                text: "default",
++                color: "#000000"
++            }]
++        };
++
++        var first : prompt.Button = {
++            text: buttons[0],
++            color: '#000000',
++        }
++        opt.buttons[0] = first;
++        for (var i = 1; i < buttons.length; i++) {
++            var button : prompt.Button = {
++                text: buttons[i],
++                color: '#000000',
++            }
++            opt.buttons.push(button)
++        }
++
++        prompt.showDialog(opt, (err, data) => {
++            let index = err ? -1 : data.index;
++            globalThis.qpa.dialogResult(handler, index);
++        });
++    }
++
++    fileDialog(open) {
++        globalThis.abilityContext.startAbilityForResult({
++            bundleName: "com.ohos.filepicker",
++            abilityName: "MainAbility",
++            parameters: {
++                startMode: open ? 'choose' : 'save'
++            }
++        }).then(async (data) => {
++            let result = data.want.parameters.result
++            globalThis.qpa.selectedFilesResult(result);
++        })
++    }
++}
+\ No newline at end of file
+diff --git a/src/openharmony/native/QtInputManager.ts b/src/openharmony/native/QtInputManager.ts
+new file mode 100644
+index 0000000000..6824485c4f
+--- /dev/null
++++ b/src/openharmony/native/QtInputManager.ts
+@@ -0,0 +1,9 @@
++export class QtInputManager {
++    constructor() {
++    }
++
++    setKeyBoardVisible() {
++        console.log('show keyboard 555555555555555555555555555555555555555555555')
++        globalThis.qtinputmanager.jsTest(56);
++    }
++}
+\ No newline at end of file
+diff --git a/src/openharmony/native/QtObjectLoader.ts b/src/openharmony/native/QtObjectLoader.ts
+new file mode 100644
+index 0000000000..b29b2b1345
+--- /dev/null
++++ b/src/openharmony/native/QtObjectLoader.ts
+@@ -0,0 +1,25 @@
++import { QtDialog } from '../native/QtDialog'
++import { QtPasteBoard } from '../native/QtPasteBoard'
++import { QtInputManager } from '../native/QtInputManager'
++import { QtWindowManager } from '../native/QtWindowManager'
++
++let classes = {
++    "qtdialog": QtDialog,
++    "qtpasteboard": QtPasteBoard,
++    "qtinputmanager": QtInputManager,
++    "qtwindowmanager": QtWindowManager,
++}
++
++export class QtObjectLoader {
++    constructor() {
++    }
++
++    createObject(name) {
++        if (!classes.hasOwnProperty(name)) {
++            return false;
++        }
++        var object = new classes[name];
++        Reflect.defineProperty(globalThis, name, {value: object});
++        return true;
++    }
++}
+\ No newline at end of file
+diff --git a/src/openharmony/native/QtPasteBoard.ts b/src/openharmony/native/QtPasteBoard.ts
+new file mode 100644
+index 0000000000..1322ffd4e9
+--- /dev/null
++++ b/src/openharmony/native/QtPasteBoard.ts
+@@ -0,0 +1,37 @@
++import pasteboard from '@ohos.pasteboard';
++import LightWeightMap from '@ohos.util.LightWeightMap';
++
++export class QtPasteBoard {
++
++    constructor() {
++    }
++
++    async registerSystemPasteboard() {
++        let systemPasteboard = pasteboard.getSystemPasteboard();
++        systemPasteboard.on('update', () => {
++            globalThis.qpa.pasteChanged();
++        });
++        return true;
++    }
++
++    async hasClipboardText() {
++        let systemPasteboard = pasteboard.getSystemPasteboard();
++        let result = await systemPasteboard.hasPasteData()
++        return result;
++    }
++
++    async clipboardText() {
++        let systemPasteboard = pasteboard.getSystemPasteboard();
++        let pastedata = await systemPasteboard.getPasteData();
++        let result = pastedata.getPrimaryText();
++        return result;
++    }
++
++    setClipboardText(text) {
++        console.log('set clipboard text', text);
++        var pasteData = pasteboard.createData(pasteboard.MIMETYPE_TEXT_PLAIN, text);
++        let systemPasteboard = pasteboard.getSystemPasteboard();
++        systemPasteboard.setPasteData(pasteData);
++        return true;
++    }
++}
+\ No newline at end of file
+diff --git a/src/openharmony/native/QtWindowManager.ts b/src/openharmony/native/QtWindowManager.ts
+new file mode 100644
+index 0000000000..2a5930c92e
+--- /dev/null
++++ b/src/openharmony/native/QtWindowManager.ts
+@@ -0,0 +1,78 @@
++import window from '@ohos.window';
++import HashMap from '@ohos.util.HashMap';
++
++
++export class QtWindowManager {
++    private postions = null;
++    constructor() {
++        this.postions = new HashMap;
++    }
++
++     async createWindow(name) {
++         try {
++             let windowStage = AppStorage.Get("windowStage") as window.WindowStage;
++             let windowClass = await windowStage.createSubWindow(name);
++             globalThis.createWindowName = name;
++             await windowClass.setUIContent('pages/template');
++             return true;
++         } catch (e) {
++             return false;
++         }
++    }
++
++    async destroyWindow(name) {
++        let windowClass = null;
++        try {
++            windowClass = window.findWindow(name);
++            await windowClass.destroyWindow();
++            return true;
++        } catch (exception) {
++            console.error('Failed to call destroyWindow for the Window. Cause: ' + JSON.stringify(exception));
++            return false;
++        }
++    }
++
++    async setGeometry(name, x, y, w, h) {
++        console.log('set window geometry:', name, x, y, w, h)
++        let windowClass = null;
++        try {
++            windowClass = window.findWindow(name);
++            let windowStage = AppStorage.Get("windowStage") as window.WindowStage;
++            let mainWindow = windowStage.getMainWindowSync();
++            let property = mainWindow.getWindowProperties();
++            await windowClass.moveWindowTo(x, property.windowRect.top + y);
++            await windowClass.resize(w, h);
++            this.postions.set(name, {'x': x, 'y': property.windowRect.top + y});
++            return true;
++        } catch (exception) {
++            console.error('Failed to call setGeometry for the Window. Cause: ' + JSON.stringify(exception));
++            return false;
++        }
++    }
++
++    async showWindow(name, visible) {
++        console.log("show window:", name, visible);
++        let windowClass = null;
++        try {
++            windowClass = window.findWindow(name);
++            if (visible) {
++                console.log("show window:", name, visible);
++                await windowClass.showWindow();
++                if (this.postions.hasKey(name)) {
++                    let p = this.postions.get(name);
++                    windowClass.moveWindowTo(p.x, p.y);
++                }
++            }
++            else {
++                let windowStage = AppStorage.Get("windowStage") as window.WindowStage;
++                let mainWindow = windowStage.getMainWindowSync();
++                let property = mainWindow.getWindowProperties();
++                windowClass.moveWindowTo(property.windowRect.width, 0);
++            }
++            return true;
++        } catch (exception) {
++            console.error('Failed to call showWindow for the Window. Cause: ' + JSON.stringify(exception));
++            return false;
++        }
++    }
++}
+\ No newline at end of file
+diff --git a/src/openharmony/openharmony.pro b/src/openharmony/openharmony.pro
+new file mode 100644
+index 0000000000..1c9156fde0
+--- /dev/null
++++ b/src/openharmony/openharmony.pro
+@@ -0,0 +1,12 @@
++TEMPLATE = aux
++CONFIG -= qt
++
++templates.files += $$files($$PWD/entryability/*.ts, true)
++templates.files += $$files($$PWD/native/*.ts, true)
++templates.files += $$files($$PWD/pages/*.ets, true)
++templates.path = $$[QT_INSTALL_PREFIX]/openharmony/qtbase
++templates.base = $$PWD
++
++INSTALLS += templates
++
++OTHER_FILES += $$templates.files
+diff --git a/src/openharmony/pages/components/EditBoxDialog.ets b/src/openharmony/pages/components/EditBoxDialog.ets
+new file mode 100644
+index 0000000000..f1a5378845
+--- /dev/null
++++ b/src/openharmony/pages/components/EditBoxDialog.ets
+@@ -0,0 +1,34 @@
++@Entry
++@Component
++struct EditBoxDialog {
++  private showMessage: string = ''
++  private inputMessage: string = ''
++  onTextChange: (msg: string) => void
++  accept: (msg: string) => void
++  controller: CustomDialogController
++  cancel: () => void
++  confirm: () => void
++
++  build() {
++    Row() {
++      TextInput()
++        .backgroundColor('#ffffff')
++        .layoutWeight(1)
++        .onChange((value) => {
++          if (this.onTextChange) {
++            this.onTextChange(value);
++          }
++          this.inputMessage = value;
++        })
++      Blank(8).width(16)
++      Button('完成').onClick(() => {
++        globalThis.qtinputmanager.complete(this.inputMessage);
++        this.inputMessage = '';
++        globalThis.qtinputmanager.close();
++      })
++        .width('40%')
++        .height('30%')
++    }
++    .backgroundColor(Color.Gray)
++  }
++}
+\ No newline at end of file
+diff --git a/src/openharmony/pages/template.ets b/src/openharmony/pages/template.ets
+new file mode 100644
+index 0000000000..edecd46f92
+--- /dev/null
++++ b/src/openharmony/pages/template.ets
+@@ -0,0 +1,34 @@
++//@Entry
++//@Component
++//struct template {
++//  build() {
++//    Flex({ direction: FlexDirection.Column, alignItems: ItemAlign.Center, justifyContent: FlexAlign.Center }) {
++//      XComponent({ id: globalThis.createWindowName, type: 'texture', libraryname: 'plugins_platforms_qopenharmony'})
++//        .onLoad((context) => {
++//          console.log("cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc");
++//        })
++//        .onDestroy(() => {
++//        })
++//    }
++//    .width('100%')
++//    .height('100%')
++//  }
++//}
++
++@Entry
++@Component
++struct template {
++  build() {
++    Row() {
++      XComponent({ id: globalThis.createWindowName, type: 'texture', libraryname: 'plugins_platforms_qopenharmony'})
++        .onLoad((context) => {
++          console.log("cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc");
++        })
++        .onDestroy(() => {
++        })
++    }
++    .width('100%')
++    .height('100%')
++  }
++}
++
 diff --git a/src/platformsupport/input/evdevkeyboard/qevdevkeyboardhandler.cpp b/src/platformsupport/input/evdevkeyboard/qevdevkeyboardhandler.cpp
 index ad134a825f..dcbefde499 100644
 --- a/src/platformsupport/input/evdevkeyboard/qevdevkeyboardhandler.cpp
@@ -4836,10 +5238,10 @@ index 0000000000..c885aa5fec
 +#endif // QOPENHARMONYPLATFORMOPENGLCONTEXT_H
 diff --git a/src/plugins/platforms/openharmony/qopenharmonyplatformopenglwindow.cpp b/src/plugins/platforms/openharmony/qopenharmonyplatformopenglwindow.cpp
 new file mode 100644
-index 0000000000..82af35a536
+index 0000000000..a9f8986d8d
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonyplatformopenglwindow.cpp
-@@ -0,0 +1,173 @@
+@@ -0,0 +1,180 @@
 +#include "qopenharmonyplatformopenglwindow.h"
 +#include "qopenharmonyxcomponent.h"
 +#include "qopenharmonyplatformscreen.h"
@@ -4994,6 +5396,13 @@ index 0000000000..82af35a536
 +    return QString("openharmony_window_%1").arg(index++);
 +}
 +
++WId QOpenHarmonyPlatformOpenGLWindow::winId() const
++{
++    if (m_component == nullptr)
++        return;
++    return m_component->id();
++}
++
 +EGLDisplay QOpenHarmonyPlatformOpenGLWindow::eglDisplay() const
 +{
 +    return m_eglDisplay;
@@ -5015,10 +5424,10 @@ index 0000000000..82af35a536
 +QT_END_NAMESPACE
 diff --git a/src/plugins/platforms/openharmony/qopenharmonyplatformopenglwindow.h b/src/plugins/platforms/openharmony/qopenharmonyplatformopenglwindow.h
 new file mode 100644
-index 0000000000..cf8cb20310
+index 0000000000..f122380fff
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonyplatformopenglwindow.h
-@@ -0,0 +1,52 @@
+@@ -0,0 +1,56 @@
 +#ifndef QOPENHARMONYPLATFORMOPENGLWINDOW_H
 +#define QOPENHARMONYPLATFORMOPENGLWINDOW_H
 +
@@ -5067,6 +5476,10 @@ index 0000000000..cf8cb20310
 +    QSurfaceFormat m_format;
 +    QRect m_oldGeometry;
 +    QOpenHarmonyXComponent *m_component = nullptr;
++
++    // QPlatformWindow interface
++public:
++    virtual WId winId() const override;
 +};
 +
 +QT_END_NAMESPACE
@@ -6002,10 +6415,10 @@ index 0000000000..f768f216f2
 +#endif // QOPENHARMONYSURFACE_H
 diff --git a/src/plugins/platforms/openharmony/qopenharmonyxcomponent.cpp b/src/plugins/platforms/openharmony/qopenharmonyxcomponent.cpp
 new file mode 100644
-index 0000000000..60738a69b6
+index 0000000000..64da51b9db
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonyxcomponent.cpp
-@@ -0,0 +1,196 @@
+@@ -0,0 +1,202 @@
 +#include "qopenharmonyxcomponent.h"
 +#include "qopenharmonyplatforminputcontext.h"
 +#include "qopenharmonyeglcore.h"
@@ -6167,6 +6580,11 @@ index 0000000000..60738a69b6
 +    }
 +}
 +
++uint QOpenHarmonyXComponent::id() const
++{
++    return m_id;
++}
++
 +QString QOpenHarmonyXComponent::componentName() const
 +{
 +    return m_componentName;
@@ -6175,6 +6593,7 @@ index 0000000000..60738a69b6
 +void QOpenHarmonyXComponent::setComponentName(const QString &componentName)
 +{
 +    m_componentName = componentName;
++    m_id = qHash(m_componentName);
 +}
 +
 +OH_NativeXComponent *QOpenHarmonyXComponent::nativeComponent() const
@@ -6204,10 +6623,10 @@ index 0000000000..60738a69b6
 +}
 diff --git a/src/plugins/platforms/openharmony/qopenharmonyxcomponent.h b/src/plugins/platforms/openharmony/qopenharmonyxcomponent.h
 new file mode 100644
-index 0000000000..76716ee406
+index 0000000000..4a1566d268
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonyxcomponent.h
-@@ -0,0 +1,66 @@
+@@ -0,0 +1,69 @@
 +#ifndef QOPENHARMONYXCOMPONENT_H
 +#define QOPENHARMONYXCOMPONENT_H
 +
@@ -6243,6 +6662,8 @@ index 0000000000..76716ee406
 +    QString componentName() const;
 +    void setComponentName(const QString &componentName);
 +
++    uint id() const;
++
 +private:
 +    void createEglSurface();
 +
@@ -6272,6 +6693,7 @@ index 0000000000..76716ee406
 +    EGLNativeWindowType m_nativeWindow;
 +    QScopedPointer<QOpenHarmonyEGLCore> m_egl;
 +    QRect m_geometry;
++    uint m_id;
 +};
 +#endif // QOPENHARMONYXCOMPONENT_H
 diff --git a/src/plugins/platforms/openharmony/qopenharmonyxcomponentmanager.cpp b/src/plugins/platforms/openharmony/qopenharmonyxcomponentmanager.cpp
@@ -6490,6 +6912,28 @@ index acc55adf6f..288df4ce01 100644
  
  qtConfig(xcb) {
      SUBDIRS += xcb
+diff --git a/src/src.pro b/src/src.pro
+index 1c76a2e46f..18d8903d9b 100644
+--- a/src/src.pro
++++ b/src/src.pro
+@@ -147,6 +147,8 @@ src_plugins.target = sub-plugins
+ 
+ src_android.subdir = $$PWD/android
+ 
++src_openharmony.subdir = $$PWD/openharmony
++
+ # this order is important
+ !qtConfig(system-zlib)|cross_compile {
+     SUBDIRS += src_qtzlib
+@@ -238,6 +240,8 @@ nacl: SUBDIRS -= src_network src_testlib
+ 
+ android:!android-embedded: SUBDIRS += src_android src_3rdparty_gradle
+ 
++openharmony: SUBDIRS += src_openharmony
++
+ TR_EXCLUDE = \
+     src_tools_bootstrap src_tools_moc src_tools_rcc src_tools_uic src_tools_qlalr \
+     src_tools_bootstrap_dbus src_tools_qdbusxml2cpp src_tools_qdbuscpp2xml \
 diff --git a/tests/auto/corelib/kernel/qmetatype/tst_qmetatype.cpp b/tests/auto/corelib/kernel/qmetatype/tst_qmetatype.cpp
 index e6fac74ccc..ca6e8f3c45 100644
 --- a/tests/auto/corelib/kernel/qmetatype/tst_qmetatype.cpp
