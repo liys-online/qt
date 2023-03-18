@@ -1,9 +1,9 @@
 @echo off
 set "e=|| exit /b 1"
-set PATH=%PATH%;%cd%;F:\QtComplete\Tools\mingw730_64\bin;F:\Python310;%ROOT_DIR%\ohos-sdk\windows\native\llvm\bin
+set PATH=%PATH%;%cd%;%ROOT_DIR%\ohos-sdk\windows\native\llvm\bin
 
 set ARGS=%*
-call :doargs %ARGS%
+goto :doargs %ARGS%
 REM goto doneargs
 
 
@@ -31,10 +31,10 @@ REM goto doneargs
     echo    x86_64 - platform for x86_64
     exit /b 1
 
-REM :platform
-    REM shift
-    REM set PLATFORM=%~1
-    REM goto nextarg
+:platform
+    shift
+    set PLATFORM=%~1
+    goto nextarg
 
 :doneargs
 set OHOS_ARCH=%PLATFORM%
@@ -44,10 +44,25 @@ echo %ROOT_DIR%
 if not exist "%ROOT_DIR%\qt5" (
   echo "Download qt5 source code ....."
   git clone https://gitee.com/CplusCplus/qt5.git -b v5.12.12 --recursive
-  cd qt5
+  REM cd qt5
   REM git submodule update --init --recursive
-  REM git checkout v5.12.12
-  cd %ROOT_DIR%
+  REM git checkout origin v5.12.12
+  REM cd %ROOT_DIR%
+) else (
+	echo "Update qt source code ......"
+	cd qt5
+
+	git clean -fdx
+	git reset --hard
+	git submodule foreach --recursive git clean -fdx
+	git submodule update --init --recursive
+	git checkout v5.12.12
+
+	git pull origin v5.12.12
+	git submodule sync	
+	git submodule foreach --recursive git checkout v5.12.12
+	git submodule foreach --recursive git pull origin v5.12.12
+	cd %ROOT_DIR%
 )
 
 REM <------------------------------download unzip.exe------------------------------>
@@ -75,7 +90,7 @@ if not exist "%ROOT_DIR%\ohos-sdk" (
 
 if not exist "%ROOT_DIR%\ohos-sdk\windows\native" (  
   cd %ROOT_DIR%\ohos-sdk\windows
-  start /wait unzip -o -d %ROOT_DIR%\ohos-sdk\windows native-windows-x64-3.2.9.7-Beta4.zip
+   unzip -o -d %ROOT_DIR%\ohos-sdk\windows native-windows-x64-3.2.9.7-Beta4.zip
   cd %ROOT_DIR%
 ) else (
   echo "SDK package has already unzip."
@@ -83,7 +98,7 @@ if not exist "%ROOT_DIR%\ohos-sdk\windows\native" (
 REM <------------------------------download qt5 for openharmony patch------------------------------>
 set PATCH_DIR=%ROOT_DIR%\OpenHarmony-qtpatch
 if not exist "%PATCH_DIR%" (
-  start /wait git clone https://gitee.com/openharmony-sig/qt.git %PATCH_DIR%
+   git clone https://gitee.com/openharmony-sig/qt.git %PATCH_DIR%
 )
 
 set OHOS_SDK_PATH=%ROOT_DIR%\ohos-sdk\windows
@@ -91,40 +106,40 @@ set OHOS_SDK_PATH=%ROOT_DIR%\ohos-sdk\windows
 REM <------------------------------apply git patch to the qt5 source------------------------------>
 echo "Apply QtBase Patch......"
 cd %ROOT_DIR%/qt5/qtbase
-start /wait git reset --hard 
-start /wait git clean -fdx
-start /wait git apply --check %PATCH_DIR%/patch/qtbase.patch 
-start /wait git apply --stat %PATCH_DIR%/patch/qtbase.patch 
-start /wait git apply %PATCH_DIR%/patch/qtbase.patch  
+ git reset --hard 
+ git clean -fdx
+ git apply --check %PATCH_DIR%/patch/qtbase.patch 
+ git apply --stat %PATCH_DIR%/patch/qtbase.patch 
+ git apply %PATCH_DIR%/patch/qtbase.patch  
 cd %ROOT_DIR%
 
 echo "Apply QtConnectivity Patch......"
 cd %ROOT_DIR%/qt5/qtconnectivity
-start /wait git reset --hard 
-start /wait git clean -fdx 
-start /wait git apply --check %PATCH_DIR%/patch/qtconnectivity.patch 
-start /wait git apply --stat %PATCH_DIR%/patch/qtconnectivity.patch 
-start /wait git apply %PATCH_DIR%/patch/qtconnectivity.patch 
+ git reset --hard 
+ git clean -fdx 
+ git apply --check %PATCH_DIR%/patch/qtconnectivity.patch 
+ git apply --stat %PATCH_DIR%/patch/qtconnectivity.patch 
+ git apply %PATCH_DIR%/patch/qtconnectivity.patch 
 cd %ROOT_DIR%
 
 
 echo "Apply QtMultimedia Patch......"
 cd %ROOT_DIR%/qt5/qtmultimedia
-start /wait git reset --hard  
-start /wait git clean -fdx 
-start /wait git apply --check %PATCH_DIR%/patch/qtmultimedia.patch 
-start /wait git apply --stat %PATCH_DIR%/patch/qtmultimedia.patch 
-start /wait git apply %PATCH_DIR%/patch/qtmultimedia.patch 
+ git reset --hard  
+ git clean -fdx 
+ git apply --check %PATCH_DIR%/patch/qtmultimedia.patch 
+ git apply --stat %PATCH_DIR%/patch/qtmultimedia.patch 
+ git apply %PATCH_DIR%/patch/qtmultimedia.patch 
 cd %ROOT_DIR%
 
 
 echo "Apply QtRemoteObjects Patch......"
 cd %ROOT_DIR%/qt5/qtremoteobjects
-start /wait git reset --hard 
-start /wait git clean -fdx 
-start /wait git apply --check %PATCH_DIR%/patch/qtremoteobjects.patch 
-start /wait git apply --stat %PATCH_DIR%/patch/qtremoteobjects.patch 
-start /wait git apply %PATCH_DIR%/patch/qtremoteobjects.patch 
+ git reset --hard 
+ git clean -fdx 
+ git apply --check %PATCH_DIR%/patch/qtremoteobjects.patch 
+ git apply --stat %PATCH_DIR%/patch/qtremoteobjects.patch 
+ git apply %PATCH_DIR%/patch/qtremoteobjects.patch 
 cd %ROOT_DIR%
 
 if "%OHOS_ARCH%" == "arm64-v8a" ( 
@@ -157,3 +172,5 @@ mingw32-make -j16
 mingw32-make install
 
 cd %ROOT_DIR%
+
+pause
