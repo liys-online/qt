@@ -163,7 +163,7 @@ if not exist %BUILD_DIR% (
 cd %BUILD_DIR%
 call ../qt5/configure.bat -xplatform oh-clang -device-option OHOS_ARCH=%OHOS_ARCH% -opensource -confirm-license -disable-rpath -make tests -make examples -v ^
 -prefix %QT_INSTALL_DIR% -opengl es2 -opengles3 -skip qtserialport -skip webengine ^
--skip qtpurchasing -skip qtspeech -skip qtwebchannel -skip qtgamepad ^
+-skip qtpurchasing -skip qtwebchannel -skip qtgamepad ^
 -skip qtsensors -skip qtlocation -skip qtxmlpatterns -skip qt3d -skip qtscript -skip qtnetworkauth ^
 -skip qtsystems -no-feature-bearermanagement -no-feature-http ^
 -no-dbus -recheck-all
