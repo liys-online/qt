@@ -72,12 +72,12 @@ if not exist "%ROOT_DIR%\unzip.exe" (
 )
 
 REM <------------------------------download openharmony sdk------------------------------>
-set SDK_PACKAGE=version-Master_Version-OpenHarmony_3.2.9.7-20230131_021509-ohos-sdk-full.tar.gz
+set SDK_PACKAGE=version-Master_Version-OpenHarmony_3.2.9.2-20221205_200146-ohos-sdk-full.tar.gz
 echo "Download OpenHarmony SDK........."
 if exist "%ROOT_DIR%\%SDK_PACKAGE%" (
   echo "The %SDK_PACKAGE% has already download."
 ) else (
-  curl -O http://download.ci.openharmony.cn/version/Master_Version/OpenHarmony_3.2.9.7/20230131_021509/%SDK_PACKAGE%
+  curl -O http://download.ci.openharmony.cn/version/Master_Version/OpenHarmony_3.2.9.2/20221205_200146/%SDK_PACKAGE%
 )
 
 REM <------------------------------uncompress openharmony sdk------------------------------>
@@ -90,7 +90,7 @@ if not exist "%ROOT_DIR%\ohos-sdk" (
 
 if not exist "%ROOT_DIR%\ohos-sdk\windows\native" (  
   cd %ROOT_DIR%\ohos-sdk\windows
-   unzip -o -d %ROOT_DIR%\ohos-sdk\windows native-windows-x64-3.2.9.7-Beta4.zip
+   unzip -o -d %ROOT_DIR%\ohos-sdk\windows native-windows-3.2.9.2-Beta4.zip
   cd %ROOT_DIR%
 ) else (
   echo "SDK package has already unzip."
@@ -162,8 +162,8 @@ if not exist %BUILD_DIR% (
 
 cd %BUILD_DIR%
 call ../qt5/configure.bat -xplatform oh-clang -device-option OHOS_ARCH=%OHOS_ARCH% -opensource -confirm-license -disable-rpath -make tests -make examples -v ^
--prefix %QT_INSTALL_DIR% -opengl es2 -opengles3 -skip qttranslations -skip qtserialport -skip webengine ^
--skip qtpurchasing -skip qtspeech -skip qtwebchannel -skip qtgamepad ^
+-prefix %QT_INSTALL_DIR% -opengl es2 -opengles3 -skip qtserialport -skip webengine ^
+-skip qtpurchasing -skip qtwebchannel -skip qtgamepad ^
 -skip qtsensors -skip qtlocation -skip qtxmlpatterns -skip qt3d -skip qtscript -skip qtnetworkauth ^
 -skip qtsystems -no-feature-bearermanagement -no-feature-http ^
 -no-dbus -recheck-all
