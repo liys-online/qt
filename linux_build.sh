@@ -124,6 +124,7 @@ else
 	cd $PATCH_DIR
 	git clean -fdx
 	git pull --rebase
+	cd $ROOT_DIR
 fi
 
 echo "Apply QtBase Patch......"

@@ -99,6 +99,12 @@ REM <------------------------------download qt5 for openharmony patch-----------
 set PATCH_DIR=%ROOT_DIR%\OpenHarmony-qtpatch
 if not exist "%PATCH_DIR%" (
    git clone https://gitee.com/openharmony-sig/qt.git %PATCH_DIR%
+) else (
+
+	cd %PATCH_DIR%
+	git clean -fdx
+	git pull --rebase
+	cd %ROOT_DIR%
 )
 
 set OHOS_SDK_PATH=%ROOT_DIR%\ohos-sdk\windows
