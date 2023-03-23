@@ -120,6 +120,10 @@ export PATCH_DIR=$ROOT_DIR/OpenHarmony-qtpatch
 if [ ! -d $PATCH_DIR ] 
 then
    git clone https://gitee.com/openharmony-sig/qt.git $PATCH_DIR
+else
+	cd $PATCH_DIR
+	git clean -fdx
+	git pull --rebase
 fi
 
 echo "Apply QtBase Patch......"
