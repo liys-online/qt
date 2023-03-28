@@ -1073,10 +1073,10 @@ index 0000000000..00a69df90f
 +#endif // QOPENHARMONYJSENVIRONMENT_H
 diff --git a/src/corelib/kernel/qopenharmonyjsfunction.cpp b/src/corelib/kernel/qopenharmonyjsfunction.cpp
 new file mode 100644
-index 0000000000..0482b8e9bd
+index 0000000000..794d4c6e12
 --- /dev/null
 +++ b/src/corelib/kernel/qopenharmonyjsfunction.cpp
-@@ -0,0 +1,199 @@
+@@ -0,0 +1,239 @@
 +#include "qopenharmonyjsfunction.h"
 +#include "qopenharmonyjsenvironment.h"
 +#include "qopenharmonydefines.h"
@@ -1094,24 +1094,77 @@ index 0000000000..0482b8e9bd
 +
 +QT_BEGIN_NAMESPACE
 +
-+class QOpenHarmonyJsFunctionPrivate : public QObjectPrivate
++static napi_value variant_to_napi_value(const QVariant &value)
 +{
-+    Q_DECLARE_PUBLIC(QOpenHarmonyJsFunction)
++    napi_value ret = nullptr;
++    QVariant::Type t = value.type();
++    switch (t) {
++    case QVariant::Int:
++        ret = qJs::createInt32(value.toInt());
++        break;
++    case QVariant::String:
++        ret = qJs::createString(value.toString());
++        break;
++    case QVariant::StringList:
++        ret = qJs::createStringArrary(value.toStringList());
++        break;
++    case QVariant::Bool:
++        ret = qJs::createBool(value.toBool());
++        break;
++    case QVariant::LongLong:
++        ret = qJs::createInt64(value.toLongLong());
++        break;
++    default:
++        //Todo other type
++        break;
++    }
++    return ret;
++}
++
++
++static QVariant napi_value_to_variant(napi_value value, int t)
++{
++    QVariant ret;
++    switch (t) {
++    case QMetaType::Int:
++        ret = qJs::getInt32(value);
++        break;
++    case QMetaType::QString:
++        ret = qJs::getString(value);
++        break;
++    case QMetaType::QStringList:
++        ret = qJs::getStringList(value);
++        break;
++    case QMetaType::Bool:
++        ret = qJs::getBool(value);
++        break;
++    case QMetaType::LongLong:
++        ret = qJs::getInt64(value);
++        break;
++    case QMetaType::QByteArrayList:
++        ret = QVariant::fromValue(qJs::getByteArrayList(value));
++        break;
++    default:
++        //Todo other type
++        break;
++    }
++    return ret;
++}
++
++class QOpenHarmonyJsFunctionPrivate
++{
 +public:
 +    QOpenHarmonyJsFunctionPrivate();
 +    ~QOpenHarmonyJsFunctionPrivate();
-+    void init(napi_value function, const QString &functionName, QOpenHarmonyJsFunction *q);
++    void init(napi_value function, const QString &functionName);
 +    napi_value nativeObject() const;
 +    const QVariantList &args() const;
 +    static void callJsFunction(napi_env env, napi_value js_cb, void* context, void* data);
 +    static napi_value then(napi_env, napi_callback_info info);
 +
-+    void setResult(void *result);
++    void setResult(napi_value result);
 +    void wait(int timeout = 1000);
 +    void cancelWait();
-+
-+    template<typename RETURN_TYPE>
-+    RETURN_TYPE result() const;
 +
 +    QEventLoop m_loop;
 +    QString m_name;
@@ -1119,10 +1172,13 @@ index 0000000000..0482b8e9bd
 +    QOpenHarmonyJsObject *m_nativeObject;
 +    napi_threadsafe_function m_function;
 +    QTimer *m_timer;
++    QVariant m_result;
++    int m_resultType;
 +};
 +
 +QOpenHarmonyJsFunctionPrivate::QOpenHarmonyJsFunctionPrivate()
 +    : m_function(nullptr)
++    , m_resultType(QVariant::Invalid)
 +{
 +
 +}
@@ -1133,20 +1189,21 @@ index 0000000000..0482b8e9bd
 +        napi_release_threadsafe_function(m_function, napi_tsfn_release);
 +}
 +
-+void QOpenHarmonyJsFunctionPrivate::init(napi_value function, const QString &functionName, QOpenHarmonyJsFunction *q)
++void QOpenHarmonyJsFunctionPrivate::init(napi_value function, const QString &functionName)
 +{
 +    napi_threadsafe_function threadsafe_function = nullptr;
 +    napi_value cb_name = qJs::createString(functionName);
 +    NAPI_CALL_RETURN_VOID(qJs::env(), napi_create_threadsafe_function(qJs::env(), function, nullptr, cb_name, 0, 1, nullptr, nullptr, nullptr, callJsFunction, &threadsafe_function));
 +    m_function = threadsafe_function;
 +    m_name = functionName;
-+    m_timer = new QTimer(q);
++    m_timer = new QTimer;
 +    m_timer->setSingleShot(true);
-+    q->connect(m_timer, &QTimer::timeout, q, [this]{
++    QObject::connect(m_timer, &QTimer::timeout, m_timer, [this]{
 +        if (m_loop.isRunning()) {
 +            qWarning() << QString("Wait js method %1 result failded").arg(m_name);
 +            m_loop.exit(-1);
 +        }
++        m_timer->deleteLater();
 +    });
 +}
 +
@@ -1202,28 +1259,7 @@ index 0000000000..0482b8e9bd
 +        QScopedArrayPointer<napi_value> argv(new napi_value[argc]);
 +        for (int i = 0; i < args.count(); ++i) {
 +            argv[i] = nullptr;
-+            QVariant v = args.at(i);
-+            QVariant::Type t = v.type();
-+            switch (t) {
-+            case QVariant::Int:
-+                argv[i] = qJs::createInt32(v.toInt());
-+                break;
-+            case QVariant::String:
-+                argv[i] = qJs::createString(v.toString());
-+                break;
-+            case QVariant::StringList:
-+                argv[i] = qJs::createStringArrary(v.toStringList());
-+                break;
-+            case QVariant::Bool:
-+                argv[i] = qJs::createBool(v.toBool());
-+                break;
-+            case QVariant::LongLong:
-+                argv[i] = qJs::createInt64(v.toLongLong());
-+                break;
-+            default:
-+                //Todo other type
-+                break;
-+            }
++            argv[i] = variant_to_napi_value(args.at(i));
 +        }
 +        result = qJs::callFunction(function->nativeObject(), js_cb, argc, argv.get());
 +    }
@@ -1242,87 +1278,118 @@ index 0000000000..0482b8e9bd
 +    }
 +}
 +
-+void QOpenHarmonyJsFunctionPrivate::setResult(void *result)
++void QOpenHarmonyJsFunctionPrivate::setResult(napi_value result)
 +{
-+    Q_Q(QOpenHarmonyJsFunction);
-+    qDebug() << QString("Get js method %1 result from callback:").arg(m_name) << result;
-+    if (q->m_ref != nullptr)
-+        napi_delete_reference(qJs::env(), q->m_ref);
-+    napi_create_reference(qJs::env(), (napi_value)result, 1, &q->m_ref);
-+    cancelWait();    
++    m_result = napi_value_to_variant(result, m_resultType);
++    qDebug() << QString("Get js method %1 result from callback:").arg(m_name) << m_result;
++    cancelWait();
 +}
 +
-+QOpenHarmonyJsFunction::QOpenHarmonyJsFunction(QOpenHarmonyJsObject *nativeObject, const QString &functionName, napi_value function, QObject *parent)
-+    : QObject(*new QOpenHarmonyJsFunctionPrivate, parent)
-+    , m_ref(nullptr)
++QOpenHarmonyJsFunction::QOpenHarmonyJsFunction(QOpenHarmonyJsObject *nativeObject, const QString &functionName, napi_value function)
 +{
-+    Q_D(QOpenHarmonyJsFunction);
-+    d->m_nativeObject = nativeObject;
-+    d->init(function, functionName, this);
++    d_ptr.reset(new QOpenHarmonyJsFunctionPrivate);
++    d_ptr->m_nativeObject = nativeObject;
++    d_ptr->init(function, functionName);
 +}
 +
 +QOpenHarmonyJsFunction::~QOpenHarmonyJsFunction()
 +{
-+    if (m_ref != nullptr)
-+        napi_delete_reference(qJs::env(), m_ref);
++
 +}
 +
 +void QOpenHarmonyJsFunction::call(const QVariantList &args)
 +{    
-+    Q_D(QOpenHarmonyJsFunction);
-+    d->m_args = args;
-+    qDebug() << QString("call js function: %1 with args").arg(d->m_name) << d->m_args << napi_call_threadsafe_function(d->m_function, d, napi_tsfn_blocking);
-+    d->wait();
++    d_ptr->m_args = args;
++    qDebug() << QString("call js function: %1 with args").arg(d_ptr->m_name) << d_ptr->m_args
++             << napi_call_threadsafe_function(d_ptr->m_function, d_ptr.data(), napi_tsfn_blocking);
++    d_ptr->wait();
++}
++
++QVariant QOpenHarmonyJsFunction::jsResult() const
++{
++    return d_ptr->m_result;
++}
++
++void QOpenHarmonyJsFunction::setResultType(int t)
++{
++    d_ptr->m_resultType = t;
 +}
 +
 +QT_END_NAMESPACE
 diff --git a/src/corelib/kernel/qopenharmonyjsfunction.h b/src/corelib/kernel/qopenharmonyjsfunction.h
 new file mode 100644
-index 0000000000..5397eb826f
+index 0000000000..f4ee605b12
 --- /dev/null
 +++ b/src/corelib/kernel/qopenharmonyjsfunction.h
-@@ -0,0 +1,45 @@
+@@ -0,0 +1,72 @@
 +#ifndef QOPENHARMONYJSFUNCTION_H
 +#define QOPENHARMONYJSFUNCTION_H
 +
 +#include <napi/native_api.h>
 +#include <QtCore/qvariant.h>
 +#include <QtCore/qeventloop.h>
++#include <QtCore/qscopedpointer.h>
 +#include <QtCore/qopenharmonyjsenvironment.h>
 +#include <QtCore/qobject.h>
 +#include <QtCore/qtimer.h>
-+
++#include <QDebug>
 +QT_BEGIN_NAMESPACE
 +class QOpenHarmonyJsObject;
 +class QOpenHarmonyJsFunctionPrivate;
 +
-+class Q_CORE_EXPORT QOpenHarmonyJsFunction : public QObject
++class Q_CORE_EXPORT QOpenHarmonyJsFunction
 +{
-+    Q_OBJECT
-+    Q_DECLARE_PRIVATE(QOpenHarmonyJsFunction)
 +public:
 +    ~QOpenHarmonyJsFunction();
++
++    template<typename RET, typename... Args>
++    void call(Args&&... args)
++    {
++        QVariantList params;
++        setResultType(qMetaTypeId<RET>());
++        call(packParams(params, std::forward<Args>(args)...));
++    }
++
++    template<typename... Args>
++    void call(Args&&... args)
++    {
++        QVariantList params;
++        call(packParams(params, std::forward<Args>(args)...));
++    }
 +
 +    void call(const QVariantList &args);
 +
 +    template<typename RETURN_TYPE>
 +    RETURN_TYPE result() const;
 +
++    QVariant jsResult() const;
 +private:
++    template<typename Arg0, typename... Args>
++    const QVariantList &packParams(QVariantList& paramList, Arg0&& arg, Args&&... args)
++    {
++        QVariant v;
++        v.setValue(std::forward<Arg0>(arg));
++        paramList.push_back(v);
++        packParams(paramList, std::forward<Args>(args)...);
++        return paramList;
++    }
++
++    const QVariantList& packParams(QVariantList& paramList)
++    {
++        return paramList;
++    }
++
++    void setResultType(int t);
++
 +    friend class QOpenHarmonyJsObject;
-+    QOpenHarmonyJsFunction(QOpenHarmonyJsObject *nativeObject, const QString &functionName, napi_value function, QObject *parent = nullptr);
-+    Q_DISABLE_COPY(QOpenHarmonyJsFunction)
-+    napi_ref m_ref;
++    QOpenHarmonyJsFunction(QOpenHarmonyJsObject *nativeObject, const QString &functionName, napi_value function);
++    QScopedPointer<QOpenHarmonyJsFunctionPrivate> d_ptr;
 +};
 +
 +template<typename RET>
 +RET QOpenHarmonyJsFunction::result() const
 +{
-+    if (m_ref == nullptr)
-+        return RET();
-+    napi_value result;
-+    napi_get_reference_value(qJs::env(), m_ref, &result);
-+    return qJs::getValue<RET>(result);
++    return jsResult().value<RET>();
 +}
 +
 +QT_END_NAMESPACE
@@ -1406,10 +1473,10 @@ index 0000000000..d22413bc59
 +QT_END_NAMESPACE
 diff --git a/src/corelib/kernel/qopenharmonyjsobject.h b/src/corelib/kernel/qopenharmonyjsobject.h
 new file mode 100644
-index 0000000000..c7ebde8396
+index 0000000000..94e4e4ecce
 --- /dev/null
 +++ b/src/corelib/kernel/qopenharmonyjsobject.h
-@@ -0,0 +1,85 @@
+@@ -0,0 +1,68 @@
 +#ifndef QOPENHARMONYJSOBJECT_H
 +#define QOPENHARMONYJSOBJECT_H
 +
@@ -1431,33 +1498,17 @@ index 0000000000..c7ebde8396
 +
 +    bool isValid() const;
 +
-+    template<typename Arg0, typename... Args>
-+    const QVariantList &packParams(QVariantList& paramList, Arg0&& arg, Args&&... args)
-+    {
-+        QVariant v;
-+        v.setValue(std::forward<Arg0>(arg));
-+        paramList.push_back(v);
-+        packParams(paramList, std::forward<Args>(args)...);
-+        return paramList;
-+    }
-+
-+    const QVariantList& packParams(QVariantList& paramList)
-+    {
-+        return paramList;
-+    }
-+
 +    template<typename RET, typename... Args>
 +    RET call(const QString &jsFunction, Args&&... args);
 +
 +    template<typename... Args>
 +    void call(const QString &jsFunction, Args&&... args)
 +    {
-+        QVariantList params;
 +        QOpenHarmonyJsFunction *f = getJsFunction(jsFunction);
 +        if (f == nullptr)
 +            return;
 +        QMutexLocker locker(&m_mutex);
-+        f->call(packParams(params, std::forward<Args>(args)...));
++        f->call(std::forward<Args>(args)...);
 +    }
 +
 +    void defineProperties(size_t property_count,
@@ -1482,13 +1533,12 @@ index 0000000000..c7ebde8396
 +template<typename RET, typename... Args>
 +RET QOpenHarmonyJsObject::call(const QString &jsFunction, Args&&... args)
 +{
-+    QVariantList params;
 +    QOpenHarmonyJsFunction *f = getJsFunction(jsFunction);
 +    if (f == nullptr)
 +        return RET();
 +
 +    QMutexLocker locker(&m_mutex);
-+    f->call(packParams(params, std::forward<Args>(args)...));
++    f->call<RET>(std::forward<Args>(args)...);
 +    return f->result<RET>();
 +}
 +
@@ -1497,7 +1547,7 @@ index 0000000000..c7ebde8396
 +#endif // QOPENHARMONYEGLCORE_H
 diff --git a/src/corelib/kernel/qopenharmonyjsobjectloader.cpp b/src/corelib/kernel/qopenharmonyjsobjectloader.cpp
 new file mode 100644
-index 0000000000..50569f5a73
+index 0000000000..f868d0bd54
 --- /dev/null
 +++ b/src/corelib/kernel/qopenharmonyjsobjectloader.cpp
 @@ -0,0 +1,58 @@
@@ -1549,7 +1599,7 @@ index 0000000000..50569f5a73
 +
 +    bool result = d_ptr->m_loader->call<bool>("createObject", name);
 +     if (!result) {
-+        qDebug() << "create js object failed.";
++        qDebug() << "create js object failed." << name;
 +        return QSharedPointer<QOpenHarmonyJsObject>();
 +    }
 +    QSharedPointer<QOpenHarmonyJsObject> ret(new QOpenHarmonyJsObject(name));
@@ -5238,10 +5288,10 @@ index 0000000000..c885aa5fec
 +#endif // QOPENHARMONYPLATFORMOPENGLCONTEXT_H
 diff --git a/src/plugins/platforms/openharmony/qopenharmonyplatformopenglwindow.cpp b/src/plugins/platforms/openharmony/qopenharmonyplatformopenglwindow.cpp
 new file mode 100644
-index 0000000000..f9ce9edcdc
+index 0000000000..d162548d79
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonyplatformopenglwindow.cpp
-@@ -0,0 +1,180 @@
+@@ -0,0 +1,184 @@
 +#include "qopenharmonyplatformopenglwindow.h"
 +#include "qopenharmonyxcomponent.h"
 +#include "qopenharmonyplatformscreen.h"
@@ -5400,6 +5450,10 @@ index 0000000000..f9ce9edcdc
 +{
 +    if (m_component == nullptr)
 +        return 0;
++
++    QWindow *w = window();
++    if (w != nullptr)
++        w->setProperty("__component_name__", m_component->componentName());
 +    return m_component->id();
 +}
 +
