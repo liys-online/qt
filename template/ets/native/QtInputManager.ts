@@ -17,6 +17,8 @@ export class QtInputManager {
         let windowClass = null;
         try {
             let windowStage = AppStorage.Get("windowStage") as window.WindowStage;
+            let mainWindow = windowStage.getMainWindowSync();
+            let property = mainWindow.getWindowProperties();
             let promise = windowStage.createSubWindow('EditBoxDialog');
             promise.then((data) => {
                 windowClass = data;
@@ -24,6 +26,9 @@ export class QtInputManager {
                 promiseUI.then(()=>{
                     console.log("faaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", globalThis, globalThis.qtwindowmanager);
                     windowClass.showWindow();
+                    windowClass.setWindowBackgroundColor('#00000000');
+                    windowClass.resize(property.windowRect.width, 30);
+                    windowClass.moveWindowTo(0, property.windowRect.height - 30)
                 });
             });
         } catch (exception) {

@@ -37,9 +37,9 @@ export class QtCameraManager {
     }
 
     /* 获取相机设备数量 */
-    async numberOfCameras() {
-        let devs = await this.cameraDevices();
-        return devs.length;
+    async idOfCameras() {
+        await this.cameraDevices();
+        return [...this.cameraDevs.keys()];
     }
 
     /* 获取相机设备信息的以JSON字符串格式表示 */
