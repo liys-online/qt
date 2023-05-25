@@ -630,7 +630,7 @@ index 0000000000..7480dc1c20
 +#endif // QOPENHARMONYDEFINES_H
 diff --git a/src/corelib/kernel/qopenharmonyjsenvironment.cpp b/src/corelib/kernel/qopenharmonyjsenvironment.cpp
 new file mode 100644
-index 0000000000..be0666367a
+index 0000000000..0d1221cccc
 --- /dev/null
 +++ b/src/corelib/kernel/qopenharmonyjsenvironment.cpp
 @@ -0,0 +1,322 @@
@@ -842,18 +842,18 @@ index 0000000000..be0666367a
 +    return result;
 +}
 +
-+int64_t QOpenHarmonyJsEnvironment::getInt64(napi_value value)
++qint64 QOpenHarmonyJsEnvironment::getInt64(napi_value value)
 +{
 +    int64_t result;
 +    NAPI_CALL_BASE(m_env, napi_get_value_int64(m_env, value, &result), 0);
-+    return result;
++    return qint64(result);
 +}
 +
-+int32_t QOpenHarmonyJsEnvironment::getInt32(napi_value value)
++qint32 QOpenHarmonyJsEnvironment::getInt32(napi_value value)
 +{
 +    int32_t result;
 +    NAPI_CALL_BASE(m_env, napi_get_value_int32(m_env, value, &result), 0);
-+    return result;
++    return qint32(result);
 +}
 +
 +double QOpenHarmonyJsEnvironment::getDouble(napi_value value)
@@ -940,13 +940,13 @@ index 0000000000..be0666367a
 +}
 +
 +template<>
-+int64_t QOpenHarmonyJsEnvironment::getValue<int64_t>(napi_value value)
++qint64 QOpenHarmonyJsEnvironment::getValue<qint64>(napi_value value)
 +{
 +    return getInt64(value);
 +}
 +
 +template<>
-+int32_t QOpenHarmonyJsEnvironment::getValue<int32_t>(napi_value value)
++qint32 QOpenHarmonyJsEnvironment::getValue<qint32>(napi_value value)
 +{
 +    return getInt32(value);
 +}
@@ -958,7 +958,7 @@ index 0000000000..be0666367a
 +}
 diff --git a/src/corelib/kernel/qopenharmonyjsenvironment.h b/src/corelib/kernel/qopenharmonyjsenvironment.h
 new file mode 100644
-index 0000000000..00a69df90f
+index 0000000000..ba6af32032
 --- /dev/null
 +++ b/src/corelib/kernel/qopenharmonyjsenvironment.h
 @@ -0,0 +1,109 @@
@@ -1034,9 +1034,9 @@ index 0000000000..00a69df90f
 +
 +    static bool getBool(napi_value value);
 +
-+    static int64_t getInt64(napi_value value);
++    static qint64 getInt64(napi_value value);
 +
-+    static int32_t getInt32(napi_value value);
++    static qint32 getInt32(napi_value value);
 +
 +    static double getDouble(napi_value value);
 +
