@@ -2,9 +2,10 @@ import hilog from '@ohos.hilog';
 import UIAbility from '@ohos.app.ability.UIAbility';
 import Window from '@ohos.window'
 import display from '@ohos.display';
-import qtCore from "libQt5Core.so"
 import qpa from "libplugins_platforms_qopenharmony.so"
+
 import { QtObjectLoader } from '../native/QtObjectLoader'
+
 
 export default class EntryAbility extends UIAbility {
     onCreate(want, launchParam) {
@@ -14,7 +15,7 @@ export default class EntryAbility extends UIAbility {
     onDestroy() {
         hilog.isLoggable(0x0000, 'testTag', hilog.LogLevel.INFO);
         hilog.info(0x0000, 'testTag', '%{public}s', 'Ability onDestroy');
-        qpa.quitQtApplication();
+//        qpa.quitQtApplication();
     }
 
     onWindowStageCreate(windowStage: Window.WindowStage) {
@@ -34,12 +35,12 @@ export default class EntryAbility extends UIAbility {
         globalThis.qtobjectloader = new QtObjectLoader();
         globalThis.qpa = qpa;
         let d = display.getDefaultDisplaySync();
-        qpa.setDisplayMetrics(d.densityDPI, d.densityPixels, d.scaledDensity, d.width, d.height, property.windowRect.width, property.windowRect.height);
+        qpa.setDisplayMetrics(d.densityDPI, d.densityPixels, d.scaledDensity, property.windowRect.width, property.windowRect.width, property.windowRect.width, property.windowRect.height);
         qpa.startQtApplication(dirs, "libQtForHarmony.so");
         mainWindow.on('windowSizeChange', (data) => {
             console.info('Succeeded in enabling the listener for window size. Data: ' + JSON.stringify(data));
             let d = display.getDefaultDisplaySync();
-            qpa.setDisplayMetrics(d.densityDPI, d.densityPixels, d.scaledDensity, d.width, d.height, data.width, data.height);
+            qpa.setDisplayMetrics(d.densityDPI, d.densityPixels, d.scaledDensity, data.width, data.width, data.width, data.height);
         });
         AppStorage.SetOrCreate("windowStage", windowStage);
     }

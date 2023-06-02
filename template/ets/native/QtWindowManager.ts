@@ -1,19 +1,19 @@
 import window from '@ohos.window';
 import HashMap from '@ohos.util.HashMap';
 
-
 export class QtWindowManager {
-    private postions = null;
+    private windowRect = null;
     constructor() {
-        this.postions = new HashMap;
+        this.windowRect = new HashMap;
     }
+
 
      async createWindow(name) {
          try {
              let windowStage = AppStorage.Get("windowStage") as window.WindowStage;
              let windowClass = await windowStage.createSubWindow(name);
              globalThis.createWindowName = name;
-             await windowClass.setUIContent('pages/template');
+             await windowClass.setUIContent('pages/Index');
              return true;
          } catch (e) {
              return false;
@@ -37,12 +37,15 @@ export class QtWindowManager {
         let windowClass = null;
         try {
             windowClass = window.findWindow(name);
+            let visible = windowClass.isWindowShowing();
             let windowStage = AppStorage.Get("windowStage") as window.WindowStage;
             let mainWindow = windowStage.getMainWindowSync();
             let property = mainWindow.getWindowProperties();
-            await windowClass.moveWindowTo(x, property.windowRect.top + y);
-            await windowClass.resize(w, h);
-            this.postions.set(name, {'x': x, 'y': property.windowRect.top + y});
+            if (visible) {
+                await windowClass.moveWindowTo(property.windowRect.left + x, property.windowRect.top + 20 + y);
+                await windowClass.resize(w, h);
+            }
+            this.windowRect.set(name, {'w': w, 'h': h, 'x': property.windowRect.left + x, 'y': property.windowRect.top + 20 + y})
             return true;
         } catch (exception) {
             console.error('Failed to call setGeometry for the Window. Cause: ' + JSON.stringify(exception));
@@ -56,11 +59,11 @@ export class QtWindowManager {
         try {
             windowClass = window.findWindow(name);
             if (visible) {
-                console.log("show window:", name, visible);
                 await windowClass.showWindow();
-                if (this.postions.hasKey(name)) {
-                    let p = this.postions.get(name);
-                    windowClass.moveWindowTo(p.x, p.y);
+                if (this.windowRect.hasKey(name)) {
+                    let p = this.windowRect.get(name);
+                    await windowClass.moveWindowTo(p.x, p.y);
+                    await windowClass.resize(p.w, p.h);
                 }
             }
             else {
