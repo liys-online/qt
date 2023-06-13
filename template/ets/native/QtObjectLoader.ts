@@ -1,9 +1,9 @@
-import { QtDialog } from '../native/QtDialog'
-import { QtPasteBoard } from '../native/QtPasteBoard'
-import { QtInputManager } from '../native/QtInputManager'
-import { QtWindowManager } from '../native/QtWindowManager'
-import { QtMediaPlayer } from '../native/QtMediaPlayer'
-import { QtAudioManager } from '../native/QtAudioManager'
+import { QtDialog } from './QtDialog'
+import { QtPasteBoard } from './QtPasteBoard'
+import { QtInputManager } from './QtInputManager'
+import { QtWindowManager } from './QtWindowManager'
+import { QtMediaPlayer } from './QtMediaPlayer'
+import { QtAudioManager } from './QtAudioManager'
 
 let classes = {
     "qtdialog": QtDialog,

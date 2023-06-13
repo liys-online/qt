@@ -1,4 +1,5 @@
 import promptAction from '@ohos.promptAction'
+import QtApplication from './QtApplication'
 
 export class QtDialog {
 
@@ -33,14 +34,14 @@ export class QtDialog {
                 console.log("show dialog error: ", JSON.stringify(err));
             }
             let index = err ? -1 : data.index;
-            globalThis.qpa.dialogResult(handler, index);
+            // globalThis.qpa.dialogResult(handler, index);
         });
         return true;
     }
 
     async fileDialog(handler, open) {
         console.log("ddddddddddddddddddddddddddddddddddddddxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", handler, open);
-//        globalThis.abilityContext.startAbilityForResult({
+//        QtApplication.getInstance().getAbilityConext().startAbilityForResult({
 //            bundleName: "com.ohos.filepicker",
 //            abilityName: "MainAbility",
 //            parameters: {
@@ -60,10 +61,10 @@ export class QtDialog {
             }
         }
         try {
-            let result = await globalThis.abilityContext.startAbilityForResult(config, {windowMode: 1});
+            let result = await QtApplication.getInstance().getAbilityContext().startAbilityForResult(config, {windowMode: 1});
             if (result.resultCode !== 0) {
                 console.error(`DocumentPicker.select failed, code is ${result.resultCode}, message is ${result.want.parameters.message}`);
-                return;
+                return false;
             }
             // 获取到文档文件的URI
             let select_item_list = result.want.parameters.select_item_list;

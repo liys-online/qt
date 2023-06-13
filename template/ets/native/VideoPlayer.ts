@@ -1,5 +1,5 @@
 import media from '@ohos.multimedia.media'
-import MediaUtils from './MediaUtils'
+import { MediaUtils }  from './MediaUtils'
 import mediaLibrary from '@ohos.multimedia.mediaLibrary'
 
 export default class VideoPlayer {
@@ -8,6 +8,7 @@ export default class VideoPlayer {
     private finishCallBack: () => void = undefined
     private fileAsset: mediaLibrary.FileAsset = undefined
     private fd: number = undefined
+    private mediaUtils = new MediaUtils;
 
     async create() {
         this.videoPlayer = await media.createVideoPlayer();
@@ -44,7 +45,7 @@ export default class VideoPlayer {
             url = data;
         }
 
-//        let fd = await globalThis.abilityContext.resourceManager.getRawFd('videoTest.mp4')
+//        let fd = await QtApplication.getInstance().getAbilityConext().resourceManager.getRawFd('videoTest.mp4')
 //        let fd = 'fd://56';
 //        this.videoPlayer.url = fd;
 //
@@ -54,7 +55,7 @@ export default class VideoPlayer {
 
     async getMediaList() {
         console.log("xxxxxxxxxxxxxxxxxxxxxxxxxxxx 111111111111111")
-        let mediaList = await MediaUtils.getFileAssetsFromType(mediaLibrary.MediaType.VIDEO)
+        let mediaList = await this.mediaUtils.getFileAssetsFromType(mediaLibrary.MediaType.VIDEO)
         console.log("xxxxxxxxxxxxxxxxxxxxxxxxxxxx 2222222222222222222222")
         mediaList.forEach((file, index) => {
             this.fileAsset = file
@@ -68,7 +69,7 @@ export default class VideoPlayer {
 
     async play() {
         if (typeof (this.videoPlayer) != 'undefined') {
-            //            await globalThis.abilityContext.requestPermissionsFromUser([
+            //            await QtApplication.getInstance().getAbilityConext().requestPermissionsFromUser([
             //                'ohos.permission.MEDIA_LOCATION',
             //                'ohos.permission.READ_MEDIA',
             //                'ohos.permission.WRITE_MEDIA'

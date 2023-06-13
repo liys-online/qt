@@ -1,17 +1,12 @@
 import pasteboard from '@ohos.pasteboard';
-import LightWeightMap from '@ohos.util.LightWeightMap';
 
 export class QtPasteBoard {
 
     constructor() {
-    }
-
-    async registerSystemPasteboard() {
         let systemPasteboard = pasteboard.getSystemPasteboard();
         systemPasteboard.on('update', () => {
             globalThis.qpa.pasteChanged();
         });
-        return true;
     }
 
     async hasClipboardText() {

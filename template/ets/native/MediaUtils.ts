@@ -13,11 +13,13 @@
  * limitations under the License.
  */
 import mediaLibrary from '@ohos.multimedia.mediaLibrary'
+import QtApplication from './QtApplication'
 
-class MediaUtils {
+export class MediaUtils {
     private tag: string = 'MediaUtils'
     private mediaList: Array<mediaLibrary.FileAsset> = []
-    private mediaLib: mediaLibrary.MediaLibrary = mediaLibrary.getMediaLibrary(globalThis.abilityContext)
+    private qtApp: QtApplication = QtApplication.getInstance()
+    private mediaLib: mediaLibrary.MediaLibrary = mediaLibrary.getMediaLibrary(this.qtApp.getAbilityContext())
 
     async queryFile() {
         let fileKeyObj = mediaLibrary.FileKey
@@ -42,7 +44,7 @@ class MediaUtils {
     }
 
     async getFileAssetsFromType(mediaType: number) {
-        await globalThis.abilityContext.requestPermissionsFromUser([
+        await QtApplication.getInstance().getAbilityContext().requestPermissionsFromUser([
             'ohos.permission.MEDIA_LOCATION',
             'ohos.permission.READ_MEDIA',
             'ohos.permission.WRITE_MEDIA'
@@ -53,7 +55,7 @@ class MediaUtils {
             selectionArgs: [`${mediaType}`],
         }
 
-        this.mediaLib = mediaLibrary.getMediaLibrary(globalThis.abilityContext)
+        this.mediaLib = mediaLibrary.getMediaLibrary(QtApplication.getInstance().getAbilityContext())
         let fetchFileResult = await this.mediaLib.getFileAssets(fetchOp)
         if (fetchFileResult.getCount() > 0) {
             this.mediaList = await fetchFileResult.getAllObject()
@@ -61,5 +63,3 @@ class MediaUtils {
         return this.mediaList
     }
 }
-
-export default new MediaUtils()
