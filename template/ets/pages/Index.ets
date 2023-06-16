@@ -1,5 +1,5 @@
 /*
-* Copyright (C) 2022 The Sinux Company Ltd.
+* Copyright (c) 2021 Huawei Device Co., Ltd.
 * GNU Lesser General Public License Usage
 * Alternatively, this file may be used under the terms of the GNU Lesser
 * General Public License version 3 as published by the Free Software
