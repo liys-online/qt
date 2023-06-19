@@ -1,55 +1,24 @@
-import hilog from '@ohos.hilog';
-import window from '@ohos.window';
+/*
+ * Copyright (C) 2022 Sinux Co., Ltd.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 
 export class QtInputManager {
-    public constructor() {
+    constructor() {
     }
 
-    public complete(text:string) {
-        console.log('[SoftKeyboard] cocos input complete ' + text);
-        globalThis.qtinputmanager.callQtCommit(text);
-    }
-
-    public open(text:string) {
-        console.log('[SoftKeyboard] cocos open keyboard');
-        //globalThis.indexPage.dialogController.open();
-        globalThis.showMessage = text;
-        let windowClass = null;
-        try {
-            let windowStage = AppStorage.Get("windowStage") as window.WindowStage;
-            let mainWindow = windowStage.getMainWindowSync();
-            let property = mainWindow.getWindowProperties();
-            let promise = windowStage.createSubWindow('EditBoxDialog');
-            promise.then((data) => {
-                windowClass = data;
-                let promiseUI = windowClass.setUIContent('pages/components/EditBoxDialog');
-                promiseUI.then(()=>{
-                    console.log("faaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", globalThis, globalThis.qtwindowmanager);
-                    windowClass.showWindow();
-                    windowClass.setWindowBackgroundColor('#00000000');
-                    windowClass.resize(property.windowRect.width, 30);
-                    windowClass.moveWindowTo(0, property.windowRect.height - 30)
-                });
-            });
-        } catch (exception) {
-            console.error('Failed to create the subwindow. Cause: ' + JSON.stringify(exception));
-            //globalThis.qtwindowmanager.createWindowResult(false);
-        };
-    }
-
-    public close() {
-        console.log('[SoftKeyboard] cocos close keyboard');
-        //globalThis.indexPage.dialogController.close();
-        let windowClass = null;
-        try {
-            windowClass = window.findWindow('EditBoxDialog');
-            windowClass.destroyWindow();
-        } catch (exception) {
-            console.error('Failed to find the Window. Cause: ' + JSON.stringify(exception));
-        }
-
-    }
-    setKeyBoardVisible(visible:boolean) {
-        console.log('show keyboard 555555555555555555555555555555555555555555555', visible);
+    setKeyBoardVisible() {
+        console.log('show keyboard 555555555555555555555555555555555555555555555')
+        globalThis.qtinputmanager.jsTest(56);
     }
 }
