@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <oatconfig>
+        <filefilterlist>
+            <filefilter name="defaultPolicyFilter" desc="Filters for compatibility，license header policies">
+                <filteritem type="filepath" name="patch/*.patch" desc="patch文件，git生成，不需要添加版权头"/>
+                <filteritem type="filepath" name="*.bat" desc="脚本文件，不需要添加版权头"/>
+                <filteritem type="filepath" name="*.sh" desc="脚本文件，不需要添加版权头"/>
+                <filteritem type="filepath" name="*.json" desc="配置文件，不需要添加版权头"/>
+            </filefilter>
+        </filefilterlist>
+    </oatconfig>
+</configuration>
