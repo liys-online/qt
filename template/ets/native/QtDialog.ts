@@ -1,22 +1,10 @@
-/*
- * Copyright (C) 2022 Sinux Co., Ltd.
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 import promptAction from '@ohos.promptAction'
+import picker from '@ohos.file.picker';
 import QtApplication from './QtApplication'
+import uri from '@ohos.uri';
 
 export class QtDialog {
+    private context  = QtApplication.getInstance().getAbilityContext()
 
     constructor() {
     }
@@ -49,48 +37,140 @@ export class QtDialog {
                 console.log("show dialog error: ", JSON.stringify(err));
             }
             let index = err ? -1 : data.index;
-            // globalThis.qpa.dialogResult(handler, index);
+            globalThis.qpa.dialogResult(handler, index);
         });
         return true;
     }
 
-    async fileDialog(handler, open) {
-        console.log("ddddddddddddddddddddddddddddddddddddddxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", handler, open);
-//        QtApplication.getInstance().getAbilityConext().startAbilityForResult({
-//            bundleName: "com.ohos.filepicker",
-//            abilityName: "MainAbility",
-//            parameters: {
-//                 startMode: 'choose'
-//            }
-//            }, { windowMode: 102 }).then(async (data) => {
-//                let result = data.want.parameters.result
-//                console.log("{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{", JSON.stringify(result));
-//                var files = []
-//                files.push("/data/el1/1.txt");
-//                globalThis.qpa.selectedFilesResult(handler, files);
-//            })
+    isVideo(filter) {
+        return filter.includes("mp4") || filter.includes("MPEG")
+        || filter.includes("MPG") || filter.includes("DAT")
+        || filter.includes("MOV") || filter.includes("FLV");
+    }
+
+    isAudio(filter) {
+        return filter.includes("mp3") || filter.includes("wma") || filter.includes("ogg") || filter.includes("flac")
+        || filter.includes("wv");
+    }
+
+    isImage(filter) {
+        return filter.includes("png") || filter.includes("jpeg")
+        || filter.includes("jpg") || filter.includes("bmp")
+    }
+
+    async openFileDialog(handler, filter) {
+        // let isImage = this.isImage(filter);
+        // let isVideo = this.isVideo(filter);
+        // let isAudio = this.isAudio(filter);
+        // if (isImage || isVideo) {
+        //     const photoSelectOptions = new picker.PhotoSelectOptions();
+        //     if (isImage)
+        //         photoSelectOptions.MIMEType = picker.PhotoViewMIMETypes.IMAGE_TYPE;
+        //     if (isVideo)
+        //         photoSelectOptions.MIMEType = picker.PhotoViewMIMETypes.VIDEO_TYPE;
+        //     if (isVideo && isImage)
+        //         photoSelectOptions.MIMEType = picker.PhotoViewMIMETypes.IMAGE_VIDEO_TYPE;
+        //     photoSelectOptions.maxSelectNumber = 5;
+        //     const photoViewPicker = new picker.PhotoViewPicker();
+        //     photoViewPicker.select(photoSelectOptions).then((photoSelectResult) => {
+        //         console.info('photoViewPicker.select to file succeed and uri is:' + uri);
+        //         globalThis.qpa.selectedFilesResult(handler, photoSelectResult.photoUris);
+        //     }).catch((err) => {
+        //         console.error(`Invoke photoViewPicker.select failed, code is ${err.code}, message is ${err.message}`);
+        //         globalThis.qpa.selectedFilesResult(handler, []);
+        //     })
+        // } else if (isAudio) {
+        //     const audioSelectOptions = new picker.AudioSelectOptions();
+        //     const audioViewPicker = new picker.AudioViewPicker();
+        //     audioViewPicker.select(audioSelectOptions).then(audioSelectResult => {
+        //         globalThis.qpa.selectedFilesResult(handler, audioSelectResult);
+        //         console.info('audioViewPicker.select to file succeed and uri is:' + JSON.stringify(audioSelectResult));
+        //     }).catch((err) => {
+        //         console.error(`Invoke audioViewPicker.select failed, code is ${err.code}, message is ${err.message}`);
+        //         globalThis.qpa.selectedFilesResult(handler, []);
+        //     })
+        // } else  {
+        //     const documentSelectOptions = new picker.DocumentSelectOptions();
+        //     const documentViewPicker = new picker.DocumentViewPicker();
+        //     documentViewPicker.select(documentSelectOptions).then((documentResult) => {
+        //         console.info('documentViewPicker.select to file succeed and uri is:' + JSON.stringify(documentResult));
+        //         globalThis.qpa.selectedFilesResult(handler, documentResult);
+        //     }).catch((error) => {
+        //         console.error(`Invoke documentViewPicker.select failed, code is ${error.code}, message is ${error.message}`);
+        //         globalThis.qpa.selectedFilesResult(handler, []);
+        //     });
+        // }
+
         let config = {
             action: 'ohos.want.action.OPEN_FILE',
             parameters: {
                 startMode: 'choose',
             }
         }
-        try {
-            let result = await QtApplication.getInstance().getAbilityContext().startAbilityForResult(config, {windowMode: 1});
-            if (result.resultCode !== 0) {
-                console.error(`DocumentPicker.select failed, code is ${result.resultCode}, message is ${result.want.parameters.message}`);
-                return false;
-            }
-            // 获取到文档文件的URI
+
+        this.context.startAbilityForResult(config).then((result) => {
+            // 获取到文档文件的uri
             let select_item_list = result.want.parameters.select_item_list;
-            console.log("ddddddddddddddddddddddd", JSON.stringify(select_item_list))
-            // 获取到文档文件的文件名称
-            let file_name_list = result.want.parameters.file_name_list;
-            console.log("yyyyyyyyyyyyyyyyyyyyyyyy", JSON.stringify(file_name_list))
-        } catch (err) {
-            console.error(`Invoke documentPicker.select failed, code is ${err.code}, message is ${err.message}`);
+
+            globalThis.qpa.selectedFilesResult(handler, [select_item_list.toString()]);
+        }).catch((error) => {
+            console.log("open file dialog result", JSON.stringify(error));
+            globalThis.qpa.selectedFilesResult(handler, []);
+        });
+        return true;
+    }
+
+    async saveFileDialog(handler, fileName) {
+        // let isImage = this.isImage(fileName);
+        // let isVideo = this.isVideo(fileName);
+        // let isAudio = this.isAudio(fileName);
+        // if (isImage || isVideo) {
+        //     const photoSaveOptions = new picker.PhotoSaveOptions();
+        //     photoSaveOptions.newFileNames = [fileName];
+        //     const photoViewPicker = new picker.PhotoViewPicker();
+        //     photoViewPicker.save(photoSaveOptions).then((photoResult) => {
+        //         globalThis.qpa.selectedFilesResult(handler, photoResult);
+        //     }).catch((error) => {
+        //         console.error(`Invoke documentViewPicker.select failed, code is ${error.code}, message is ${error.message}`);
+        //         globalThis.qpa.selectedFilesResult(handler, []);
+        //     });
+        // } else if (isAudio) {
+        //     const audioSaveOptions = new picker.AudioSaveOptions();
+        //     audioSaveOptions.newFileNames = [fileName];
+        //     const audioViewPicker = new picker.AudioViewPicker();
+        //     audioViewPicker.save(audioSaveOptions).then((audioResult) => {
+        //         globalThis.qpa.selectedFilesResult(handler, audioResult);
+        //     }).catch((error) => {
+        //         console.error(`Invoke documentViewPicker.select failed, code is ${error.code}, message is ${error.message}`);
+        //         globalThis.qpa.selectedFilesResult(handler, []);
+        //     });
+        // } else {
+        //     const documentSaveOptions = new picker.DocumentSaveOptions();
+        //     documentSaveOptions.newFileNames = [fileName];
+        //     const documentViewPicker = new picker.DocumentViewPicker();
+        //     documentViewPicker.save(documentSaveOptions).then((documentResult) => {
+        //         globalThis.qpa.selectedFilesResult(handler, documentResult);
+        //     }).catch((error) => {
+        //         console.error(`Invoke documentViewPicker.select failed, code is ${error.code}, message is ${error.message}`);
+        //         globalThis.qpa.selectedFilesResult(handler, []);
+        //     });
+        // }
+        // return true;
+        let config = {
+            action: 'ohos.want.action.CREATE_FILE',
+            parameters: {
+                startMode: 'save',
+                key_pick_file_name: [fileName],
+                saveFile: fileName,
+            }
         }
 
+        this.context.startAbilityForResult(config, {windowMode: 0}).then((result) => {
+            globalThis.qpa.selectedFilesResult(handler, [result.want.parameters.pick_path_return.toString()]);
+        }, (error) => {
+            console.info("startAbilityForResult Promise.Reject is called, error.code = " + error.code)
+            globalThis.qpa.selectedFilesResult(handler, []);
+        })
         return true;
     }
 }

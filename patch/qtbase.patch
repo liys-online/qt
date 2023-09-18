@@ -477,6 +477,32 @@ index d87e181e5c..998be34739 100644
  #elif defined(__CYGWIN__)
  #  define Q_OS_CYGWIN
  #elif !defined(SAG_COM) && (!defined(WINAPI_FAMILY) || WINAPI_FAMILY==WINAPI_FAMILY_DESKTOP_APP) && (defined(WIN64) || defined(_WIN64) || defined(__WIN64__))
+diff --git a/src/corelib/io/qurl.cpp b/src/corelib/io/qurl.cpp
+index 6d82981fd6..5896fcbdb5 100644
+--- a/src/corelib/io/qurl.cpp
++++ b/src/corelib/io/qurl.cpp
+@@ -445,6 +445,11 @@ static inline QString webDavScheme()
+     return QStringLiteral("webdavs");
+ }
+ 
++static inline QString harmonyFileScheme()
++{
++    return QStringLiteral("datashare");
++}
++
+ static inline QString webDavSslTag()
+ {
+     return QStringLiteral("@SSL");
+@@ -1021,6 +1026,9 @@ inline bool QUrlPrivate::setScheme(const QString &value, int len, bool doSetErro
+     if (scheme == fileScheme()
+ #ifdef Q_OS_WIN
+         || scheme == webDavScheme()
++#endif
++#ifdef Q_OS_OPENHARMONY
++            || scheme == harmonyFileScheme()
+ #endif
+        ) {
+         flags |= IsLocalFile;
 diff --git a/src/corelib/kernel/kernel.pri b/src/corelib/kernel/kernel.pri
 index 3f7bf3cd47..e60936669e 100644
 --- a/src/corelib/kernel/kernel.pri
@@ -630,10 +656,10 @@ index 0000000000..7480dc1c20
 +#endif // QOPENHARMONYDEFINES_H
 diff --git a/src/corelib/kernel/qopenharmonyjsenvironment.cpp b/src/corelib/kernel/qopenharmonyjsenvironment.cpp
 new file mode 100644
-index 0000000000..cd12cc3406
+index 0000000000..15f43e7e23
 --- /dev/null
 +++ b/src/corelib/kernel/qopenharmonyjsenvironment.cpp
-@@ -0,0 +1,323 @@
+@@ -0,0 +1,335 @@
 +#include "qopenharmonyjsenvironment.h"
 +#include "qopenharmonydefines.h"
 +
@@ -657,7 +683,7 @@ index 0000000000..cd12cc3406
 +    return createString(textData);
 +}
 +
-+napi_value QOpenHarmonyJsEnvironment::createStringArrary(const QStringList &strList)
++napi_value QOpenHarmonyJsEnvironment::createStringArray(const QStringList &strList)
 +{
 +    napi_value result = nullptr;
 +    if (napi_ok == napi_create_array(m_env, &result)) {
@@ -665,6 +691,15 @@ index 0000000000..cd12cc3406
 +            napi_set_element(m_env, result, k, createString(strList.at(k)));
 +        }
 +    }
++    return result;
++}
++
++napi_value QOpenHarmonyJsEnvironment::createArrayBuffer(const QByteArray &buffer)
++{
++    napi_value result = nullptr;
++    void *data = nullptr;
++    NAPI_CALL_BASE(m_env, napi_create_arraybuffer(m_env, buffer.length(), &data, &result), nullptr);
++    memcpy(data, buffer.data(), buffer.length());
 +    return result;
 +}
 +
@@ -751,12 +786,15 @@ index 0000000000..cd12cc3406
 +
 +QByteArray QOpenHarmonyJsEnvironment::getByteArray(napi_value value)
 +{
-+    size_t strLen = 0;
-+    NAPI_CALL_BASE(m_env, napi_get_value_string_utf8(m_env, value, nullptr, -1, &strLen), QByteArray());
-+    size_t bufLen = strLen + 1;
-+    std::unique_ptr<char[]> strBuffer = std::make_unique<char[]>(bufLen);
-+    NAPI_CALL_BASE(m_env, napi_get_value_string_utf8(m_env, value, strBuffer.get(), bufLen, &strLen), QByteArray());
-+    QByteArray result = QByteArray(strBuffer.get());
++    bool isArraryBuffer = false;
++    NAPI_CALL_BASE(m_env, napi_is_arraybuffer(m_env, value, &isArraryBuffer), QByteArray());
++    if (!isArraryBuffer) {
++        return QByteArray();
++    }
++    void *data = nullptr;
++    size_t lenght = 0;
++    NAPI_CALL_BASE(m_env, napi_get_arraybuffer_info(m_env, value, &data, &lenght), QByteArray());
++    QByteArray result = QByteArray((char*)(data), lenght);
 +    return result;
 +}
 +
@@ -959,10 +997,10 @@ index 0000000000..cd12cc3406
 +}
 diff --git a/src/corelib/kernel/qopenharmonyjsenvironment.h b/src/corelib/kernel/qopenharmonyjsenvironment.h
 new file mode 100644
-index 0000000000..a6778f547c
+index 0000000000..d5716d8756
 --- /dev/null
 +++ b/src/corelib/kernel/qopenharmonyjsenvironment.h
-@@ -0,0 +1,108 @@
+@@ -0,0 +1,110 @@
 +#ifndef QOPENHARMONYJSENVIRONMENT_H
 +#define QOPENHARMONYJSENVIRONMENT_H
 +
@@ -994,7 +1032,9 @@ index 0000000000..a6778f547c
 +
 +    static napi_value createInt64(qlonglong value);
 +
-+    static napi_value createStringArrary(const QStringList &strList);
++    static napi_value createStringArray(const QStringList &strList);
++
++    static napi_value createArrayBuffer(const QByteArray &buffer);
 +
 +    static napi_value globalObject();
 +
@@ -1073,10 +1113,10 @@ index 0000000000..a6778f547c
 +#endif // QOPENHARMONYJSENVIRONMENT_H
 diff --git a/src/corelib/kernel/qopenharmonyjsfunction.cpp b/src/corelib/kernel/qopenharmonyjsfunction.cpp
 new file mode 100644
-index 0000000000..4b4374b87b
+index 0000000000..6bd5155b57
 --- /dev/null
 +++ b/src/corelib/kernel/qopenharmonyjsfunction.cpp
-@@ -0,0 +1,242 @@
+@@ -0,0 +1,267 @@
 +#include "qopenharmonyjsfunction.h"
 +#include "qopenharmonyjsenvironment.h"
 +#include "qopenharmonydefines.h"
@@ -1086,6 +1126,7 @@ index 0000000000..4b4374b87b
 +#include <QtCore/qtimer.h>
 +#include <QtCore/qmetaobject.h>
 +#include <QtCore/qthread.h>
++#include <QtCore/qmutex.h>
 +
 +#include <QtCore/qdebug.h>
 +#include "qobject_p.h"
@@ -1106,7 +1147,7 @@ index 0000000000..4b4374b87b
 +        ret = qJs::createString(value.toString());
 +        break;
 +    case QVariant::StringList:
-+        ret = qJs::createStringArrary(value.toStringList());
++        ret = qJs::createStringArray(value.toStringList());
 +        break;
 +    case QVariant::Bool:
 +        ret = qJs::createBool(value.toBool());
@@ -1114,6 +1155,8 @@ index 0000000000..4b4374b87b
 +    case QVariant::LongLong:
 +        ret = qJs::createInt64(value.toLongLong());
 +        break;
++    case QVariant::ByteArray:
++        ret = qJs::createArrayBuffer(value.toByteArray());
 +    default:
 +        //Todo other type
 +        break;
@@ -1141,6 +1184,9 @@ index 0000000000..4b4374b87b
 +    case QMetaType::LongLong:
 +        ret = QVariant::fromValue(qJs::getInt64(value));
 +        break;
++    case QMetaType::QByteArray:
++        ret = QVariant::fromValue(qJs::getByteArray(value));
++        break;
 +    case QMetaType::QByteArrayList:
 +        ret = QVariant::fromValue(qJs::getByteArrayList(value));
 +        break;
@@ -1163,7 +1209,7 @@ index 0000000000..4b4374b87b
 +    static napi_value then(napi_env, napi_callback_info info);
 +
 +    void setResult(napi_value result);
-+    void wait(int timeout = 2000);
++    void wait(int timeout = 3000);
 +    void cancelWait();
 +
 +    QOpenHarmonyJsFunction *q_ptr;
@@ -1175,11 +1221,14 @@ index 0000000000..4b4374b87b
 +    QTimer *m_timer;
 +    QVariant m_result;
 +    int m_resultType;
++    QMutex m_mutex;
++    bool m_bResultReceived;
 +};
 +
 +QOpenHarmonyJsFunctionPrivate::QOpenHarmonyJsFunctionPrivate()
 +    : m_function(nullptr)
 +    , m_resultType(QVariant::Invalid)
++    , m_bResultReceived(false)
 +{
 +
 +}
@@ -1200,9 +1249,12 @@ index 0000000000..4b4374b87b
 +    m_timer = new QTimer(q_ptr);
 +    m_timer->setSingleShot(true);
 +    QObject::connect(m_timer, &QTimer::timeout, q_ptr, [this]{
-+        if (m_loop.isRunning()) {
++        QMutexLocker locker(&m_mutex);
++        Q_UNUSED(locker)
++        if (!m_bResultReceived) {
 +            qWarning() << QString("Wait js method %1 result failded").arg(m_name);
-+            m_loop.exit(-1);
++            if (m_loop.isRunning())
++                m_loop.exit(-1);
 +        }
 +    });
 +}
@@ -1219,8 +1271,14 @@ index 0000000000..4b4374b87b
 +
 +void QOpenHarmonyJsFunctionPrivate::wait(int timeout)
 +{    
-+    m_timer->start(timeout);
-+    m_loop.exec();
++    m_mutex.lock();
++    if (!m_bResultReceived) {
++        m_mutex.unlock();
++        m_timer->start(timeout);
++        m_loop.exec();
++    } else {
++        m_mutex.unlock();
++    }
 +}
 +
 +void QOpenHarmonyJsFunctionPrivate::cancelWait()
@@ -1280,8 +1338,15 @@ index 0000000000..4b4374b87b
 +
 +void QOpenHarmonyJsFunctionPrivate::setResult(napi_value result)
 +{
++    QMutexLocker locker(&m_mutex);
++    Q_UNUSED(m_mutex)
++    m_bResultReceived = true;
 +    m_result = napi_value_to_variant(result, m_resultType);
-+    qDebug() << QString("Get js method %1 result from callback:").arg(m_name) << m_result;
++    if (m_result.type() == QVariant::ByteArray) {
++        qDebug() << QString("Get js method %1 result from callback QByteArrary length: %2").arg(m_name).arg(m_result.toByteArray().length()) << m_loop.isRunning();
++    } else {
++        qDebug() << QString("Get js method %1 result from callback:").arg(m_name) << m_result << m_loop.isRunning();
++    }
 +    cancelWait();
 +}
 +
@@ -1302,7 +1367,7 @@ index 0000000000..4b4374b87b
 +{    
 +    d_ptr->m_args = args;
 +    napi_acquire_threadsafe_function(d_ptr->m_function);
-+    qDebug() << QString("call js function: %1 with args").arg(d_ptr->m_name) << d_ptr->m_args
++    qDebug() << QString("call js function: %1").arg(d_ptr->m_name)
 +             << napi_call_threadsafe_function(d_ptr->m_function, d_ptr.data(), napi_tsfn_nonblocking);
 +    d_ptr->wait();
 +}
@@ -1899,19 +1964,23 @@ index 0000000000..e90088613e
 +};
 diff --git a/src/openharmony/native/QtDialog.ts b/src/openharmony/native/QtDialog.ts
 new file mode 100644
-index 0000000000..62dd66aa5e
+index 0000000000..9fd1d25d73
 --- /dev/null
 +++ b/src/openharmony/native/QtDialog.ts
-@@ -0,0 +1,49 @@
-+import prompt from '@ohos.prompt'
+@@ -0,0 +1,176 @@
++import promptAction from '@ohos.promptAction'
++import picker from '@ohos.file.picker';
++import QtApplication from './QtApplication'
++import uri from '@ohos.uri';
 +
 +export class QtDialog {
++    private context  = QtApplication.getInstance().getAbilityContext()
 +
 +    constructor() {
 +    }
 +
 +    messageBox(handler, title, text, buttons) {
-+        var opt: prompt.ShowDialogOptions = {
++        var opt: promptAction.ShowDialogOptions = {
 +            title: title,
 +            message: text,
 +            buttons: [{
@@ -1920,37 +1989,282 @@ index 0000000000..62dd66aa5e
 +            }]
 +        };
 +
-+        var first : prompt.Button = {
++        var first : promptAction.Button = {
 +            text: buttons[0],
 +            color: '#000000',
 +        }
 +        opt.buttons[0] = first;
 +        for (var i = 1; i < buttons.length; i++) {
-+            var button : prompt.Button = {
++            var button : promptAction.Button = {
 +                text: buttons[i],
 +                color: '#000000',
 +            }
 +            opt.buttons.push(button)
 +        }
 +
-+        prompt.showDialog(opt, (err, data) => {
++        promptAction.showDialog(opt, (err, data) => {
++            if (err) {
++                console.log("show dialog error: ", JSON.stringify(err));
++            }
 +            let index = err ? -1 : data.index;
 +            globalThis.qpa.dialogResult(handler, index);
 +        });
++        return true;
 +    }
 +
-+    fileDialog(open) {
-+        globalThis.abilityContext.startAbilityForResult({
-+            bundleName: "com.ohos.filepicker",
-+            abilityName: "MainAbility",
-+            parameters: {
-+                startMode: open ? 'choose' : 'save'
-+            }
-+        }).then(async (data) => {
-+            let result = data.want.parameters.result
-+            globalThis.qpa.selectedFilesResult(result);
-+        })
++    isVideo(filter) {
++        return filter.includes("mp4") || filter.includes("MPEG")
++        || filter.includes("MPG") || filter.includes("DAT")
++        || filter.includes("MOV") || filter.includes("FLV");
 +    }
++
++    isAudio(filter) {
++        return filter.includes("mp3") || filter.includes("wma") || filter.includes("ogg") || filter.includes("flac")
++        || filter.includes("wv");
++    }
++
++    isImage(filter) {
++        return filter.includes("png") || filter.includes("jpeg")
++        || filter.includes("jpg") || filter.includes("bmp")
++    }
++
++    async openFileDialog(handler, filter) {
++        // let isImage = this.isImage(filter);
++        // let isVideo = this.isVideo(filter);
++        // let isAudio = this.isAudio(filter);
++        // if (isImage || isVideo) {
++        //     const photoSelectOptions = new picker.PhotoSelectOptions();
++        //     if (isImage)
++        //         photoSelectOptions.MIMEType = picker.PhotoViewMIMETypes.IMAGE_TYPE;
++        //     if (isVideo)
++        //         photoSelectOptions.MIMEType = picker.PhotoViewMIMETypes.VIDEO_TYPE;
++        //     if (isVideo && isImage)
++        //         photoSelectOptions.MIMEType = picker.PhotoViewMIMETypes.IMAGE_VIDEO_TYPE;
++        //     photoSelectOptions.maxSelectNumber = 5;
++        //     const photoViewPicker = new picker.PhotoViewPicker();
++        //     photoViewPicker.select(photoSelectOptions).then((photoSelectResult) => {
++        //         console.info('photoViewPicker.select to file succeed and uri is:' + uri);
++        //         globalThis.qpa.selectedFilesResult(handler, photoSelectResult.photoUris);
++        //     }).catch((err) => {
++        //         console.error(`Invoke photoViewPicker.select failed, code is ${err.code}, message is ${err.message}`);
++        //         globalThis.qpa.selectedFilesResult(handler, []);
++        //     })
++        // } else if (isAudio) {
++        //     const audioSelectOptions = new picker.AudioSelectOptions();
++        //     const audioViewPicker = new picker.AudioViewPicker();
++        //     audioViewPicker.select(audioSelectOptions).then(audioSelectResult => {
++        //         globalThis.qpa.selectedFilesResult(handler, audioSelectResult);
++        //         console.info('audioViewPicker.select to file succeed and uri is:' + JSON.stringify(audioSelectResult));
++        //     }).catch((err) => {
++        //         console.error(`Invoke audioViewPicker.select failed, code is ${err.code}, message is ${err.message}`);
++        //         globalThis.qpa.selectedFilesResult(handler, []);
++        //     })
++        // } else  {
++        //     const documentSelectOptions = new picker.DocumentSelectOptions();
++        //     const documentViewPicker = new picker.DocumentViewPicker();
++        //     documentViewPicker.select(documentSelectOptions).then((documentResult) => {
++        //         console.info('documentViewPicker.select to file succeed and uri is:' + JSON.stringify(documentResult));
++        //         globalThis.qpa.selectedFilesResult(handler, documentResult);
++        //     }).catch((error) => {
++        //         console.error(`Invoke documentViewPicker.select failed, code is ${error.code}, message is ${error.message}`);
++        //         globalThis.qpa.selectedFilesResult(handler, []);
++        //     });
++        // }
++
++        let config = {
++            action: 'ohos.want.action.OPEN_FILE',
++            parameters: {
++                startMode: 'choose',
++            }
++        }
++
++        this.context.startAbilityForResult(config).then((result) => {
++            // 获取到文档文件的uri
++            let select_item_list = result.want.parameters.select_item_list;
++
++            globalThis.qpa.selectedFilesResult(handler, [select_item_list.toString()]);
++        }).catch((error) => {
++            console.log("open file dialog result", JSON.stringify(error));
++            globalThis.qpa.selectedFilesResult(handler, []);
++        });
++        return true;
++    }
++
++    async saveFileDialog(handler, fileName) {
++        // let isImage = this.isImage(fileName);
++        // let isVideo = this.isVideo(fileName);
++        // let isAudio = this.isAudio(fileName);
++        // if (isImage || isVideo) {
++        //     const photoSaveOptions = new picker.PhotoSaveOptions();
++        //     photoSaveOptions.newFileNames = [fileName];
++        //     const photoViewPicker = new picker.PhotoViewPicker();
++        //     photoViewPicker.save(photoSaveOptions).then((photoResult) => {
++        //         globalThis.qpa.selectedFilesResult(handler, photoResult);
++        //     }).catch((error) => {
++        //         console.error(`Invoke documentViewPicker.select failed, code is ${error.code}, message is ${error.message}`);
++        //         globalThis.qpa.selectedFilesResult(handler, []);
++        //     });
++        // } else if (isAudio) {
++        //     const audioSaveOptions = new picker.AudioSaveOptions();
++        //     audioSaveOptions.newFileNames = [fileName];
++        //     const audioViewPicker = new picker.AudioViewPicker();
++        //     audioViewPicker.save(audioSaveOptions).then((audioResult) => {
++        //         globalThis.qpa.selectedFilesResult(handler, audioResult);
++        //     }).catch((error) => {
++        //         console.error(`Invoke documentViewPicker.select failed, code is ${error.code}, message is ${error.message}`);
++        //         globalThis.qpa.selectedFilesResult(handler, []);
++        //     });
++        // } else {
++        //     const documentSaveOptions = new picker.DocumentSaveOptions();
++        //     documentSaveOptions.newFileNames = [fileName];
++        //     const documentViewPicker = new picker.DocumentViewPicker();
++        //     documentViewPicker.save(documentSaveOptions).then((documentResult) => {
++        //         globalThis.qpa.selectedFilesResult(handler, documentResult);
++        //     }).catch((error) => {
++        //         console.error(`Invoke documentViewPicker.select failed, code is ${error.code}, message is ${error.message}`);
++        //         globalThis.qpa.selectedFilesResult(handler, []);
++        //     });
++        // }
++        // return true;
++        let config = {
++            action: 'ohos.want.action.CREATE_FILE',
++            parameters: {
++                startMode: 'save',
++                key_pick_file_name: [fileName],
++                saveFile: fileName,
++            }
++        }
++
++        this.context.startAbilityForResult(config, {windowMode: 0}).then((result) => {
++            globalThis.qpa.selectedFilesResult(handler, [result.want.parameters.pick_path_return.toString()]);
++        }, (error) => {
++            console.info("startAbilityForResult Promise.Reject is called, error.code = " + error.code)
++            globalThis.qpa.selectedFilesResult(handler, []);
++        })
++        return true;
++    }
++}
+\ No newline at end of file
+diff --git a/src/openharmony/native/QtFile.ts b/src/openharmony/native/QtFile.ts
+new file mode 100644
+index 0000000000..50c9ebe17a
+--- /dev/null
++++ b/src/openharmony/native/QtFile.ts
+@@ -0,0 +1,91 @@
++import fs from '@ohos.file.fs';
++import uri from '@ohos.uri';
++import deviceInfo from '@ohos.deviceInfo'
++import QtApplication  from './QtApplication'
++
++export class QtFile {
++
++  private uri = null;
++  private file = null;
++  private valid : Boolean = false;
++  private offset : number = 0;
++
++
++  constructor(uriString) {
++    let _uri = uriString;
++    const versionRegex = /(\d+\.\d+\.\d+\.\d+)/;
++    const match = deviceInfo.displayVersion.match(versionRegex);
++    let version = '';
++    if (match) {
++      version = match[0]
++    }
++    if (version != '' && version.localeCompare("4.0.7.5") == -1)
++      _uri = _uri.replace("datashare://", "file:")
++    this.uri = _uri;
++  }
++
++  open(mode) {
++    try {
++      console.log("open file:", this.uri, mode)
++      this.file = fs.openSync(this.uri, mode);
++      this.valid = true;
++    } catch (error) {
++      console.log("file open: ", error)
++      this.valid = false;
++    } finally {
++      return this.valid;
++    }
++  }
++
++   write(buffer) {
++    try {
++      return fs.writeSync(this.file.fd, buffer);
++    } catch (error) {
++      console.log("file write: ", error)
++      return -1;
++    }
++  }
++
++  seek(offset) {
++    this.offset = offset;
++    return true;
++  }
++
++  pos() {
++    return this.offset;
++  }
++
++  size() {
++    return fs.statSync(this.file.fd).size;
++  }
++
++  flush() {
++    return true;
++  }
++
++  read(length) {
++    let buf = new ArrayBuffer(length);
++    try {
++      let options = { "offset": this.offset, "length": length }
++      let result = fs.readSync(this.file.fd, buf, options);
++      this.offset = this.offset + result;
++      return buf;
++    } catch (error) {
++      console.log("file read error: ", error);
++      return null;
++    }
++  }
++
++  close() {
++    if (this.valid) {
++      try {
++        fs.closeSync(this.file);
++      } catch (error) {
++        console.log("file close", error);
++      } finally {
++        this.valid = false;
++        return true;
++      }
++    }
++  }
++}
+\ No newline at end of file
+diff --git a/src/openharmony/native/QtFileManager.ts b/src/openharmony/native/QtFileManager.ts
+new file mode 100644
+index 0000000000..4a0016359f
+--- /dev/null
++++ b/src/openharmony/native/QtFileManager.ts
+@@ -0,0 +1,17 @@
++import { QtFile } from './QtFile';
++
++export class QtFileManager {
++
++  async createFile(fileHandler, fileName) {
++    let file = new QtFile(fileName);
++    console.log("create js file object for file: ", fileHandler, fileName)
++    Reflect.defineProperty(globalThis, fileHandler, {value: file});
++    return true;
++  }
++
++  async deleteFile(fileHandler) {
++    console.log("delete js file object for: ", fileHandler)
++    Reflect.deleteProperty(globalThis, fileHandler);
++    return true;
++  }
 +}
 \ No newline at end of file
 diff --git a/src/openharmony/native/QtInputManager.ts b/src/openharmony/native/QtInputManager.ts
@@ -1971,24 +2285,31 @@ index 0000000000..6824485c4f
 \ No newline at end of file
 diff --git a/src/openharmony/native/QtObjectLoader.ts b/src/openharmony/native/QtObjectLoader.ts
 new file mode 100644
-index 0000000000..b29b2b1345
+index 0000000000..043f2edd47
 --- /dev/null
 +++ b/src/openharmony/native/QtObjectLoader.ts
-@@ -0,0 +1,25 @@
-+import { QtDialog } from '../native/QtDialog'
-+import { QtPasteBoard } from '../native/QtPasteBoard'
-+import { QtInputManager } from '../native/QtInputManager'
-+import { QtWindowManager } from '../native/QtWindowManager'
+@@ -0,0 +1,32 @@
++import { QtDialog } from './QtDialog'
++import { QtPasteBoard } from './QtPasteBoard'
++import { QtInputManager } from './QtInputManager'
++import { QtWindowManager } from './QtWindowManager'
++import { QtMediaPlayer } from './QtMediaPlayer'
++import { QtAudioManager } from './QtAudioManager'
++import { QtFileManager } from './QtFileManager'
 +
 +let classes = {
 +    "qtdialog": QtDialog,
 +    "qtpasteboard": QtPasteBoard,
 +    "qtinputmanager": QtInputManager,
 +    "qtwindowmanager": QtWindowManager,
++    "qtmediaplayer": QtMediaPlayer,
++    "qtaudiomanager": QtAudioManager,
++    "qtfilemanager": QtFileManager,
 +}
 +
 +export class QtObjectLoader {
 +    constructor() {
++
 +    }
 +
 +    createObject(name) {
@@ -2278,10 +2599,10 @@ index 0000000000..886625295c
 +}
 diff --git a/src/plugins/platforms/openharmony/openharmony.pro b/src/plugins/platforms/openharmony/openharmony.pro
 new file mode 100644
-index 0000000000..22eb2caec3
+index 0000000000..f1826735b1
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/openharmony.pro
-@@ -0,0 +1,60 @@
+@@ -0,0 +1,62 @@
 +TARGET = qopenharmony
 +
 +LIBS += -lEGL -lace_napi.z -lace_ndk.z
@@ -2311,7 +2632,8 @@ index 0000000000..22eb2caec3
 +    $$PWD/qopenharmonyplatforminputcontext.h \
 +    $$PWD/qopenharmonyplatformtheme.h \
 +    $$PWD/qopenharmonyplatformdialoghelpers.h \
-+    $$PWD/qopenharmonydrag.h
++    $$PWD/qopenharmonydrag.h \
++    $$PWD/qopenharmonyfileenginehandler.h
 +
 +SOURCES += $$PWD/qopenharmonyplatformplugin.cpp \
 +    $$PWD/qopenharmonyplatformwindow.cpp \
@@ -2332,7 +2654,8 @@ index 0000000000..22eb2caec3
 +    $$PWD/qopenharmonyplatformtheme.cpp \
 +    $$PWD/qopenharmonyplatformdialoghelpers.cpp \
 +    $$PWD/qopenharmonyplatformclipboard.cpp \
-+    $$PWD/qopenharmonydrag.cpp
++    $$PWD/qopenharmonydrag.cpp \
++    $$PWD/qopenharmonyfileenginehandler.cpp
 +
 +
 +PLUGIN_TYPE = platforms
@@ -3071,6 +3394,261 @@ index 0000000000..51fe72e96e
 +
 +
 +#endif // QOPENHARMONYEVENTDISPATCHER_H
+diff --git a/src/plugins/platforms/openharmony/qopenharmonyfileenginehandler.cpp b/src/plugins/platforms/openharmony/qopenharmonyfileenginehandler.cpp
+new file mode 100644
+index 0000000000..ec587d45a8
+--- /dev/null
++++ b/src/plugins/platforms/openharmony/qopenharmonyfileenginehandler.cpp
+@@ -0,0 +1,225 @@
++#include "qopenharmonyfileenginehandler.h"
++
++#include <QSharedPointer>
++#include <QOpenHarmonyJsObjectLoader>
++#include <QOpenHarmonyJsObject>
++#include <QString>
++#include <QDebug>
++
++QT_BEGIN_NAMESPACE
++
++
++class QOpenHarmonyFileEngine: public QAbstractFileEngine
++{
++public:
++    explicit QOpenHarmonyFileEngine(const QString &fileName)
++        : m_jsFile(nullptr)
++    {
++        m_fileName = fileName;
++        static int index = 0;
++        m_fileHandler = QString("fileHandler%1").arg(index++);
++        QSharedPointer<QOpenHarmonyJsObject> jsFileManager = qJsObjectLoader->create("qtfilemanager");
++        bool result = jsFileManager->call<bool>("createFile", m_fileHandler, m_fileName);
++        if (result) {
++            m_jsFile = new QOpenHarmonyJsObject(m_fileHandler);
++        }
++    }
++
++    ~QOpenHarmonyFileEngine()
++    {
++        close();
++        if (m_jsFile != nullptr) {
++            QSharedPointer<QOpenHarmonyJsObject> jsFileManager = qJsObjectLoader->create("qtfilemanager");
++            bool result = jsFileManager->call<bool>("deleteFile", m_fileHandler);
++            if (!result) {
++                qWarning() << "delete js file failed";
++            }
++        }
++    }
++
++    bool checkJsFile() const
++    {
++        if (m_jsFile == nullptr || !m_jsFile->isValid()) {
++            qWarning() << "js file object is invalid";
++            return false;
++        }
++        return true;
++    }
++
++    bool open(QIODevice::OpenMode openMode) override
++    {
++        if (!checkJsFile())
++            return false;
++
++//        const READ_ONLY = 0o0; // Read only Permission
++//        const WRITE_ONLY = 0o1; // Write only Permission
++//        const READ_WRITE = 0o2; // Write and Read Permission
++//        const CREATE = 0o100; // If not exist, create file
++//        const TRUNC = 0o1000; // File truncate len 0
++//        const APPEND = 0o2000; // File append write
++//        const NONBLOCK = 0o4000; // File open in nonblocking mode
++//        const DIR = 0o200000; // File is Dir
++//        const NOFOLLOW = 0o400000; // File is not symbolic link
++//        const SYNC = 0o4010000; // SYNC IO
++
++        int mode = 0;
++        if (openMode & QIODevice::ReadOnly) {
++
++        }
++        if (openMode & QIODevice::WriteOnly) {
++            mode |= 1;
++        }
++        if (openMode & QIODevice::Append) {
++            mode |= 02000;
++        }
++
++        if (openMode & QIODevice::Truncate) {
++            mode |= 01000;
++        }
++
++        return m_jsFile->call<bool>("open", mode);
++    }
++
++    bool flush()
++    {
++        if (!checkJsFile())
++            return false;
++        return m_jsFile->call<bool>("flush");
++    }
++
++    bool close() override
++    {
++        if (!checkJsFile())
++            return false;
++        return m_jsFile->call<bool>("close");
++    }
++
++    qint64 size() const override
++    {
++        if (!checkJsFile())
++            return -1;
++        return m_jsFile->call<qint64>("size");
++    }
++
++    qint64 pos() const override
++    {
++        if (!checkJsFile())
++            return -1;
++        return m_jsFile->call<qint64>("pos");
++    }
++
++    bool seek(qint64 pos) override
++    {
++        if (!checkJsFile())
++            return false;
++        return m_jsFile->call<bool>("seek", pos);
++    }
++
++    qint64 read(char *data, qint64 maxlen) override
++    {
++        if (!checkJsFile())
++            return -1;
++        QByteArray result = m_jsFile->call<QByteArray>("read", maxlen);
++        qint64 l = result.length();
++        memcpy(data, result.constData(), qMin(l, maxlen));
++        return l;
++    }
++
++    bool isSequential() const override
++    {
++        return false;
++    }
++
++    bool caseSensitive() const override
++    {
++        return true;
++    }
++
++    bool isRelativePath() const override
++    {
++        return false;
++    }
++
++    FileFlags fileFlags(FileFlags type = FileInfoAll) const override
++    {
++        FileFlags flags(ReadOwnerPerm|ReadUserPerm|ReadGroupPerm|ReadOtherPerm|ExistsFlag);
++        if (m_jsFile->isValid()) {
++            flags |= FileType;
++        }
++
++        return type & flags;
++    }
++
++    QString fileName(FileName file = DefaultName) const override
++    {
++        int pos;
++        switch (file) {
++        case DefaultName:
++        case AbsoluteName:
++        case CanonicalName:
++                return m_fileName;
++        case BaseName:
++            if ((pos = m_fileName.lastIndexOf(QChar(QLatin1Char('/')))) != -1)
++                return m_fileName.mid(pos);
++            else
++                return m_fileName;
++        case PathName:
++        case AbsolutePathName:
++        case CanonicalPathName:
++            if ((pos = m_fileName.lastIndexOf(QChar(QLatin1Char('/')))) != -1)
++                return m_fileName.left(pos);
++            else
++                return m_fileName;
++        default:
++            return QString();
++        }
++    }
++
++    void setFileName(const QString &file) override
++    {
++        if (file == m_fileName)
++            return;
++
++        m_fileName = file;
++
++
++        close();
++    }
++
++//    Iterator *beginEntryList(QDir::Filters filters, const QStringList &filterNames) override
++//    {
++//        if (!m_assetDir.isNull())
++//            return new QOpenHarmonyFileEngineIterator(filters, filterNames, m_assetDir, m_fileName);
++//        return 0;
++//    }
++
++    qint64 write(const char *data, qint64 len) override
++    {
++        if (!checkJsFile())
++            return -1;
++        QByteArray dataArrary = QByteArray(data, len);
++        qint64 result = m_jsFile->call<qint64>("write", dataArrary);
++        return result;
++    }
++
++private:
++    QString m_fileName;
++    QString m_fileHandler;
++    QOpenHarmonyJsObject *m_jsFile;
++
++};
++
++
++QAbstractFileEngine *QOpenHarmonyFileEngineHandler::create(const QString &fileName) const
++{
++    if (fileName.isEmpty())
++        return 0;
++
++    static QLatin1String datasharePrefix("datashare:");
++    if (!fileName.startsWith(datasharePrefix))
++        return 0;
++
++    return new QOpenHarmonyFileEngine(fileName);
++}
++
++QT_END_NAMESPACE
+diff --git a/src/plugins/platforms/openharmony/qopenharmonyfileenginehandler.h b/src/plugins/platforms/openharmony/qopenharmonyfileenginehandler.h
+new file mode 100644
+index 0000000000..9d8523c4b7
+--- /dev/null
++++ b/src/plugins/platforms/openharmony/qopenharmonyfileenginehandler.h
+@@ -0,0 +1,18 @@
++#ifndef QOPENHARMONYFILEENGINEHANDLER_H
++#define QOPENHARMONYFILEENGINEHANDLER_H
++
++#include <QtCore/private/qabstractfileengine_p.h>
++#include <QString>
++
++
++QT_BEGIN_NAMESPACE
++
++class Q_CORE_EXPORT QOpenHarmonyFileEngineHandler : public QAbstractFileEngineHandler
++{
++public:
++    virtual QAbstractFileEngine *create(const QString &fileName) const override;
++};
++
++QT_END_NAMESPACE
++
++#endif // QOPENHARMONYFILEENGINEHANDLER_H
 diff --git a/src/plugins/platforms/openharmony/qopenharmonylog.h b/src/plugins/platforms/openharmony/qopenharmonylog.h
 new file mode 100644
 index 0000000000..1a88d88b24
@@ -3185,10 +3763,10 @@ index 0000000000..1a88d88b24
 +#endif // QOPENHARMONYDEFINES_H
 diff --git a/src/plugins/platforms/openharmony/qopenharmonymain.cpp b/src/plugins/platforms/openharmony/qopenharmonymain.cpp
 new file mode 100644
-index 0000000000..51a9e0a956
+index 0000000000..860a4ae49d
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonymain.cpp
-@@ -0,0 +1,261 @@
+@@ -0,0 +1,271 @@
 +#include <memory>
 +#include <semaphore.h>
 +#include <dlfcn.h>
@@ -3207,6 +3785,7 @@ index 0000000000..51a9e0a956
 +#include <QGuiApplication>
 +#include <QOpenHarmonyJsEnvironment>
 +
++#include "qopenharmonyfileenginehandler.h"
 +#include "qopenharmonymain.h"
 +#include "qopenharmonylog.h"
 +#include "qopenharmonyxcomponentmanager.h"
@@ -3229,6 +3808,7 @@ index 0000000000..51a9e0a956
 +static int m_screenWidthPixels  = 0;
 +static int m_screenHeightPixels = 0;
 +static QOpenHarmonyPlatformIntegration *m_platformIntegration = nullptr;
++static QOpenHarmonyFileEngineHandler *m_openHarmonyFileEngineHandler = nullptr;
 +
 +static void *startMainMethod(void *arg)
 +{
@@ -3269,7 +3849,8 @@ index 0000000000..51a9e0a956
 +        return nullptr;
 +    }
 +
-+    QByteArray bundle = qJs::getObjectPropertyValue<QByteArray>(args[0], "bundleCodeDir");
++    QString bundleStr = qJs::getObjectPropertyValue<QString>(args[0], "bundleCodeDir");
++    QByteArray bundle = bundleStr.toLatin1();
 +    if (bundle.isEmpty()) {
 +        LOGE("args is vaild");
 +        return nullptr;
@@ -3282,9 +3863,9 @@ index 0000000000..51a9e0a956
 +#endif
 +
 +    QByteArrayList qmls = {bundle + "/entry/resources/rawfile"};
-+    QByteArray cacheQml = qJs::getObjectPropertyValue<QByteArray>(args[0], "qmlDir");
-+    if (!cacheQml.isEmpty())
-+        qmls << cacheQml;
++    QString cacheQmlStr = qJs::getObjectPropertyValue<QString>(args[0], "qmlDir");
++    if (!cacheQmlStr.isEmpty())
++        qmls << cacheQmlStr.toLatin1();
 +
 +
 +    if (::setenv("QT_QPA_PLATFORM_PLUGIN_PATH", libDir.constData(), 1) != 0) {
@@ -3307,7 +3888,7 @@ index 0000000000..51a9e0a956
 +//    }
 +
 +    m_mainLibraryHnd = nullptr;
-+    QByteArray fileName = qJs::getByteArray(args[1]);
++    QByteArray fileName = qJs::getString(args[1]).toLatin1();
 +    LOGI("load qt application %{public}s", fileName.constData());
 +
 +    //look for main()
@@ -3315,7 +3896,7 @@ index 0000000000..51a9e0a956
 +    m_mainLibraryHnd = dlopen(fileName.constData(), 0);
 +    if (Q_UNLIKELY(!m_mainLibraryHnd)) {
 +        QString error = QString("dlopen failed: %1").arg(dlerror());
-+        LOGI("load qt application %{public}s failed%{public}d", fileName.constData(), dlerror());
++        LOGI("load qt application %{public}s failed%{public}s", fileName.constData(), dlerror());
 +        napi_throw_type_error(env, NULL, error.toUtf8().constData());
 +        return nullptr;
 +    }
@@ -3330,6 +3911,9 @@ index 0000000000..51a9e0a956
 +
 +    if (sem_init(&m_terminateSemaphore, 0, 0) == -1)
 +        return nullptr;
++
++
++    m_openHarmonyFileEngineHandler = new QOpenHarmonyFileEngineHandler;
 +
 +    QByteArray applib = libDir + "/" + fileName;
 +    pthread_create(&m_qtAppThread, nullptr, startMainMethod, (void*)applib.data());
@@ -3381,6 +3965,10 @@ index 0000000000..51a9e0a956
 +static napi_value quitQtApplication(napi_env env, napi_callback_info info)
 +{
 +    QOpenHarmonyEGLCore::clear();
++    if (m_openHarmonyFileEngineHandler != nullptr) {
++        delete m_openHarmonyFileEngineHandler;
++        m_openHarmonyFileEngineHandler = nullptr;
++    }
 +    LOGI("quit qt application");
 +    qApp->quit();
 +    return nullptr;
@@ -3696,10 +4284,10 @@ index 0000000000..40b3576be4
 +#endif // QOPENHARMONYPLATFORMCLIPBOARD_H
 diff --git a/src/plugins/platforms/openharmony/qopenharmonyplatformdialoghelpers.cpp b/src/plugins/platforms/openharmony/qopenharmonyplatformdialoghelpers.cpp
 new file mode 100644
-index 0000000000..cbd2c6190b
+index 0000000000..688d6211d2
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonyplatformdialoghelpers.cpp
-@@ -0,0 +1,262 @@
+@@ -0,0 +1,277 @@
 +#include "qopenharmonyplatformdialoghelpers.h"
 +#include "qopenharmonymain.h"
 +#include "qopenharmonyjsobjectloader.h"
@@ -3896,23 +4484,30 @@ index 0000000000..cbd2c6190b
 +
 +void QOpenHarmonyPlatformFileDialogHelper::setDirectory(const QUrl &directory)
 +{
-+
++    m_dir = directory;
 +}
 +
 +QUrl QOpenHarmonyPlatformFileDialogHelper::directory() const
 +{
-+    return QUrl::fromLocalFile("11111");
++    return m_dir;
 +}
 +
 +void QOpenHarmonyPlatformFileDialogHelper::selectFile(const QUrl &filename)
 +{
-+
++    m_saveFile = filename.toLocalFile();
++    if (m_saveFile.contains("/")) {
++        int index = m_saveFile.lastIndexOf("/");
++        m_saveFile = m_saveFile.right(m_saveFile.length() - index - 1);
++    }
 +}
 +
 +QList<QUrl> QOpenHarmonyPlatformFileDialogHelper::selectedFiles() const
 +{
-+    QUrl url = QString("xxxxxxxxxxxx");
-+    return QList<QUrl>({url});
++    QList<QUrl> result;
++    for (int i = 0; i < m_files.count(); ++i) {
++        result << QUrl(m_files.at(i));
++    }
++    return result;
 +}
 +
 +void QOpenHarmonyPlatformFileDialogHelper::setFilter()
@@ -3922,28 +4517,32 @@ index 0000000000..cbd2c6190b
 +
 +void QOpenHarmonyPlatformFileDialogHelper::selectNameFilter(const QString &filter)
 +{
-+
++    m_filter = filter;
 +}
 +
 +QString QOpenHarmonyPlatformFileDialogHelper::selectedNameFilter() const
 +{
-+    return "2222";
++    return m_filter;
 +}
 +
 +void QOpenHarmonyPlatformFileDialogHelper::exec()
 +{
 +    if (!m_shown)
-+        show(Qt::Dialog, Qt::ApplicationModal, 0);
++        show(Qt::Dialog, Qt::ApplicationModal, nullptr);
 +    wait(-1);
 +}
 +
 +bool QOpenHarmonyPlatformFileDialogHelper::show(Qt::WindowFlags windowFlags, Qt::WindowModality windowModality, QWindow *parent)
 +{
++    Q_UNUSED(windowModality)
 +    QSharedPointer<QFileDialogOptions> opt = options();
 +    if (!opt.data())
 +        return false;
 +    bool open = (opt->acceptMode() == QFileDialogOptions::AcceptOpen);
-+    m_jsDialog->call("fileDialog", QVariant(qlonglong(static_cast<QObject*>(this))), open);
++    if (open)
++        m_jsDialog->call("openFileDialog", QVariant(qlonglong(static_cast<QObject*>(this))), m_filter);
++    else
++        m_jsDialog->call("saveFileDialog", QVariant(qlonglong(static_cast<QObject*>(this))), m_saveFile);
 +    m_shown = true;
 +    return true;
 +}
@@ -3953,8 +4552,12 @@ index 0000000000..cbd2c6190b
 +    m_shown = false;
 +}
 +
-+void QOpenHarmonyPlatformFileDialogHelper::setFileResult(const QStringList &files)
++void QOpenHarmonyPlatformFileDialogHelper::setFileResult(const QStringList &file)
 +{
++    m_files.clear();
++    if (!file.isEmpty()) {
++        m_files << file;
++    }
 +    cancelWait();
 +    if (m_files.isEmpty())
 +        emit reject();
@@ -3964,10 +4567,10 @@ index 0000000000..cbd2c6190b
 +
 diff --git a/src/plugins/platforms/openharmony/qopenharmonyplatformdialoghelpers.h b/src/plugins/platforms/openharmony/qopenharmonyplatformdialoghelpers.h
 new file mode 100644
-index 0000000000..e91b407b64
+index 0000000000..39762fdc90
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonyplatformdialoghelpers.h
-@@ -0,0 +1,84 @@
+@@ -0,0 +1,87 @@
 +#ifndef QOPENHARMONYPLATFORMDIALOGHELPERS_H
 +#define QOPENHARMONYPLATFORMDIALOGHELPERS_H
 +
@@ -4042,13 +4645,16 @@ index 0000000000..e91b407b64
 +    virtual void hide() override;
 +
 +public slots:
-+    void setFileResult(const QStringList &files);
++    void setFileResult(const QStringList &file);
 +
 +    static napi_value init(napi_env env, napi_value exports);
 +private:
 +    bool m_shown;
 +    QStringList m_files;
 +    QSharedPointer<QOpenHarmonyJsObject> m_jsDialog;
++    QString m_saveFile;
++    QUrl m_dir;
++    QString m_filter;
 +};
 +
 +#endif // QOPENHARMONYPLATFORMDIALOGHELPERS_H
@@ -7039,6 +7645,42 @@ index 1c76a2e46f..18d8903d9b 100644
  TR_EXCLUDE = \
      src_tools_bootstrap src_tools_moc src_tools_rcc src_tools_uic src_tools_qlalr \
      src_tools_bootstrap_dbus src_tools_qdbusxml2cpp src_tools_qdbuscpp2xml \
+diff --git a/src/widgets/dialogs/qfiledialog.cpp b/src/widgets/dialogs/qfiledialog.cpp
+index eb3479b3e0..39cd4c95c8 100644
+--- a/src/widgets/dialogs/qfiledialog.cpp
++++ b/src/widgets/dialogs/qfiledialog.cpp
+@@ -2169,7 +2169,15 @@ QString QFileDialog::getOpenFileName(QWidget *parent,
+ {
+     const QStringList schemes = QStringList(QStringLiteral("file"));
+     const QUrl selectedUrl = getOpenFileUrl(parent, caption, QUrl::fromLocalFile(dir), filter, selectedFilter, options, schemes);
++#ifdef Q_OS_OPENHARMONY
++    QString fileName = selectedUrl.toLocalFile();
++    if (!fileName.isEmpty()) {
++        fileName.prepend("datashare://");
++    }
++    return fileName;
++#else
+     return selectedUrl.toLocalFile();
++#endif
+ }
+ 
+ /*!
+@@ -2400,7 +2408,15 @@ QString QFileDialog::getSaveFileName(QWidget *parent,
+ {
+     const QStringList schemes = QStringList(QStringLiteral("file"));
+     const QUrl selectedUrl = getSaveFileUrl(parent, caption, QUrl::fromLocalFile(dir), filter, selectedFilter, options, schemes);
++#ifdef Q_OS_OPENHARMONY
++    QString fileName = selectedUrl.toLocalFile();
++    if (!fileName.isEmpty()) {
++        fileName.prepend("datashare://");
++    }
++    return fileName;
++#else
+     return selectedUrl.toLocalFile();
++#endif
+ }
+ 
+ /*!
 diff --git a/tests/auto/corelib/kernel/qmetatype/tst_qmetatype.cpp b/tests/auto/corelib/kernel/qmetatype/tst_qmetatype.cpp
 index e6fac74ccc..ca6e8f3c45 100644
 --- a/tests/auto/corelib/kernel/qmetatype/tst_qmetatype.cpp
