@@ -36,15 +36,16 @@ index 6eab11fb..49d27923 100644
  QT_END_NAMESPACE
 diff --git a/src/bluetooth/qbluetoothdevicediscoveryagent_ohos.cpp b/src/bluetooth/qbluetoothdevicediscoveryagent_ohos.cpp
 new file mode 100644
-index 00000000..cea4acbc
+index 00000000..f91663d1
 --- /dev/null
 +++ b/src/bluetooth/qbluetoothdevicediscoveryagent_ohos.cpp
-@@ -0,0 +1,190 @@
+@@ -0,0 +1,191 @@
 +#include <QtCore/QLoggingCategory>
 +#include <QtBluetooth/QBluetoothAddress>
 +#include <QtBluetooth/QBluetoothDeviceInfo>
 +
 +#include <QtCore/QOpenHarmonyJsObject>
++#include <QtCore/QOpenHarmonyJsObjectLoader>
 +#include <QtCore/QOpenHarmonyJsEnvironment>
 +#include "qbluetoothdevicediscoveryagent_p.h"
 +
@@ -81,7 +82,7 @@ index 00000000..cea4acbc
 +      lowEnergySearchTimeout(25000),
 +      q_ptr(parent)
 +{
-+    m_jsDiscoverAgent.reset(new QOpenHarmonyJsObject("qtbtdevicediscoveryagent"));
++    m_jsDiscoverAgent = qJsObjectLoader->create("qtbtdevicediscoveryagent");
 +}
 +
 +QBluetoothDeviceDiscoveryAgentPrivate::~QBluetoothDeviceDiscoveryAgentPrivate()
@@ -231,22 +232,23 @@ index 00000000..cea4acbc
 +}
 +QT_END_NAMESPACE
 diff --git a/src/bluetooth/qbluetoothdevicediscoveryagent_p.h b/src/bluetooth/qbluetoothdevicediscoveryagent_p.h
-index ce31392f..62f53c24 100644
+index ce31392f..90d10f61 100644
 --- a/src/bluetooth/qbluetoothdevicediscoveryagent_p.h
 +++ b/src/bluetooth/qbluetoothdevicediscoveryagent_p.h
-@@ -83,6 +83,11 @@ QT_END_NAMESPACE
+@@ -83,6 +83,12 @@ QT_END_NAMESPACE
  #include <QtCore/QTimer>
  #endif
  
 +#ifdef QT_OPENHARMONY_BLUETOOTH
 +#include <QtCore/QTimer>
++#include <QSharedPointer>
 +class QOpenHarmonyJsObject;
 +#endif
 +
  QT_BEGIN_NAMESPACE
  
  #ifdef QT_WINRT_BLUETOOTH
-@@ -90,7 +95,7 @@ class QWinRTBluetoothDeviceDiscoveryWorker;
+@@ -90,7 +96,7 @@ class QWinRTBluetoothDeviceDiscoveryWorker;
  #endif
  
  class QBluetoothDeviceDiscoveryAgentPrivate
@@ -255,7 +257,7 @@ index ce31392f..62f53c24 100644
      : public QObject
  {
      Q_OBJECT
-@@ -164,6 +169,21 @@ private:
+@@ -164,6 +170,21 @@ private:
      QTimer extendedDiscoveryTimer;
  #endif
  
@@ -271,7 +273,7 @@ index ce31392f..62f53c24 100644
 +    short m_active;
 +    QTimer *leScanTimeout;
 +    bool pendingCancel, pendingStart;
-+    QScopedPointer<QOpenHarmonyJsObject> m_jsDiscoverAgent;
++    QSharedPointer<QOpenHarmonyJsObject> m_jsDiscoverAgent;
 +#endif
 +
  #ifdef QT_WINRT_BLUETOOTH
@@ -1068,3 +1070,2083 @@ index 00000000..f09db144
 +};
 +
 +QT_END_NAMESPACE
+diff --git a/src/nfc/nfc.pro b/src/nfc/nfc.pro
+index ed88b79a..c10a7900 100644
+--- a/src/nfc/nfc.pro
++++ b/src/nfc/nfc.pro
+@@ -56,7 +56,7 @@ SOURCES += \
+     qnearfieldsharetarget.cpp \
+     qnfc.cpp
+ 
+-linux:!android:qtHaveModule(dbus) {
++linux:!android:!openharmony:qtHaveModule(dbus) {
+     NFC_BACKEND_AVAILABLE = yes
+ 
+     QT_PRIVATE += dbus
+@@ -112,6 +112,33 @@ linux:!android:qtHaveModule(dbus) {
+         qnearfieldsharemanagerimpl_p.cpp \
+         qnearfieldsharetargetimpl_p.cpp \
+         android/androidmainnewintentlistener.cpp
++} else:openharmony {
++    NFC_BACKEND_AVAILABLE = yes
++    DEFINES += QT_OPENHARMONY_NFC
++    DEFINES += OPENHARMONY_NFC
++    QT_PRIVATE += core-private gui
++
++    PRIVATE_HEADERS += \
++        qllcpserver_openharmony_p.h \
++        qllcpsocket_openharmony_p.h \
++        qnearfieldmanager_openharmony_p.h \
++        qnearfieldtarget_openharmony_p.h \
++        qnearfieldsharemanagerimpl_p.h \
++        qnearfieldsharetargetimpl_p.h \
++        openharmony/openharmonynfc_p.h \
++        openharmony/openharmonynfclistener_p.h
++
++    SOURCES += \
++        qllcpserver_openharmony_p.cpp \
++        qllcpsocket_openharmony_p.cpp \
++        qnearfieldmanager_openharmony.cpp \
++        qnearfieldtarget_openharmony.cpp \
++        qnearfieldsharemanagerimpl_p.cpp \
++        qnearfieldsharetargetimpl_p.cpp \
++        qnearfieldtarget_openharmony_p.cpp \
++        openharmony/openharmonynfc.cpp \
++        openharmony/openharmonynfclistener.cpp
++    LIBS += -lace_napi.z
+ }
+ 
+ isEmpty(NFC_BACKEND_AVAILABLE) {
+diff --git a/src/nfc/openharmony/openharmonynfc.cpp b/src/nfc/openharmony/openharmonynfc.cpp
+new file mode 100644
+index 00000000..586b3c27
+--- /dev/null
++++ b/src/nfc/openharmony/openharmonynfc.cpp
+@@ -0,0 +1,94 @@
++#include <napi/native_api.h>
++#include <hilog/log.h>
++
++#include "openharmonynfclistener_p.h"
++#include "qopenharmonydefines.h"
++#include <QSharedPointer>
++#include <QOpenHarmonyJsObject>
++#include <QOpenHarmonyJsObjectLoader>
++
++namespace QtHarmonyPrivate {
++
++static OpenHarmonyNfcListener listeners;
++
++bool startDiscovery()
++{
++    QSharedPointer<QOpenHarmonyJsObject> jsNfc = qJsObjectLoader->create("qtnfc");
++    return jsNfc->call<bool>("start");
++}
++
++bool isAvailable()
++{
++    QSharedPointer<QOpenHarmonyJsObject> jsNfc = qJsObjectLoader->create("qtnfc");
++    return jsNfc->call<bool>("isAvailable");
++}
++
++bool isSupported()
++{
++    QSharedPointer<QOpenHarmonyJsObject> jsNfc = qJsObjectLoader->create("qtnfc");
++    return jsNfc->call<bool>("isSupported");
++}
++
++bool stopDiscovery()
++{
++    QSharedPointer<QOpenHarmonyJsObject> jsNfc = qJsObjectLoader->create("qtnfc");
++    return jsNfc->call<bool>("stop");
++}
++
++bool registerNfcListener(OpenHarmonyNfcListenerInterface *listener)
++{
++    return listeners.registerNfcListener(listener);
++}
++
++bool unregisterNfcListener(OpenHarmonyNfcListenerInterface *listener)
++{
++    return listeners.unregisterNfcListener(listener);
++}
++
++bool registerNfcStateListener(OpenHarmonyNfcStateListenerInterface *listener)
++{
++    return listeners.registerNfcStateListener(listener);
++}
++
++bool unregisterNfcStateListener(OpenHarmonyNfcStateListenerInterface *listener)
++{
++    return listeners.unregisterNfcStateListener(listener);
++}
++
++}
++/*
++ * function for module exports
++ */
++EXTERN_C_START
++static napi_value Init(napi_env env, napi_value exports)
++{
++    static bool inited = false;
++    if (!inited) {
++
++        OpenHarmonyNfcListener::init(env, exports);
++        LOGI("init nfc module");
++        inited = true;
++    }
++    return exports;
++}
++EXTERN_C_END
++
++/*
++ * Napi Module define
++ */
++static napi_module openharmonyQtNfcModule = {
++    .nm_version = 1,
++    .nm_flags = 0,
++    .nm_filename = nullptr,
++    .nm_register_func = Init,
++    .nm_modname = "openharmony_qt_nfc",
++    .nm_priv = ((void*)0),
++    .reserved = { 0 },
++};
++/*
++ * Module register function
++ */
++extern "C" __attribute__((constructor)) void RegisterModule(void)
++{
++    napi_module_register(&openharmonyQtNfcModule);
++}
+diff --git a/src/nfc/openharmony/openharmonynfc_p.h b/src/nfc/openharmony/openharmonynfc_p.h
+new file mode 100644
+index 00000000..121e285a
+--- /dev/null
++++ b/src/nfc/openharmony/openharmonynfc_p.h
+@@ -0,0 +1,31 @@
++#ifndef OPENHARMONYNFC_P_H
++#define OPENHARMONYNFC_P_H
++
++namespace QtHarmonyPrivate {
++
++class OpenHarmonyNfcListenerInterface
++{
++public:
++    virtual ~OpenHarmonyNfcListenerInterface(){}
++    virtual void newNfc(const QString &tagInfo) = 0;
++};
++
++class OpenHarmonyNfcStateListenerInterface
++{
++public:
++    virtual ~OpenHarmonyNfcStateListenerInterface(){}
++    virtual void handleStateChanged(int state) = 0;
++};
++
++bool startDiscovery();
++bool stopDiscovery();
++bool isAvailable();
++bool isSupported();
++
++bool registerNfcListener(OpenHarmonyNfcListenerInterface *listener);
++bool unregisterNfcListener(OpenHarmonyNfcListenerInterface *listener);
++
++bool registerNfcStateListener(OpenHarmonyNfcStateListenerInterface *listener);
++bool unregisterNfcStateListener(OpenHarmonyNfcStateListenerInterface *listener);
++}
++#endif // OPENHARMONYNFC_P_H
+diff --git a/src/nfc/openharmony/openharmonynfclistener.cpp b/src/nfc/openharmony/openharmonynfclistener.cpp
+new file mode 100644
+index 00000000..f623fbb6
+--- /dev/null
++++ b/src/nfc/openharmony/openharmonynfclistener.cpp
+@@ -0,0 +1,155 @@
++#include "openharmonynfclistener_p.h"
++#include "qopenharmonydefines.h"
++#include <QOpenHarmonyJsEnvironment>
++#include "qdebug.h"
++#include <QtGui/QGuiApplication>
++
++static OpenHarmonyNfcListener *g_listener = nullptr;
++
++static napi_value nfcStateChanged(napi_env env, napi_callback_info info)
++{
++    size_t argc = 1;
++    napi_value args[1];
++    NAPI_CALL(env, napi_get_cb_info(env, info, &argc, args, nullptr, nullptr));
++
++    if (argc != 1) {
++        napi_throw_type_error(env, NULL, "Wrong number of arguments");
++        return nullptr;
++    }
++
++
++    int32_t value0 = qJs::getInt32(args[0]);
++    if (g_listener != nullptr)
++        g_listener->handleStateChanged(value0);
++
++    return nullptr;
++}
++
++static napi_value nfcTargetDetected(napi_env env, napi_callback_info info)
++{
++    size_t argc = 1;
++    napi_value args[1];
++    NAPI_CALL(env, napi_get_cb_info(env, info, &argc, args, nullptr, nullptr));
++
++    if (argc != 1) {
++        napi_throw_type_error(env, NULL, "Wrong number of arguments");
++        return nullptr;
++    }
++
++    QString value0 = qJs::getString(args[0]);
++    if (g_listener != nullptr)
++        g_listener->newNfc(value0);
++
++    return nullptr;
++}
++
++napi_value OpenHarmonyNfcListener::init(napi_env env, napi_value exports)
++{
++    napi_property_descriptor desc[] ={
++        DECLARE_NAPI_FUNCTION("nfcStateChanged", nfcStateChanged),
++        DECLARE_NAPI_FUNCTION("nfcTargetDetected", nfcTargetDetected),
++    };
++    NAPI_CALL(env, napi_define_properties(env, exports, sizeof(desc) / sizeof(desc[0]), desc));
++    return nullptr;
++}
++
++
++OpenHarmonyNfcListener::OpenHarmonyNfcListener()
++ : nfcListeners(), nfcStateListeners(), listenersLock(), paused(true), receiving(false)
++{
++    QtHarmonyPrivate::registerResumePauseListener(this);
++    g_listener = this;
++}
++
++OpenHarmonyNfcListener::~OpenHarmonyNfcListener()
++{
++    QtHarmonyPrivate::unregisterResumePauseListener(this);
++    g_listener = nullptr;
++}
++
++bool OpenHarmonyNfcListener::registerNfcStateListener(QtHarmonyPrivate::OpenHarmonyNfcStateListenerInterface *listener)
++{
++    listenersLock.lockForWrite();
++    if (!nfcStateListeners.contains(listener))
++        nfcStateListeners.push_back(listener);
++    listenersLock.unlock();
++    return true;
++}
++
++bool OpenHarmonyNfcListener::unregisterNfcStateListener(QtHarmonyPrivate::OpenHarmonyNfcStateListenerInterface *listener)
++{
++    listenersLock.lockForWrite();
++    nfcStateListeners.removeOne(listener);
++    listenersLock.unlock();
++    return true;
++}
++
++bool OpenHarmonyNfcListener::registerNfcListener(QtHarmonyPrivate::OpenHarmonyNfcListenerInterface *listener)
++{
++    listenersLock.lockForWrite();
++    if (!nfcListeners.contains(listener))
++        nfcListeners.push_back(listener);
++    listenersLock.unlock();
++    updateReceiveState();
++    return true;
++}
++
++bool OpenHarmonyNfcListener::unregisterNfcListener(QtHarmonyPrivate::OpenHarmonyNfcListenerInterface *listener)
++{
++    listenersLock.lockForWrite();
++    nfcListeners.removeOne(listener);
++    listenersLock.unlock();
++    updateReceiveState();
++    return true;
++}
++
++void OpenHarmonyNfcListener::handleResume()
++{
++    paused = false;
++    updateReceiveState();
++}
++
++void OpenHarmonyNfcListener::handlePause()
++{
++    paused = true;
++    updateReceiveState();
++}
++
++void OpenHarmonyNfcListener::newNfc(const QString &tagInfo)
++{
++    for (const auto listener : qAsConst(nfcListeners)) {
++        listener->newNfc(tagInfo);
++    }
++}
++
++void OpenHarmonyNfcListener::handleStateChanged(int state)
++{
++    for (const auto listener : qAsConst(nfcStateListeners)) {
++        listener->handleStateChanged(state);
++    }
++}
++
++void OpenHarmonyNfcListener::updateReceiveState()
++{
++    if (paused) {
++        // We were paused while receiving, so we stop receiving.
++        if (receiving) {
++            QtHarmonyPrivate::stopDiscovery();
++            receiving = false;
++        }
++        return;
++    }
++
++    // We reach here, so we are not paused.
++    listenersLock.lockForRead();
++    // We have nfc listeners and do not receive. Switch on.
++    if (nfcListeners.count() && !receiving)
++        receiving = QtHarmonyPrivate::startDiscovery();
++
++    // we have no nfc listeners and do receive. Switch off.
++    if (!nfcListeners.count() && receiving) {
++        QtHarmonyPrivate::stopDiscovery();
++        receiving = false;
++    }
++    listenersLock.unlock();
++}
+diff --git a/src/nfc/openharmony/openharmonynfclistener_p.h b/src/nfc/openharmony/openharmonynfclistener_p.h
+new file mode 100644
+index 00000000..87a80328
+--- /dev/null
++++ b/src/nfc/openharmony/openharmonynfclistener_p.h
+@@ -0,0 +1,41 @@
++#ifndef OPENHARMONYNFCLISTENER_P_H_
++#define OPENHARMONYNFCLISTENER_P_H_
++
++
++#include <QtCore/private/qopenharmonyhelpers_p.h>
++#include <napi/native_api.h>
++
++#include "qlist.h"
++#include "qreadwritelock.h"
++#include "openharmonynfc_p.h"
++
++class OpenHarmonyNfcListener : QtHarmonyPrivate::ResumePauseListener, QtHarmonyPrivate::OpenHarmonyNfcListenerInterface, QtHarmonyPrivate::OpenHarmonyNfcStateListenerInterface
++{
++public:
++    OpenHarmonyNfcListener();
++    ~OpenHarmonyNfcListener();
++
++    bool registerNfcListener(QtHarmonyPrivate::OpenHarmonyNfcListenerInterface *listener);
++    bool unregisterNfcListener(QtHarmonyPrivate::OpenHarmonyNfcListenerInterface *listener);
++
++    bool registerNfcStateListener(QtHarmonyPrivate::OpenHarmonyNfcStateListenerInterface *listener);
++    bool unregisterNfcStateListener(QtHarmonyPrivate::OpenHarmonyNfcStateListenerInterface *listener);
++
++    void handleResume();
++    void handlePause();
++
++    void newNfc(const QString &tagInfo);
++    void handleStateChanged(int state);
++
++    static napi_value init(napi_env env, napi_value exports);
++private:
++    void updateReceiveState();
++protected:
++    QList<QtHarmonyPrivate::OpenHarmonyNfcListenerInterface*> nfcListeners;
++    QList<QtHarmonyPrivate::OpenHarmonyNfcStateListenerInterface*> nfcStateListeners;
++    QReadWriteLock listenersLock;
++    bool paused;
++    bool receiving;
++};
++
++#endif /* OPENHARMONYNFCLISTENER_P_H_ */
+diff --git a/src/nfc/qllcpserver_openharmony_p.cpp b/src/nfc/qllcpserver_openharmony_p.cpp
+new file mode 100644
+index 00000000..108210c6
+--- /dev/null
++++ b/src/nfc/qllcpserver_openharmony_p.cpp
+@@ -0,0 +1,92 @@
++#include "qllcpserver_openharmony_p.h"
++//#include "qnx/qnxnfcmanager_p.h"
++
++QT_BEGIN_NAMESPACE
++
++QLlcpServerPrivate::QLlcpServerPrivate(QLlcpServer *q)
++    : q_ptr(q), m_llcpSocket(0), m_connected(false)
++{
++}
++
++QLlcpServerPrivate::~QLlcpServerPrivate()
++{
++}
++
++bool QLlcpServerPrivate::listen(const QString &/*serviceUri*/)
++{
++    /*//The server is already listening
++    if (isListening())
++        return false;
++
++    nfc_result_t result = nfc_llcp_register_connection_listener(NFC_LLCP_SERVER, 0, serviceUri.toStdString().c_str(), &m_conListener);
++    m_connected = true;
++    if (result == NFC_RESULT_SUCCESS) {
++        m_serviceUri = serviceUri;
++        qQNXNFCDebug() << "LLCP server registered" << serviceUri;
++    } else {
++        qWarning() << Q_FUNC_INFO << "Could not register for llcp connection listener";
++        return false;
++    }
++    QNXNFCManager::instance()->registerLLCPConnection(m_conListener, this);*/
++    return true;
++}
++
++bool QLlcpServerPrivate::isListening() const
++{
++    return m_connected;
++}
++
++void QLlcpServerPrivate::close()
++{
++    /*nfc_llcp_unregister_connection_listener(m_conListener);
++    QNXNFCManager::instance()->unregisterLLCPConnection(m_conListener);
++    m_serviceUri = QString();
++    m_connected = false;*/
++}
++
++QString QLlcpServerPrivate::serviceUri() const
++{
++    return m_serviceUri;
++}
++
++quint8 QLlcpServerPrivate::serverPort() const
++{
++    /*unsigned int sap;
++    if (nfc_llcp_get_local_sap(m_target, &sap) == NFC_RESULT_SUCCESS) {
++        return sap;
++    }*/
++    return -1;
++}
++
++bool QLlcpServerPrivate::hasPendingConnections() const
++{
++    return m_llcpSocket != 0;
++}
++
++QLlcpSocket *QLlcpServerPrivate::nextPendingConnection()
++{
++    /*QLlcpSocket *socket = m_llcpSocket;
++    m_llcpSocket = 0;
++    return socket;*/
++    return 0;
++}
++
++QLlcpSocket::SocketError QLlcpServerPrivate::serverError() const
++{
++    return QLlcpSocket::UnknownSocketError;
++}
++
++/*void QLlcpServerPrivate::connected(nfc_target_t *target)
++{
++    m_target = target;
++    if (m_llcpSocket != 0) {
++        qWarning() << Q_FUNC_INFO << "LLCP socket not cloesed properly";
++        return;
++    }
++    m_llcpSocket = new QLlcpSocket();
++    m_llcpSocket->bind(serverPort());
++}*/
++
++QT_END_NAMESPACE
++
++
+diff --git a/src/nfc/qllcpserver_openharmony_p.h b/src/nfc/qllcpserver_openharmony_p.h
+new file mode 100644
+index 00000000..cbb4b957
+--- /dev/null
++++ b/src/nfc/qllcpserver_openharmony_p.h
+@@ -0,0 +1,44 @@
++#ifndef QLLCPSERVER_OPENHARMONY_P_H
++#define QLLCPSERVER_OPENHARMONY_P_H
++
++
++#include "qllcpserver_p.h"
++//#include "nfc/nfc.h"
++
++QT_BEGIN_NAMESPACE
++
++class QLlcpServerPrivate : public QObject
++{
++    Q_OBJECT
++public:
++    QLlcpServerPrivate(QLlcpServer *q);
++    ~QLlcpServerPrivate();
++
++    bool listen(const QString &serviceUri);
++    bool isListening() const;
++
++    void close();
++
++    QString serviceUri() const;
++    quint8 serverPort() const;
++
++    bool hasPendingConnections() const;
++    QLlcpSocket *nextPendingConnection();
++
++    QLlcpSocket::SocketError serverError() const;
++
++    //Q_INVOKABLE void connected(nfc_target_t *);
++
++private:
++    QLlcpServer *q_ptr;
++    QLlcpSocket *m_llcpSocket;
++    //We can not use m_conListener for the connection state
++    bool m_connected;
++    //nfc_llcp_connection_listener_t m_conListener;
++    QString m_serviceUri;
++    //nfc_target_t *m_target;
++};
++
++QT_END_NAMESPACE
++
++#endif // QLLCPSERVER_OPENHARMONY_P_H
+diff --git a/src/nfc/qllcpsocket_openharmony_p.cpp b/src/nfc/qllcpsocket_openharmony_p.cpp
+new file mode 100644
+index 00000000..77c41ea1
+--- /dev/null
++++ b/src/nfc/qllcpsocket_openharmony_p.cpp
+@@ -0,0 +1,285 @@
++#include "qllcpsocket_android_p.h"
++#include <unistd.h>
++
++QT_BEGIN_NAMESPACE
++
++QLlcpSocketPrivate::QLlcpSocketPrivate(QLlcpSocket *q)
++    :   q_ptr(q), m_state(QLlcpSocket::UnconnectedState), m_server(false)
++{
++}
++
++QLlcpSocketPrivate::~QLlcpSocketPrivate()
++{
++    disconnectFromService();
++}
++
++void QLlcpSocketPrivate::connectToService(QNearFieldTarget *target, const QString &serviceUri)
++{
++    Q_UNUSED(target)
++    Q_UNUSED(serviceUri)
++    /*if (m_state != QLlcpSocket::UnconnectedState) {
++        qWarning() << Q_FUNC_INFO << "socket is already connected";
++        return;
++    }
++
++    m_state = QLlcpSocket::ConnectingState;
++    if (nfc_llcp_register_connection_listener(NFC_LLCP_CLIENT, 0, serviceUri.toLocal8Bit().constData(),
++                                              &m_conListener) != NFC_RESULT_SUCCESS) {
++        qWarning() << Q_FUNC_INFO << "could not register for connection listener";
++        return;
++    }
++
++    QNXNFCManager::instance()->registerLLCPConnection(m_conListener, this);
++
++    qQNXNFCDebug() << "Connecting client socket" << serviceUri << m_conListener;
++    connect(QNXNFCManager::instance(), &QNXNFCManager::llcpDisconnected, this, &QLlcpSocketPrivate::disconnectFromService);*/
++}
++
++void QLlcpSocketPrivate::disconnectFromService()
++{
++    /*Q_Q(QLlcpSocket);
++    QNXNFCManager::instance()->unregisterTargetLost(this);
++    qQNXNFCDebug() << "Shutting down LLCP socket";
++    if (!m_server && nfc_llcp_unregister_connection_listener(m_conListener) != NFC_RESULT_SUCCESS) {
++        qWarning() << Q_FUNC_INFO << "Error when trying to close LLCP socket";
++    }
++    QNXNFCManager::instance()->unregisterLLCPConnection(m_conListener);
++    disconnect(QNXNFCManager::instance(), &QNXNFCManager::llcpDisconnected, this, &QLlcpSocketPrivate::disconnectFromService);
++
++    q->disconnected();
++    m_conListener = 0;
++    m_state = QLlcpSocket::UnconnectedState;*/
++}
++
++bool QLlcpSocketPrivate::bind(quint8 port)
++{
++    Q_UNUSED(port);
++
++    /*m_state = QLlcpSocket::ConnectedState;
++    m_server = true;
++    connect(QNXNFCManager::instance(), &QNXNFCManager::llcpDisconnected, this, &QLlcpSocketPrivate::disconnectFromService);
++    connected(QNXNFCManager::instance()->getLastTarget());*/
++
++    return true;
++}
++
++bool QLlcpSocketPrivate::hasPendingDatagrams() const
++{
++    return !m_receivedDatagrams.isEmpty();
++}
++
++qint64 QLlcpSocketPrivate::pendingDatagramSize() const
++{
++    if (m_receivedDatagrams.isEmpty())
++        return -1;
++
++    return m_receivedDatagrams.first().length();
++}
++
++qint64 QLlcpSocketPrivate::writeDatagram(const char *data, qint64 size)
++{
++    if (m_state == QLlcpSocket::ConnectedState)
++        return writeData(data, size);
++
++    return -1;
++}
++
++qint64 QLlcpSocketPrivate::writeDatagram(const QByteArray &datagram)
++{
++    return writeDatagram(datagram.constData(), datagram.size());
++}
++
++qint64 QLlcpSocketPrivate::readDatagram(char *data, qint64 maxSize,
++                                        QNearFieldTarget **target, quint8 *port)
++{
++    Q_UNUSED(target);
++    Q_UNUSED(port);
++
++    if (m_state == QLlcpSocket::ConnectedState)
++        return readData(data, maxSize);
++
++    return -1;
++}
++
++qint64 QLlcpSocketPrivate::writeDatagram(const char *data, qint64 size,
++                                         QNearFieldTarget *target, quint8 port)
++{
++    Q_UNUSED(target);
++    Q_UNUSED(port);
++
++    return writeDatagram(data, size);
++}
++
++qint64 QLlcpSocketPrivate::writeDatagram(const QByteArray &datagram,
++                                         QNearFieldTarget *target, quint8 port)
++{
++    Q_UNUSED(datagram);
++    Q_UNUSED(target);
++    Q_UNUSED(port);
++
++    return writeDatagram(datagram.constData(), datagram.size()-1);
++}
++
++QLlcpSocket::SocketError QLlcpSocketPrivate::error() const
++{
++    return QLlcpSocket::UnknownSocketError;
++}
++
++QLlcpSocket::SocketState QLlcpSocketPrivate::state() const
++{
++    return m_state;
++}
++
++qint64 QLlcpSocketPrivate::readData(char *data, qint64 maxlen)
++{
++    Q_UNUSED(data);
++    Q_UNUSED(maxlen);
++    if (m_receivedDatagrams.isEmpty())
++        return 0;
++
++    /*const QByteArray datagram = m_receivedDatagrams.takeFirst();
++    qint64 size = qMin(maxlen, qint64(datagram.length()));
++    memcpy(data, datagram.constData(), size);
++    return size;*/
++    return 0;
++}
++
++qint64 QLlcpSocketPrivate::writeData(const char *data, qint64 len)
++{
++    Q_UNUSED(data);
++    Q_UNUSED(len);
++    /*if (socketState != Idle) {
++        m_writeQueue.append(QByteArray(data, len));
++        return len;
++    } else {
++        socketState = Writing;
++        qQNXNFCDebug() << "LLCP write";
++        nfc_result_t res = nfc_llcp_write(m_target, (uchar_t*)data, (size_t)len);
++        if (res == NFC_RESULT_SUCCESS) {
++            return len;
++        } else {
++            qWarning() << Q_FUNC_INFO << "Error writing to LLCP socket. Error" << res;
++            enteringIdle();
++            return -1;
++        }
++    }*/
++    return -1;
++}
++
++qint64 QLlcpSocketPrivate::bytesAvailable() const
++{
++    /*qint64 available = 0;
++    for (const QByteArray &datagram : qAsConst(m_receivedDatagrams))
++        available += datagram.length();
++
++    return available;*/
++    return 0;
++}
++
++bool QLlcpSocketPrivate::canReadLine() const
++{
++    /*for (const QByteArray &datagram : qAsConst(m_receivedDatagrams)) {
++        if (datagram.contains('\n'))
++            return true;
++    }*/
++
++    return false;
++}
++
++bool QLlcpSocketPrivate::waitForReadyRead(int msecs)
++{
++    Q_UNUSED(msecs);
++
++    return false;
++}
++
++bool QLlcpSocketPrivate::waitForBytesWritten(int msecs)
++{
++    Q_UNUSED(msecs);
++
++    return false;
++}
++
++bool QLlcpSocketPrivate::waitForConnected(int msecs)
++{
++    Q_UNUSED(msecs);
++
++    return false;
++}
++
++bool QLlcpSocketPrivate::waitForDisconnected(int msecs)
++{
++    Q_UNUSED(msecs);
++
++    return false;
++}
++
++/*void QLlcpSocketPrivate::connected(nfc_target_t *target)
++{
++    Q_Q(QLlcpSocket);
++    m_target = target;
++
++    m_state = QLlcpSocket::ConnectedState;
++    emit q->connected();
++    qQNXNFCDebug() << "Socket connected";
++
++    unsigned int targetId;
++    nfc_get_target_connection_id(target, &targetId);
++    QNXNFCManager::instance()->requestTargetLost(this, targetId);
++    enteringIdle();
++}*/
++
++void QLlcpSocketPrivate::targetLost()
++{
++    disconnectFromService();
++    //qQNXNFCDebug() << "LLCP target lost...socket disconnected";
++}
++
++void QLlcpSocketPrivate::dataRead(QByteArray& data)
++{
++    Q_UNUSED(data);
++    /*Q_Q(QLlcpSocket);
++    if (!data.isEmpty()) {
++        m_receivedDatagrams.append(data);
++        emit q->readyRead();
++    }
++    socketState = Idle;
++    enteringIdle();*/
++}
++
++void QLlcpSocketPrivate::dataWritten()
++{
++    //enteringIdle();
++}
++
++void QLlcpSocketPrivate::read()
++{
++    /*if (socketState != Idle) {
++        qQNXNFCDebug() << "Trying to read but socket state not in idle..abort";
++        return;
++    }
++    socketState = Reading;
++    qQNXNFCDebug() << "LLCP read";
++    if (nfc_llcp_read(m_target, 128) != NFC_RESULT_SUCCESS) {
++        qWarning() << Q_FUNC_INFO << "Could not register for reading";
++        socketState = Idle;
++    }*/
++}
++
++void QLlcpSocketPrivate::enteringIdle()
++{
++    /*qQNXNFCDebug() << "entering idle; Socket state:" << socketState;
++    socketState = Idle;
++    if (m_state == QLlcpSocket::ConnectedState) {
++        if (m_writeQueue.isEmpty()) {
++            qQNXNFCDebug() << "Write queue empty, reading in 50ms";
++            QTimer::singleShot(50, this, SLOT(read()));
++        } else {
++            qQNXNFCDebug() << "Write first package in queue";
++            writeDatagram(m_writeQueue.takeFirst());
++        }
++    }*/
++}
++
++QT_END_NAMESPACE
++
+diff --git a/src/nfc/qllcpsocket_openharmony_p.h b/src/nfc/qllcpsocket_openharmony_p.h
+new file mode 100644
+index 00000000..0be026c0
+--- /dev/null
++++ b/src/nfc/qllcpsocket_openharmony_p.h
+@@ -0,0 +1,83 @@
++#ifndef QLLCPSOCKET_OPENHARMONY_P_H
++#define QLLCPSOCKET_OPENHARMONY_P_H
++
++#include "qllcpsocket_p.h"
++
++
++QT_BEGIN_NAMESPACE
++
++class QLlcpSocketPrivate : public QObject
++{
++    Q_OBJECT
++    Q_DECLARE_PUBLIC(QLlcpSocket)
++
++public:
++    QLlcpSocketPrivate(QLlcpSocket *q);
++
++    ~QLlcpSocketPrivate();
++
++    void connectToService(QNearFieldTarget *target, const QString &serviceUri);
++
++    bool bind(quint8 port);
++
++    bool hasPendingDatagrams() const;
++    qint64 pendingDatagramSize() const;
++
++    qint64 writeDatagram(const char *data, qint64 size);
++    qint64 writeDatagram(const QByteArray &datagram);
++
++    qint64 readDatagram(char *data, qint64 maxSize,
++                        QNearFieldTarget **target = 0, quint8 *port = 0);
++    qint64 writeDatagram(const char *data, qint64 size,
++                         QNearFieldTarget *target, quint8 port);
++    qint64 writeDatagram(const QByteArray &datagram, QNearFieldTarget *target, quint8 port);
++
++    QLlcpSocket::SocketError error() const;
++    QLlcpSocket::SocketState state() const;
++
++    qint64 readData(char *data, qint64 maxlen);
++    qint64 writeData(const char *data, qint64 len);
++
++    qint64 bytesAvailable() const;
++    bool canReadLine() const;
++
++    bool waitForReadyRead(int msecs);
++    bool waitForBytesWritten(int msecs);
++    bool waitForConnected(int msecs);
++    bool waitForDisconnected(int msecs);
++
++    //Q_INVOKABLE void connected(nfc_target_t *);
++    Q_INVOKABLE void targetLost();
++
++    void dataRead(QByteArray&);
++    void dataWritten();
++
++public Q_SLOTS:
++    void disconnectFromService();
++
++private:
++    QLlcpSocket *q_ptr;
++    unsigned int m_sap;
++    //nfc_llcp_connection_listener_t m_conListener;
++    //NearFieldTarget *m_target;
++    //nfc_target_t *m_target;
++
++    QLlcpSocket::SocketState m_state;
++
++    QList<QByteArray> m_receivedDatagrams;
++    QList<QByteArray> m_writeQueue;
++
++    bool m_server;
++
++    enum llcpState {
++        Idle, Reading, Writing
++    } socketState;
++
++private Q_SLOTS:
++    void read();
++    void enteringIdle();
++};
++
++QT_END_NAMESPACE
++
++#endif // QLLCPSOCKET_OPENHARMONY_P_H
+diff --git a/src/nfc/qnearfieldmanager.cpp b/src/nfc/qnearfieldmanager.cpp
+index 02e4d918..2da5f74a 100644
+--- a/src/nfc/qnearfieldmanager.cpp
++++ b/src/nfc/qnearfieldmanager.cpp
+@@ -46,6 +46,8 @@
+ #include "qnearfieldmanager_neard_p.h"
+ #elif defined(ANDROID_NFC)
+ #include "qnearfieldmanager_android_p.h"
++#elif defined(OPENHARMONY_NFC)
++#include "qnearfieldmanager_openharmony_p.h"
+ #else
+ #include "qnearfieldmanagerimpl_p.h"
+ #endif
+diff --git a/src/nfc/qnearfieldmanager_openharmony.cpp b/src/nfc/qnearfieldmanager_openharmony.cpp
+new file mode 100644
+index 00000000..e1087e98
+--- /dev/null
++++ b/src/nfc/qnearfieldmanager_openharmony.cpp
+@@ -0,0 +1,279 @@
++#include "qnearfieldmanager_openharmony_p.h"
++#include "qnearfieldtarget_openharmony_p.h"
++
++#include "qndeffilter.h"
++#include "qndefmessage.h"
++#include "qndefrecord.h"
++#include "qbytearray.h"
++#include "qcoreapplication.h"
++#include "qdebug.h"
++#include "qlist.h"
++
++#include <QScopedPointer>
++#include <QtCore/QMetaType>
++#include <QtCore/QMetaMethod>
++#include <QOpenHarmonyJsObject>
++#include <QOpenHarmonyJsObjectLoader>
++
++QT_BEGIN_NAMESPACE
++
++
++QNearFieldManagerPrivateImpl::QNearFieldManagerPrivateImpl() :
++    m_detecting(false), m_handlerID(0)
++{
++    QtHarmonyPrivate::registerNfcStateListener(this);
++    connect(this, &QNearFieldManagerPrivateImpl::targetDetected, this, &QNearFieldManagerPrivateImpl::handlerTargetDetected);
++    connect(this, &QNearFieldManagerPrivateImpl::targetLost, this, &QNearFieldManagerPrivateImpl::handlerTargetLost);
++}
++
++QNearFieldManagerPrivateImpl::~QNearFieldManagerPrivateImpl()
++{
++    QtHarmonyPrivate::unregisterNfcStateListener(this);
++}
++
++void QNearFieldManagerPrivateImpl::handlerTargetDetected(QNearFieldTarget *target)
++{
++    if (ndefMessageHandlers.count() == 0 && ndefFilterHandlers.count() == 0) // if no handler is registered
++        return;
++    if (target->hasNdefMessage()) {
++        connect(reinterpret_cast<NearFieldTarget *>(target), &NearFieldTarget::ndefMessageRead,
++                this, &QNearFieldManagerPrivateImpl::handlerNdefMessageRead);
++        connect(target, &QNearFieldTarget::requestCompleted,
++                this, &QNearFieldManagerPrivateImpl::handlerRequestCompleted);
++        connect(target, &QNearFieldTarget::error,
++                this, &QNearFieldManagerPrivateImpl::handlerError);
++
++        QNearFieldTarget::RequestId id = target->readNdefMessages();
++        m_idToTarget.insert(id, target);
++    }
++}
++
++void QNearFieldManagerPrivateImpl::handlerTargetLost(QNearFieldTarget *target)
++{
++    disconnect(reinterpret_cast<NearFieldTarget *>(target), &NearFieldTarget::ndefMessageRead,
++            this, &QNearFieldManagerPrivateImpl::handlerNdefMessageRead);
++    disconnect(target, &QNearFieldTarget::requestCompleted,
++            this, &QNearFieldManagerPrivateImpl::handlerRequestCompleted);
++    disconnect(target, &QNearFieldTarget::error,
++            this, &QNearFieldManagerPrivateImpl::handlerError);
++    m_idToTarget.remove(m_idToTarget.key(target));
++}
++
++struct VerifyRecord
++{
++    QNdefFilter::Record filterRecord;
++    unsigned int count;
++};
++
++void QNearFieldManagerPrivateImpl::handlerNdefMessageRead(const QNdefMessage &message, const QNearFieldTarget::RequestId &id)
++{
++    QNearFieldTarget *target = m_idToTarget.value(id);
++    //For message handlers without filters
++    for (int i = 0; i < ndefMessageHandlers.count(); i++) {
++        ndefMessageHandlers.at(i).second.invoke(ndefMessageHandlers.at(i).first.second, Q_ARG(QNdefMessage, message), Q_ARG(QNearFieldTarget*, target));
++    }
++
++    //For message handlers that specified a filter
++    for (int i = 0; i < ndefFilterHandlers.count(); ++i) {
++        bool matched = true;
++
++        QNdefFilter filter = ndefFilterHandlers.at(i).second.first;
++
++        QList<VerifyRecord> filterRecords;
++        for (int j = 0; j < filter.recordCount(); ++j) {
++            VerifyRecord vr;
++            vr.count = 0;
++            vr.filterRecord = filter.recordAt(j);
++
++            filterRecords.append(vr);
++        }
++
++        for (const QNdefRecord &record : message) {
++            for (int j = 0; matched && (j < filterRecords.count()); ++j) {
++                VerifyRecord &vr = filterRecords[j];
++
++                if (vr.filterRecord.typeNameFormat == record.typeNameFormat() &&
++                    ( vr.filterRecord.type == record.type() ||
++                      vr.filterRecord.type.isEmpty()) ) {
++                    ++vr.count;
++                    break;
++                } else {
++                    if (filter.orderMatch()) {
++                        if (vr.filterRecord.minimum <= vr.count &&
++                            vr.count <= vr.filterRecord.maximum) {
++                            continue;
++                        } else {
++                            matched = false;
++                        }
++                    }
++                }
++            }
++        }
++
++        for (int j = 0; matched && (j < filterRecords.count()); ++j) {
++            const VerifyRecord &vr = filterRecords.at(j);
++
++            if (vr.filterRecord.minimum <= vr.count && vr.count <= vr.filterRecord.maximum)
++                continue;
++            else
++                matched = false;
++        }
++
++        if (matched) {
++            ndefFilterHandlers.at(i).second.second.invoke(ndefFilterHandlers.at(i).first.second, Q_ARG(QNdefMessage, message), Q_ARG(QNearFieldTarget*, target));
++        }
++    }
++}
++
++void QNearFieldManagerPrivateImpl::handlerRequestCompleted(const QNearFieldTarget::RequestId &id)
++{
++    m_idToTarget.remove(id);
++}
++
++void QNearFieldManagerPrivateImpl::handlerError(QNearFieldTarget::Error error, const QNearFieldTarget::RequestId &id)
++{
++    Q_UNUSED(error);
++    m_idToTarget.remove(id);
++}
++
++bool QNearFieldManagerPrivateImpl::isAvailable() const
++{
++    return QtHarmonyPrivate::isAvailable();
++}
++
++bool QNearFieldManagerPrivateImpl::isSupported() const
++{
++    return QtHarmonyPrivate::isSupported();
++}
++
++bool QNearFieldManagerPrivateImpl::startTargetDetection()
++{
++    if (m_detecting)
++        return false;   // Already detecting targets
++
++    m_detecting = true;
++    updateReceiveState();
++    return true;
++}
++
++void QNearFieldManagerPrivateImpl::stopTargetDetection()
++{
++    m_detecting = false;
++    updateReceiveState();
++}
++
++// FIXME This is supposed to be a platform registration. A message that
++// matches the given NDEF filter should restart the current application.
++// The implementation below only works as long as the current application
++// is running. It is not a platform wide registration on Android.
++int QNearFieldManagerPrivateImpl::registerNdefMessageHandler(QObject *object, const QMetaMethod &method)
++{
++    ndefMessageHandlers.append(QPair<QPair<int, QObject *>, QMetaMethod>(QPair<int, QObject *>(m_handlerID, object), method));
++    updateReceiveState();
++    //Returns the handler ID and increments it afterwards
++    return m_handlerID++;
++}
++
++// FIXME see above
++int QNearFieldManagerPrivateImpl::registerNdefMessageHandler(const QNdefFilter &filter,
++                                                             QObject *object, const QMetaMethod &method)
++{
++    //If no record is set in the filter, we ignore the filter
++    if (filter.recordCount()==0)
++        return registerNdefMessageHandler(object, method);
++
++    ndefFilterHandlers.append(QPair<QPair<int, QObject*>, QPair<QNdefFilter, QMetaMethod> >
++                              (QPair<int, QObject*>(m_handlerID, object), QPair<QNdefFilter, QMetaMethod>(filter, method)));
++
++    updateReceiveState();
++
++    return m_handlerID++;
++}
++
++bool QNearFieldManagerPrivateImpl::unregisterNdefMessageHandler(int handlerId)
++{
++    for (int i=0; i<ndefMessageHandlers.count(); ++i) {
++        if (ndefMessageHandlers.at(i).first.first == handlerId) {
++            ndefMessageHandlers.removeAt(i);
++            updateReceiveState();
++            return true;
++        }
++    }
++    for (int i=0; i<ndefFilterHandlers.count(); ++i) {
++        if (ndefFilterHandlers.at(i).first.first == handlerId) {
++            ndefFilterHandlers.removeAt(i);
++            updateReceiveState();
++            return true;
++        }
++    }
++    return false;
++}
++
++void QNearFieldManagerPrivateImpl::requestAccess(QNearFieldManager::TargetAccessModes accessModes)
++{
++    Q_UNUSED(accessModes);
++    //Do nothing, because we dont have access modes for the target
++}
++
++void QNearFieldManagerPrivateImpl::releaseAccess(QNearFieldManager::TargetAccessModes accessModes)
++{
++    Q_UNUSED(accessModes);
++    //Do nothing, because we dont have access modes for the target
++}
++
++QByteArray QNearFieldManagerPrivateImpl::getUid(const QString &tagInfo)
++{
++    QSharedPointer<QOpenHarmonyJsObject> tag = qJsObjectLoader->create(tagInfo);
++    return tag->call<QByteArray>("uid");
++}
++
++void QNearFieldManagerPrivateImpl::newNfc(const QString &tagInfo)
++{
++    // This function is called from different thread and is used to move intent to main thread.
++     QMetaObject::invokeMethod(this, "onTargetDiscovered", Qt::QueuedConnection, Q_ARG(QString, tagInfo));
++}
++
++void QNearFieldManagerPrivateImpl::handleStateChanged(int state)
++{
++    QNearFieldManager::AdapterState adapterState = static_cast<QNearFieldManager::AdapterState>((int) state);
++    emit adapterStateChanged(adapterState);
++}
++
++void QNearFieldManagerPrivateImpl::onTargetDiscovered(const QString &tagInfo)
++{
++    // Getting UID
++    QByteArray uid = getUid(tagInfo);
++    if (uid.isEmpty())
++        return;
++
++    // Accepting all targets but only sending signal of requested types.
++    NearFieldTarget *&target = m_detectedTargets[uid];
++    if (target) {
++        target->setIndex(tagInfo);  // Updating existing target
++    } else {
++        target = new NearFieldTarget(tagInfo, uid, this);
++        connect(target, &NearFieldTarget::targetDestroyed, this, &QNearFieldManagerPrivateImpl::onTargetDestroyed);
++        connect(target, &NearFieldTarget::targetLost, this, &QNearFieldManagerPrivateImpl::targetLost);
++    }
++    emit targetDetected(target);
++}
++
++void QNearFieldManagerPrivateImpl::onTargetDestroyed(const QByteArray &uid)
++{
++    m_detectedTargets.remove(uid);
++}
++
++void QNearFieldManagerPrivateImpl::updateReceiveState()
++{
++    if (m_detecting) {
++        QtHarmonyPrivate::registerNfcListener(this);
++    } else {
++        if (ndefMessageHandlers.count() || ndefFilterHandlers.count()) {
++            QtHarmonyPrivate::registerNfcListener(this);
++        } else {
++            QtHarmonyPrivate::unregisterNfcListener(this);
++        }
++    }
++}
++
++QT_END_NAMESPACE
+diff --git a/src/nfc/qnearfieldmanager_openharmony_p.h b/src/nfc/qnearfieldmanager_openharmony_p.h
+new file mode 100644
+index 00000000..bd9cc9a5
+--- /dev/null
++++ b/src/nfc/qnearfieldmanager_openharmony_p.h
+@@ -0,0 +1,68 @@
++#ifndef QNEARFIELDMANAGER_OPENHARMONY_P_H
++#define QNEARFIELDMANAGER_OPENHARMONY_P_H
++
++#include "qnearfieldmanager_p.h"
++#include "qnearfieldmanager.h"
++#include "qnearfieldtarget.h"
++#include "openharmony/openharmonynfc_p.h"
++
++#include <QHash>
++#include <QMap>
++#include <QSharedPointer>
++class QOpenHarmonyJsObject;
++
++QT_BEGIN_NAMESPACE
++
++typedef QList<QNdefMessage> QNdefMessageList;
++
++class NearFieldTarget;
++class QByteArray;
++class QNearFieldManagerPrivateImpl : public QNearFieldManagerPrivate
++        , public QtHarmonyPrivate::OpenHarmonyNfcListenerInterface
++        , public QtHarmonyPrivate::OpenHarmonyNfcStateListenerInterface
++{
++    Q_OBJECT
++
++public:
++    QNearFieldManagerPrivateImpl();
++    ~QNearFieldManagerPrivateImpl() override;
++
++    bool isAvailable() const override;
++    bool isSupported() const override;
++    bool startTargetDetection() override;
++    void stopTargetDetection() override;
++    int registerNdefMessageHandler(QObject *object, const QMetaMethod &method) override;
++    int registerNdefMessageHandler(const QNdefFilter &filter, QObject *object, const QMetaMethod &method) override;
++    bool unregisterNdefMessageHandler(int handlerId) override;
++    void requestAccess(QNearFieldManager::TargetAccessModes accessModes) override;
++    void releaseAccess(QNearFieldManager::TargetAccessModes accessModes) override;
++    QByteArray getUid(const QString &tagInfo);
++
++    virtual void newNfc(const QString &tagInfo);
++    virtual void handleStateChanged(int state);
++
++public slots:
++    void onTargetDiscovered(const QString &tagInfo);
++    void onTargetDestroyed(const QByteArray &uid);
++    void handlerTargetDetected(QNearFieldTarget *target);
++    void handlerTargetLost(QNearFieldTarget *target);
++    void handlerNdefMessageRead(const QNdefMessage &message, const QNearFieldTarget::RequestId &id);
++    void handlerRequestCompleted(const QNearFieldTarget::RequestId &id);
++    void handlerError(QNearFieldTarget::Error error, const QNearFieldTarget::RequestId &id);
++
++protected:
++    void updateReceiveState();
++
++private:
++    bool m_detecting;
++    QHash<QByteArray, NearFieldTarget*> m_detectedTargets;
++    QMap<QNearFieldTarget::RequestId, QNearFieldTarget*> m_idToTarget;
++
++    int m_handlerID;
++    QList< QPair<QPair<int, QObject *>, QMetaMethod> > ndefMessageHandlers;
++    QList< QPair<QPair<int, QObject *>, QPair<QNdefFilter, QMetaMethod> > > ndefFilterHandlers;
++};
++
++QT_END_NAMESPACE
++
++#endif // QNEARFIELDMANAGER_OPENHARMONY_P_H
+diff --git a/src/nfc/qnearfieldtarget_openharmony.cpp b/src/nfc/qnearfieldtarget_openharmony.cpp
+new file mode 100644
+index 00000000..fa9533e2
+--- /dev/null
++++ b/src/nfc/qnearfieldtarget_openharmony.cpp
+@@ -0,0 +1,366 @@
++#include "qnearfieldtarget_openharmony_p.h"
++#include "qdebug.h"
++
++#include "qopenharmonyjsobjectloader.h"
++#include <QOpenHarmonyJsObject>
++
++// from openharmony document https://docs.openharmony.cn/pages/v4.0/zh-cn/application-dev/reference/apis/js-apis-nfcTag.md/#taginfo
++#define NDEFTECHNOLOGY              QStringLiteral("6")
++#define NDEFFORMATABLETECHNOLOGY    QStringLiteral("7")
++#define ISODEPTECHNOLOGY            QStringLiteral("3")
++#define NFCATECHNOLOGY              QStringLiteral("1")
++#define NFCBTECHNOLOGY              QStringLiteral("2")
++#define NFCFTECHNOLOGY              QStringLiteral("4")
++#define NFCVTECHNOLOGY              QStringLiteral("5")
++#define MIFARECLASSICTECHNOLOGY     QStringLiteral("8")
++#define MIFARECULTRALIGHTTECHNOLOGY QStringLiteral("9")
++
++#define MIFARETAG   QStringLiteral("com.nxp.ndef.mifareclassic")
++#define NFCTAGTYPE1 QStringLiteral("org.nfcforum.ndef.type1")
++#define NFCTAGTYPE2 QStringLiteral("org.nfcforum.ndef.type2")
++#define NFCTAGTYPE3 QStringLiteral("org.nfcforum.ndef.type3")
++#define NFCTAGTYPE4 QStringLiteral("org.nfcforum.ndef.type4")
++
++NearFieldTarget::NearFieldTarget(const QString &tag, const QByteArray &uid, QObject *parent) :
++    QNearFieldTarget(parent),
++    m_tag(tag),
++    m_uid(uid),
++    m_keepConnection(false)
++{
++    m_jsTag = qJsObjectLoader->create(m_tag);
++    updateTechList();
++    updateType();
++    setupTargetCheckTimer();
++}
++
++NearFieldTarget::~NearFieldTarget()
++{
++    releaseIntent();
++    emit targetDestroyed(m_uid);
++}
++
++QByteArray NearFieldTarget::uid() const
++{
++    return m_uid;
++}
++
++QNearFieldTarget::Type NearFieldTarget::type() const
++{
++    return m_type;
++}
++
++QNearFieldTarget::AccessMethods NearFieldTarget::accessMethods() const
++{
++    AccessMethods result = UnknownAccess;
++
++    if (m_techList.contains(NDEFTECHNOLOGY)
++            || m_techList.contains(NDEFFORMATABLETECHNOLOGY))
++        result |= NdefAccess;
++
++    if (m_techList.contains(ISODEPTECHNOLOGY)
++            || m_techList.contains(NFCATECHNOLOGY)
++            || m_techList.contains(NFCBTECHNOLOGY)
++            || m_techList.contains(NFCFTECHNOLOGY)
++            || m_techList.contains(NFCVTECHNOLOGY))
++        result |= TagTypeSpecificAccess;
++
++    return result;
++}
++
++bool NearFieldTarget::keepConnection() const
++{
++    return m_keepConnection;
++}
++
++bool NearFieldTarget::setKeepConnection(bool isPersistent)
++{
++    m_keepConnection = isPersistent;
++
++    if (!m_keepConnection)
++        disconnect();
++
++    return true;
++}
++
++bool NearFieldTarget::disconnect()
++{
++    bool connected = m_jsTag->call<bool>("isConnected");
++
++    if (!connected)
++        return false;
++
++    return m_jsTag->call<bool>("close");
++}
++
++bool NearFieldTarget::hasNdefMessage()
++{
++    return m_techList.contains(NDEFTECHNOLOGY);
++}
++
++QNearFieldTarget::RequestId NearFieldTarget::readNdefMessages()
++{
++    // Making sure that target has NDEF messages
++    if (!hasNdefMessage())
++        return QNearFieldTarget::RequestId();
++
++    // Making sure that target is still in range
++    QNearFieldTarget::RequestId requestId(new QNearFieldTarget::RequestIdPrivate);
++    bool valid = m_jsTag->call<bool>("isInRange");
++    if (!valid) {
++        reportError(QNearFieldTarget::TargetOutOfRangeError, requestId);
++        return requestId;
++    }
++
++    QByteArray result = m_jsTag->call<QByteArray>("getNdefMessage");
++    if (result.isEmpty())
++        return requestId;
++
++    if (!m_keepConnection) {
++        // Closing connection
++        disconnect();   // IOException at this point does not matter anymore.
++    }
++
++    // Sending QNdefMessage, requestCompleted and exit.
++    QNdefMessage qNdefMessage = QNdefMessage::fromByteArray(result);
++    QMetaObject::invokeMethod(this, [this, qNdefMessage]() {
++        Q_EMIT this->QNearFieldTarget::ndefMessageRead(qNdefMessage);
++    }, Qt::QueuedConnection);
++    QMetaObject::invokeMethod(this, [this, requestId]() {
++        Q_EMIT this->requestCompleted(requestId);
++    }, Qt::QueuedConnection);
++    QMetaObject::invokeMethod(this, [this, qNdefMessage, requestId]() {
++        //TODO This is an Android specific signal in NearFieldTarget.
++        //     We need to check if it is still necessary.
++        Q_EMIT this->ndefMessageRead(qNdefMessage, requestId);
++    }, Qt::QueuedConnection);
++    return requestId;
++}
++
++int NearFieldTarget::maxCommandLength() const
++{
++    return m_jsTag->call<int>("maxCommandLength");
++}
++
++QNearFieldTarget::RequestId NearFieldTarget::sendCommand(const QByteArray &command)
++{
++    if (command.size() == 0 || command.size() > maxCommandLength()) {
++        Q_EMIT QNearFieldTarget::error(QNearFieldTarget::InvalidParametersError, QNearFieldTarget::RequestId());
++        return QNearFieldTarget::RequestId();
++    }
++
++    // Making sure that target has commands
++    if (!(accessMethods() & TagTypeSpecificAccess))
++        return QNearFieldTarget::RequestId();
++
++
++    if (!setTagTechnology({ISODEPTECHNOLOGY, NFCATECHNOLOGY, NFCBTECHNOLOGY, NFCFTECHNOLOGY, NFCVTECHNOLOGY})) {
++        Q_EMIT QNearFieldTarget::error(QNearFieldTarget::UnsupportedError, QNearFieldTarget::RequestId());
++        return QNearFieldTarget::RequestId();
++    }
++
++    // Connecting
++    QNearFieldTarget::RequestId requestId = QNearFieldTarget::RequestId(new QNearFieldTarget::RequestIdPrivate());
++    if (!connect()) {
++        reportError(QNearFieldTarget::TargetOutOfRangeError, requestId);
++        return requestId;
++    }
++
++    // Writing
++    QByteArray result = m_jsTag->call<QByteArray>("transceive", command);
++
++    handleResponse(requestId, result);
++
++    if (!m_keepConnection) {
++        // Closing connection
++        disconnect();   // IOException at this point does not matter anymore.
++    }
++    QMetaObject::invokeMethod(this, [this, requestId]() {
++        Q_EMIT this->requestCompleted(requestId);
++    }, Qt::QueuedConnection);
++
++    return requestId;
++}
++
++QNearFieldTarget::RequestId NearFieldTarget::sendCommands(const QList<QByteArray> &commands)
++{
++    QNearFieldTarget::RequestId requestId;
++    for (int i=0; i < commands.size(); i++)
++        requestId = sendCommand(commands.at(i));
++    return requestId;
++}
++
++QNearFieldTarget::RequestId NearFieldTarget::writeNdefMessages(const QList<QNdefMessage> &messages)
++{
++    if (messages.size() == 0)
++        return QNearFieldTarget::RequestId();
++
++    if (messages.size() > 1)
++        qWarning("QNearFieldTarget::writeNdefMessages: harmony supports writing only one NDEF message per tag.");
++
++    QString writeMethod;
++    // Getting write method
++    if (m_tech == NDEFFORMATABLETECHNOLOGY)
++        writeMethod = "format";
++    else
++        writeMethod = "writeNdefMessage";
++
++    if (!setTagTechnology({NDEFFORMATABLETECHNOLOGY, NDEFTECHNOLOGY}))
++        return QNearFieldTarget::RequestId();
++
++    // Connecting
++    QNearFieldTarget::RequestId requestId = QNearFieldTarget::RequestId(new QNearFieldTarget::RequestIdPrivate());
++    if (!connect()) {
++        reportError(QNearFieldTarget::TargetOutOfRangeError, requestId);
++        return requestId;
++    }
++
++    const QNdefMessage &message = messages.first();
++    QByteArray ba = message.toByteArray();
++    m_jsTag->call(writeMethod, ba);
++
++    if (!m_keepConnection)
++        disconnect();   // IOException at this point does not matter anymore.
++    QMetaObject::invokeMethod(this, "ndefMessagesWritten", Qt::QueuedConnection);
++    return requestId;
++}
++
++void NearFieldTarget::setIndex(const QString &tag)
++{
++    if (m_tag == tag)
++        return;
++
++    releaseIntent();
++    m_tag = tag;
++    updateTechList();
++    updateType();
++    m_targetCheckTimer->start();
++}
++
++void NearFieldTarget::checkIsTargetLost()
++{
++//    if (!m_intent.isValid() || !setTagTechnology(m_techList)) {
++//        handleTargetLost();
++//        return;
++//    }
++
++//    bool connected = m_tagTech.callMethod<jboolean>("isConnected");
++//    if (catchJavaExceptions()) {
++//        handleTargetLost();
++//        return;
++//    }
++
++//    if (connected)
++//        return;
++
++//    m_tagTech.callMethod<void>("connect");
++//    if (catchJavaExceptions(false)) {
++//        handleTargetLost();
++//        return;
++//    }
++//    m_tagTech.callMethod<void>("close");
++//    if (catchJavaExceptions(false))
++//        handleTargetLost();
++}
++
++void NearFieldTarget::releaseIntent()
++{
++    m_targetCheckTimer->stop();
++}
++
++void NearFieldTarget::updateTechList()
++{
++    QString str = m_jsTag->call<QString>("technologies");
++    if (str.isEmpty()) {
++        return;
++    }
++    m_techList = str.split(",");
++}
++
++void NearFieldTarget::updateType()
++{
++    m_type = getTagType();
++}
++
++QNearFieldTarget::Type NearFieldTarget::getTagType() const
++{
++    if (m_techList.contains(NDEFTECHNOLOGY)) {
++        QString qtype = m_jsTag->call<QString>("getType");
++
++        if (qtype.compare(MIFARETAG) == 0)
++            return MifareTag;
++        if (qtype.compare(NFCTAGTYPE1) == 0)
++            return NfcTagType1;
++        if (qtype.compare(NFCTAGTYPE2) == 0)
++            return NfcTagType2;
++        if (qtype.compare(NFCTAGTYPE3) == 0)
++            return NfcTagType3;
++        if (qtype.compare(NFCTAGTYPE4) == 0)
++            return NfcTagType4;
++        return ProprietaryTag;
++    } else if (m_techList.contains(NFCATECHNOLOGY)) {
++        if (m_techList.contains(MIFARECLASSICTECHNOLOGY))
++            return MifareTag;
++
++        // Checking ATQA/SENS_RES
++        // xxx0 0000  xxxx xxxx: Identifies tag Type 1 platform
++        QByteArray atqaQBA = m_jsTag->call<QByteArray>("getAtqa");
++        if (atqaQBA.isEmpty())
++            return ProprietaryTag;
++        if ((atqaQBA[0] & 0x1F) == 0x00)
++            return NfcTagType1;
++
++        // Checking SAK/SEL_RES
++        // xxxx xxxx  x00x x0xx: Identifies tag Type 2 platform
++        // xxxx xxxx  x01x x0xx: Identifies tag Type 4 platform
++        int sakS = m_jsTag->call<int>("getSak");
++        if ((sakS & 0x0064) == 0x0000)
++            return NfcTagType2;
++        else if ((sakS & 0x0064) == 0x0020)
++            return NfcTagType4;
++        return ProprietaryTag;
++    } else if (m_techList.contains(NFCBTECHNOLOGY)) {
++        return NfcTagType4;
++    } else if (m_techList.contains(NFCFTECHNOLOGY)) {
++        return NfcTagType3;
++    }
++
++    return ProprietaryTag;
++}
++
++void NearFieldTarget::setupTargetCheckTimer()
++{
++    m_targetCheckTimer = new QTimer(this);
++    m_targetCheckTimer->setInterval(1000);
++    QObject::connect(m_targetCheckTimer, &QTimer::timeout, this, &NearFieldTarget::checkIsTargetLost);
++    m_targetCheckTimer->start();
++}
++
++void NearFieldTarget::handleTargetLost()
++{
++    releaseIntent();
++    emit targetLost(this);
++}
++
++bool NearFieldTarget::setTagTechnology(const QStringList &techList)
++{
++    for (const QString &tech : techList) {
++        if (m_techList.contains(tech)) {
++            if (m_tech == tech) {
++                return true;
++            }
++            m_tech = tech;
++            return true;
++        }
++    }
++    return false;
++}
++
++bool NearFieldTarget::connect()
++{
++    bool connected = m_jsTag->call<bool>("isConnected");
++
++    if (connected)
++        return true;
++
++    return m_jsTag->call<bool>("connect");
++}
+diff --git a/src/nfc/qnearfieldtarget_openharmony_p.cpp b/src/nfc/qnearfieldtarget_openharmony_p.cpp
+new file mode 100644
+index 00000000..f7bc0390
+--- /dev/null
++++ b/src/nfc/qnearfieldtarget_openharmony_p.cpp
+@@ -0,0 +1,32 @@
++#include <QCoreApplication>
++
++#include "qnearfieldtarget_p.h"
++#include "qnearfieldtarget_openharmony_p.h"
++
++QT_BEGIN_NAMESPACE
++
++bool QNearFieldTargetPrivate::keepConnection() const
++{
++    NEARFIELDTARGET_Q();
++    return q->keepConnection();
++}
++
++bool QNearFieldTargetPrivate::setKeepConnection(bool isPersistent)
++{
++    NEARFIELDTARGET_Q();
++    return q->setKeepConnection(isPersistent);
++}
++
++bool QNearFieldTargetPrivate::disconnect()
++{
++    NEARFIELDTARGET_Q();
++    return q->disconnect();
++}
++
++int QNearFieldTargetPrivate::maxCommandLength() const
++{
++    NEARFIELDTARGET_Q();
++    return q->maxCommandLength();
++}
++
++QT_END_NAMESPACE
+diff --git a/src/nfc/qnearfieldtarget_openharmony_p.h b/src/nfc/qnearfieldtarget_openharmony_p.h
+new file mode 100644
+index 00000000..cb8a815b
+--- /dev/null
++++ b/src/nfc/qnearfieldtarget_openharmony_p.h
+@@ -0,0 +1,68 @@
++#ifndef QNEARFIELDTARGET_OPENHARMONY_P_H
++#define QNEARFIELDTARGET_OPENHARMONY_P_H
++
++
++#include "qnearfieldtarget.h"
++#include "qnearfieldtarget_p.h"
++#include "qndefmessage.h"
++#include "qlist.h"
++#include "qstringlist.h"
++#include <QTimer>
++#include <QSharedPointer>
++class QOpenHarmonyJsObject;
++
++QT_BEGIN_NAMESPACE
++
++class NearFieldTarget : public QNearFieldTarget
++{
++    Q_OBJECT
++public:
++    NearFieldTarget(const QString &tag, const QByteArray &uid,
++                    QObject *parent = 0);
++    virtual ~NearFieldTarget();
++    virtual QByteArray uid() const;
++    virtual Type type() const;
++    virtual AccessMethods accessMethods() const;
++    bool keepConnection() const;
++    bool setKeepConnection(bool isPersistent);
++    bool disconnect();
++    virtual bool hasNdefMessage();
++    virtual RequestId readNdefMessages();
++    int maxCommandLength() const;
++    virtual RequestId sendCommand(const QByteArray &command);
++    virtual RequestId sendCommands(const QList<QByteArray> &commands);
++    virtual RequestId writeNdefMessages(const QList<QNdefMessage> &messages);
++    void setIndex(const QString &tag);
++
++signals:
++    void targetDestroyed(const QByteArray &tagId);
++    void targetLost(QNearFieldTarget *target);
++    void ndefMessageRead(const QNdefMessage &message, const QNearFieldTarget::RequestId &id);
++
++protected slots:
++    void checkIsTargetLost();
++
++protected:
++    void releaseIntent();
++    void updateTechList();
++    void updateType();
++    Type getTagType() const;
++    void setupTargetCheckTimer();
++    void handleTargetLost();
++    bool setTagTechnology(const QStringList &techList);
++    bool connect();
++
++protected:
++    QString m_tag;
++    QSharedPointer<QOpenHarmonyJsObject> m_jsTag;
++    QByteArray m_uid;
++    QStringList m_techList;
++    Type m_type;
++    QTimer *m_targetCheckTimer;
++    QString m_tech;
++    bool m_keepConnection;
++};
++
++QT_END_NAMESPACE
++
++#endif // QNEARFIELDTARGET_OPENHARMONY_P_H
+diff --git a/src/openharmony/bluetooth/bluetooth.pro b/src/openharmony/bluetooth/bluetooth.pro
+new file mode 100644
+index 00000000..5419862a
+--- /dev/null
++++ b/src/openharmony/bluetooth/bluetooth.pro
+@@ -0,0 +1 @@
++TEMPLATE = aux
+\ No newline at end of file
+diff --git a/src/openharmony/nfc/native/QtNfc.ts b/src/openharmony/nfc/native/QtNfc.ts
+new file mode 100644
+index 00000000..497fc559
+--- /dev/null
++++ b/src/openharmony/nfc/native/QtNfc.ts
+@@ -0,0 +1,65 @@
++import controller from '@ohos.nfc.controller';
++import nfc from "libQt5Nfc.so";
++import tag from '@ohos.nfc.tag';
++import HashMap from '@ohos.util.HashMap';
++import QtApplication from './QtApplication'
++import { QtNfcTag } from './QtNfcTag';
++
++function start(tagInfo: any) {
++    console.log("foreground callback: tag found tagInfo = ", JSON.stringify(tagInfo));
++    globalThis.qtnfc.createTag(tagInfo);
++}
++
++export class QtNfc {
++    private tagsIndex = 0;
++    private tags = null;
++
++    constructor() {
++        this.tags = new HashMap;
++    }
++
++
++    createTag(tagInfo) {
++        if (tagInfo == null || tagInfo == undefined) {
++            console.log("no TagInfo to be created, ignore it.");
++            return;
++        }
++        let nfcTag = new QtNfcTag(tagInfo);
++        this.tagsIndex++;
++        this.tags.set(this.tagsIndex, nfcTag);
++        let name = "tagInfo" + this.tagsIndex;
++        Reflect.defineProperty(globalThis, name, { value: nfcTag });
++        nfc.nfcTargetDetected(name)
++    }
++
++    start() {
++        controller.on("nfcStateChange", (data) => {
++            console.log("controller on callback nfcState: " + data);
++            nfc.nfcStateChanged(data);
++        });
++
++        try {
++            let discTech = [tag.NFC_A, tag.NFC_B];
++            tag.registerForegroundDispatch(QtApplication.getInstance().getElementName(), discTech, start);
++        } catch (e) {
++            console.log("registerForegroundDispatch error: " + e.message);
++        }
++    }
++
++    stop() {
++        try {
++            tag.unregisterForegroundDispatch(QtApplication.getInstance().getElementName());
++        } catch (e) {
++            console.log("registerForegroundDispatch error: " + e.message);
++        }
++        controller.off("nfcStateChange");
++    }
++
++    isAvailable() : boolean {
++        return this.isSupported() && controller.isNfcOpen();
++    }
++
++    isSupported() : boolean {
++        return canIUse("SystemCapability.Communication.NFC.Core")
++    }
++}
+\ No newline at end of file
+diff --git a/src/openharmony/nfc/native/QtNfcTag.ts b/src/openharmony/nfc/native/QtNfcTag.ts
+new file mode 100644
+index 00000000..64cbe3d1
+--- /dev/null
++++ b/src/openharmony/nfc/native/QtNfcTag.ts
+@@ -0,0 +1,174 @@
++import tag from '@ohos.nfc.tag';
++
++export class QtNfcTag {
++  private tagInfo = null;
++  private target = null;
++
++  constructor(tagInfo) {
++      this.tagInfo = tagInfo;
++    let target = null;
++    for (let i = 0; i < this.tagInfo.technology.length; i++) {
++      if (this.tagInfo.technology[i] == tag.NFC_A) {
++        target = tag.getNfcA(this.tagInfo);
++        break;
++      }
++      if (this.tagInfo.technology[i] == tag.NFC_B) {
++        target = tag.getNfcB(this.tagInfo);
++        break;
++      }
++      if (this.tagInfo.technology[i] == tag.ISO_DEP) {
++        target = tag.getIsoDep(this.tagInfo);
++        break;
++      }
++      if (this.tagInfo.technology[i] == tag.NFC_F) {
++        target = tag.getNfcF(this.tagInfo);
++        break;
++      }
++      if (this.tagInfo.technology[i] == tag.NFC_V) {
++        target = tag.getNfcV(this.tagInfo);
++        break;
++      }
++      if (this.tagInfo.technology[i] == tag.NDEF) {
++        target = tag.getNdef(this.tagInfo);
++        break;
++      }
++      if (this.tagInfo.technology[i] == tag.NDEF_FORMATABLE) {
++        target = tag.getNdefFormatable(this.tagInfo);
++        break;
++      }
++      if (this.tagInfo.technology[i] == tag.MIFARE_CLASSIC) {
++        target = tag.getMifareClassic(this.tagInfo);
++        break;
++      }
++      if (this.tagInfo.technology[i] == tag.MIFARE_ULTRALIGHT) {
++        target = tag.getMifareUltralight(this.tagInfo);
++        break;
++      }
++      this.target = target;
++    }
++  }
++
++  uid() {
++    let arrayBuffer = new Uint8Array(this.tagInfo.uid).buffer;
++    return arrayBuffer;
++  }
++
++  technologies() {
++    return this.tagInfo.technology.join(",");
++  }
++
++  getNdefMessage() {
++    let isNdef = false;
++    for (let i = 0; i < this.tagInfo.technology.length; i++) {
++      if (this.tagInfo.technology[i] == tag.NDEF) {
++        isNdef = true;
++        break;
++      }
++    }
++    if (!isNdef)
++      return null;
++    try {
++      let ndefTag = tag.getNdef(this.tagInfo);
++      let message = ndefTag.getNdefMessage();
++      return JSON.stringify(message);
++    } catch (error) {
++      console.log("tag.getNdefTag catched error: " + error);
++      return null;
++    }
++  }
++
++  isInRange() {
++    return true;
++  }
++
++  maxCommandLength() {
++    if (this.target != null)
++      return this.target.getMaxTransmitSize();
++    return 0;
++  }
++
++  connect() {
++    if (this.target != null) {
++      try {
++        this.target.connect();
++        return true;
++      } catch (error) {
++        console.log("tag connect busiError: " + error);
++        return false;
++      }
++    }
++    return false;
++  }
++
++  isConnected() {
++    if (this.target != null)
++      return this.target.isConnected();
++    return false;
++  }
++
++  async transceive(data) {
++    if (this.target == null)
++      return null;
++    try {
++      let result = await this.target.sendData(data);
++      let arrayBuffer = new Uint8Array(result).buffer;
++      return arrayBuffer;
++    } catch(err) {
++      console.log("tagSession sendData Promise err: " + err);
++      return null;
++    }
++  }
++
++  format(data) {
++    if (this.target == null)
++      return;
++    let message = tag.ndef.createNdefMessage(data);
++    this.target.format(message);
++  }
++
++  writeNdefMessage(data) {
++    if (this.target == null)
++      return;
++    let message = tag.ndef.createNdefMessage(data);
++    try {
++      this.target.writeNdef(message);
++    } catch (error) {
++      console.log("ndef writeNdef Promise catch busiError Code: ${(busiError as Businsess).code}, " +
++        "message: ${(busiError as Businsess).message}");
++    }
++  }
++
++  getType() {
++    if (this.target == null)
++      return "";
++    let type = this.target.getNdefTagType();
++    try {
++      return this.target.getNdefTagTypeString(type);
++    } catch (err) {
++      console.log("ndef getNdefTagTypeString catch busiError Code: ${(busiError as Businsess).code}, " +
++        "message: ${(busiError as Businsess).message}");
++    }
++  }
++
++  getAtqa() {
++    if (this.target == null)
++      return null;
++    let result = this.target.getAtqa();
++    let arrayBuffer = new Uint8Array(result).buffer;
++    return arrayBuffer;
++  }
++
++  getSak() {
++    if (this.target == null)
++      return 0;
++    return this.target.getSak();
++  }
++
++  close() {
++    if (this.target == null)
++      return true;
++    //Todo close
++    return true;
++  }
++
++}
+\ No newline at end of file
+diff --git a/src/openharmony/nfc/nfc.pro b/src/openharmony/nfc/nfc.pro
+new file mode 100644
+index 00000000..1f4fd80f
+--- /dev/null
++++ b/src/openharmony/nfc/nfc.pro
+@@ -0,0 +1,11 @@
++TEMPLATE = aux
++
++CONFIG -= qt
++
++templates.files += $$files($$PWD/native/*.ts, true)
++templates.path = $$[QT_INSTALL_PREFIX]/openharmony/qtconnectivity
++templates.base = $$PWD
++
++INSTALLS += templates
++
++OTHER_FILES += $$templates.files
+\ No newline at end of file
+diff --git a/src/openharmony/openharmony.pro b/src/openharmony/openharmony.pro
+new file mode 100644
+index 00000000..f8f5c05e
+--- /dev/null
++++ b/src/openharmony/openharmony.pro
+@@ -0,0 +1,3 @@
++TEMPLATE = subdirs
++qtHaveModule(bluetooth): SUBDIRS += bluetooth
++qtHaveModule(nfc): SUBDIRS += nfc
+diff --git a/src/src.pro b/src/src.pro
+index dba9de4b..53b11bb7 100644
+--- a/src/src.pro
++++ b/src/src.pro
+@@ -6,6 +6,11 @@ android {
+     android.depends += bluetooth nfc
+ }
+ 
++openharmony {
++    SUBDIRS += openharmony
++    openharmony.depends += bluetooth nfc
++}
++
+ contains(QT_CONFIG, private_tests) {
+     bluetooth_doc_snippets.subdir = bluetooth/doc/snippets
+     bluetooth_doc_snippets.depends = bluetooth
