@@ -504,10 +504,10 @@ index 6d82981fd6..5896fcbdb5 100644
         ) {
          flags |= IsLocalFile;
 diff --git a/src/corelib/kernel/kernel.pri b/src/corelib/kernel/kernel.pri
-index 3f7bf3cd47..e60936669e 100644
+index 3f7bf3cd47..3af5ac0840 100644
 --- a/src/corelib/kernel/kernel.pri
 +++ b/src/corelib/kernel/kernel.pri
-@@ -212,4 +212,20 @@ android:!android-embedded {
+@@ -212,4 +212,22 @@ android:!android-embedded {
                     kernel/qjni_p.h
  }
  
@@ -516,15 +516,17 @@ index 3f7bf3cd47..e60936669e 100644
 +            kernel/qopenharmonyjsobject.cpp \
 +            kernel/qopenharmonyjsenvironment.cpp \
 +            kernel/qopenharmonyjsfunction.cpp \
-+            kernel/qopenharmonyjsobjectloader.cpp
++            kernel/qopenharmonyjsobjectloader.cpp \
++            kernel/qopenharmonyhelpers.cpp
 +
 +    HEADERS += kernel/qopenharmonyjsobject.h \
 +            kernel/qopenharmonyjsenvironment.h \
 +            kernel/qopenharmonydefines.h \
 +            kernel/qopenharmonyjsfunction.h \
-+            kernel/qopenharmonyjsobjectloader.h
++            kernel/qopenharmonyjsobjectloader.h \
++            kernel/qopenharmonyhelpers_p.h
 +
-+    LIBS += -lace_napi.z
++    LIBS += -lace_napi.z -luv
 +}
 +
  !darwin:!unix:!win32: SOURCES += kernel/qelapsedtimer_generic.cpp
@@ -654,6 +656,116 @@ index 0000000000..7480dc1c20
 +
 +
 +#endif // QOPENHARMONYDEFINES_H
+diff --git a/src/corelib/kernel/qopenharmonyhelpers.cpp b/src/corelib/kernel/qopenharmonyhelpers.cpp
+new file mode 100644
+index 0000000000..52c51ee89f
+--- /dev/null
++++ b/src/corelib/kernel/qopenharmonyhelpers.cpp
+@@ -0,0 +1,61 @@
++#include "qopenharmonyhelpers_p.h"
++#include "qmutex.h"
++#include "qlist.h"
++#include "qsemaphore.h"
++#include "qsharedpointer.h"
++#include "qvector.h"
++#include "qthread.h"
++#include "qcoreapplication.h"
++#include <QtCore/qrunnable.h>
++
++#include <deque>
++#include <memory>
++
++QT_BEGIN_NAMESPACE
++
++namespace QtHarmonyPrivate {
++    ResumePauseListener::~ResumePauseListener() {}
++    void ResumePauseListener::handlePause() {}
++    void ResumePauseListener::handleResume() {}
++}
++
++namespace {
++    class ResumePauseListeners
++    {
++    public:
++        QMutex mutex;
++        QList<QtHarmonyPrivate::ResumePauseListener *> listeners;
++    };
++}
++
++Q_GLOBAL_STATIC(ResumePauseListeners, g_resumePauseListeners)
++
++void QtHarmonyPrivate::registerResumePauseListener(ResumePauseListener *listener)
++{
++    QMutexLocker locker(&g_resumePauseListeners()->mutex);
++    g_resumePauseListeners()->listeners.append(listener);
++}
++
++void QtHarmonyPrivate::unregisterResumePauseListener(ResumePauseListener *listener)
++{
++    QMutexLocker locker(&g_resumePauseListeners()->mutex);
++    g_resumePauseListeners()->listeners.removeAll(listener);
++}
++
++void QtHarmonyPrivate::handlePause()
++{
++    QMutexLocker locker(&g_resumePauseListeners()->mutex);
++    const QList<QtHarmonyPrivate::ResumePauseListener *> &listeners = g_resumePauseListeners()->listeners;
++    for (int i=0; i<listeners.size(); ++i)
++        listeners.at(i)->handlePause();
++}
++
++void QtHarmonyPrivate::handleResume()
++{
++    QMutexLocker locker(&g_resumePauseListeners()->mutex);
++    const QList<QtHarmonyPrivate::ResumePauseListener *> &listeners = g_resumePauseListeners()->listeners;
++    for (int i=0; i<listeners.size(); ++i)
++        listeners.at(i)->handleResume();
++}
++
++QT_END_NAMESPACE
+diff --git a/src/corelib/kernel/qopenharmonyhelpers_p.h b/src/corelib/kernel/qopenharmonyhelpers_p.h
+new file mode 100644
+index 0000000000..13b602491b
+--- /dev/null
++++ b/src/corelib/kernel/qopenharmonyhelpers_p.h
+@@ -0,0 +1,37 @@
++#ifndef QOPENHARMONYHELPERS_H
++#define QOPENHARMONYHELPERS_H
++
++
++#include <functional>
++#include <QtCore/private/qglobal_p.h>
++#include <QHash>
++#include <QMetaType>
++
++QT_BEGIN_NAMESPACE
++
++
++namespace QtHarmonyPrivate
++{
++    class Q_CORE_EXPORT ResumePauseListener
++    {
++    public:
++        virtual ~ResumePauseListener();
++        virtual void handlePause();
++        virtual void handleResume();
++    };
++
++
++    enum class PermissionsResult {
++        Granted,
++        Denied
++    };
++
++    Q_CORE_EXPORT void handlePause();
++    Q_CORE_EXPORT void handleResume();
++    Q_CORE_EXPORT void registerResumePauseListener(ResumePauseListener *listener);
++    Q_CORE_EXPORT void unregisterResumePauseListener(ResumePauseListener *listener);
++}
++
++QT_END_NAMESPACE
++
++#endif // QJNIHELPERS_H
 diff --git a/src/corelib/kernel/qopenharmonyjsenvironment.cpp b/src/corelib/kernel/qopenharmonyjsenvironment.cpp
 new file mode 100644
 index 0000000000..15f43e7e23
@@ -1113,10 +1225,10 @@ index 0000000000..d5716d8756
 +#endif // QOPENHARMONYJSENVIRONMENT_H
 diff --git a/src/corelib/kernel/qopenharmonyjsfunction.cpp b/src/corelib/kernel/qopenharmonyjsfunction.cpp
 new file mode 100644
-index 0000000000..6bd5155b57
+index 0000000000..59ce9c2b1d
 --- /dev/null
 +++ b/src/corelib/kernel/qopenharmonyjsfunction.cpp
-@@ -0,0 +1,267 @@
+@@ -0,0 +1,316 @@
 +#include "qopenharmonyjsfunction.h"
 +#include "qopenharmonyjsenvironment.h"
 +#include "qopenharmonydefines.h"
@@ -1212,12 +1324,14 @@ index 0000000000..6bd5155b57
 +    void wait(int timeout = 3000);
 +    void cancelWait();
 +
++    bool hasResult() const;
++
 +    QOpenHarmonyJsFunction *q_ptr;
 +    QEventLoop m_loop;
 +    QString m_name;
 +    QVariantList m_args;
 +    QOpenHarmonyJsObject *m_nativeObject;
-+    napi_threadsafe_function m_function;
++    napi_value m_jsFunction;
 +    QTimer *m_timer;
 +    QVariant m_result;
 +    int m_resultType;
@@ -1226,7 +1340,7 @@ index 0000000000..6bd5155b57
 +};
 +
 +QOpenHarmonyJsFunctionPrivate::QOpenHarmonyJsFunctionPrivate()
-+    : m_function(nullptr)
++    : m_jsFunction(nullptr)
 +    , m_resultType(QVariant::Invalid)
 +    , m_bResultReceived(false)
 +{
@@ -1235,28 +1349,13 @@ index 0000000000..6bd5155b57
 +
 +QOpenHarmonyJsFunctionPrivate::~QOpenHarmonyJsFunctionPrivate()
 +{
-+    if (m_function != nullptr)
-+        napi_release_threadsafe_function(m_function, napi_tsfn_release);
++
 +}
 +
 +void QOpenHarmonyJsFunctionPrivate::init(napi_value function, const QString &functionName)
 +{
-+    napi_threadsafe_function threadsafe_function = nullptr;
-+    napi_value cb_name = qJs::createString(functionName);
-+    NAPI_CALL_RETURN_VOID(qJs::env(), napi_create_threadsafe_function(qJs::env(), function, nullptr, cb_name, 0, 1, nullptr, nullptr, nullptr, callJsFunction, &threadsafe_function));
-+    m_function = threadsafe_function;
++    m_jsFunction = function;
 +    m_name = functionName;
-+    m_timer = new QTimer(q_ptr);
-+    m_timer->setSingleShot(true);
-+    QObject::connect(m_timer, &QTimer::timeout, q_ptr, [this]{
-+        QMutexLocker locker(&m_mutex);
-+        Q_UNUSED(locker)
-+        if (!m_bResultReceived) {
-+            qWarning() << QString("Wait js method %1 result failded").arg(m_name);
-+            if (m_loop.isRunning())
-+                m_loop.exit(-1);
-+        }
-+    });
 +}
 +
 +const QVariantList &QOpenHarmonyJsFunctionPrivate::args() const
@@ -1271,6 +1370,17 @@ index 0000000000..6bd5155b57
 +
 +void QOpenHarmonyJsFunctionPrivate::wait(int timeout)
 +{    
++    m_timer = new QTimer(q_ptr);
++    m_timer->setSingleShot(true);
++    QObject::connect(m_timer, &QTimer::timeout, q_ptr, [this]{
++        QMutexLocker locker(&m_mutex);
++        Q_UNUSED(locker)
++        if (!m_bResultReceived) {
++            qWarning() << QString("Wait js method %1 result failded").arg(m_name);
++            if (m_loop.isRunning())
++                m_loop.exit(-1);
++        }
++    });
 +    m_mutex.lock();
 +    if (!m_bResultReceived) {
 +        m_mutex.unlock();
@@ -1285,6 +1395,11 @@ index 0000000000..6bd5155b57
 +{
 +    if (m_loop.isRunning())
 +        m_loop.exit();
++}
++
++bool QOpenHarmonyJsFunctionPrivate::hasResult() const
++{
++    return m_resultType != QVariant::Invalid;
 +}
 +
 +napi_value QOpenHarmonyJsFunctionPrivate::then(napi_env env, napi_callback_info info)
@@ -1321,9 +1436,13 @@ index 0000000000..6bd5155b57
 +        }
 +        result = qJs::callFunction(function->nativeObject(), js_cb, argc, argv.get());
 +    }
++    if (!function->hasResult())
++        return;
 +    bool is_promise = false;
 +    napi_is_promise(qJs::env(), result, &is_promise);
-+    qDebug() << "the result is promise:" << is_promise;
++    napi_valuetype type;
++    napi_typeof(qJs::env(), result, &type);
++    qDebug() << "the result type is" << type << "the result is promise:" << is_promise;
 +    if (is_promise) {
 +        napi_value then = qJs::objectPropertyValue(result, "then");
 +        napi_value func = nullptr;
@@ -1366,9 +1485,51 @@ index 0000000000..6bd5155b57
 +void QOpenHarmonyJsFunction::call(const QVariantList &args)
 +{    
 +    d_ptr->m_args = args;
-+    napi_acquire_threadsafe_function(d_ptr->m_function);
-+    qDebug() << QString("call js function: %1").arg(d_ptr->m_name)
-+             << napi_call_threadsafe_function(d_ptr->m_function, d_ptr.data(), napi_tsfn_nonblocking);
++    bool printArgs = !args.isEmpty();
++    for (int i = 0 ;i < args.count(); ++i) {
++        if (args.at(i).type() == QMetaType::QByteArray) {
++            printArgs = false;
++            break;
++        }
++    }
++    uv_loop_s *loop = nullptr;
++    napi_get_uv_event_loop(qJs::env(), &loop);
++    if (!loop) {
++        qDebug() << "failed to get event loop";
++        return;
++    }
++
++    uv_work_t *work = new (std::nothrow) uv_work_t;
++    if (!work) {
++        qDebug() << "failed to allocate work";
++        return;
++    }
++    work->data = d_ptr.data();
++
++    int ret = uv_queue_work(
++                loop, work, [](uv_work_t *work) {},
++            [](uv_work_t *work, int status) {
++        napi_value return_value;
++        QOpenHarmonyJsFunctionPrivate *fp = reinterpret_cast<QOpenHarmonyJsFunctionPrivate *>(work->data);
++        QOpenHarmonyJsFunctionPrivate::callJsFunction(qJs::env(), fp->m_jsFunction, nullptr, fp);
++        delete work;
++    });
++
++    if (ret) {
++        qDebug() << "failed to execute work";
++        delete work;
++        return;
++    } else {
++        if (printArgs) {
++            qDebug() << QString("call js function: %1 succedeed").arg(d_ptr->m_name) << args;
++        } else {
++            qDebug() << QString("call js function: %1 succedeed").arg(d_ptr->m_name);
++        }
++    }
++    if (!d_ptr->hasResult()) {
++        // 没有返回值的不等待
++        return;
++    }
 +    d_ptr->wait();
 +}
 +
@@ -1465,10 +1626,10 @@ index 0000000000..f541ef3e4f
 +#endif // QOPENHARMONYJSFUNCTION_H
 diff --git a/src/corelib/kernel/qopenharmonyjsobject.cpp b/src/corelib/kernel/qopenharmonyjsobject.cpp
 new file mode 100644
-index 0000000000..94ca28c0ba
+index 0000000000..6561f7935d
 --- /dev/null
 +++ b/src/corelib/kernel/qopenharmonyjsobject.cpp
-@@ -0,0 +1,67 @@
+@@ -0,0 +1,75 @@
 +#include "qopenharmonyjsobject.h"
 +#include "qopenharmonydefines.h"
 +#include "qopenharmonyjsfunction.h"
@@ -1479,14 +1640,22 @@ index 0000000000..94ca28c0ba
 +QT_BEGIN_NAMESPACE
 +
 +QOpenHarmonyJsObject::QOpenHarmonyJsObject(const QString &name)
-+    : m_name(name)
++    : m_name(name), m_jsObject(nullptr), m_ref(Q_NULLPTR)
 +{
 +
 +}
 +
++QOpenHarmonyJsObject::QOpenHarmonyJsObject(napi_value jsObject)
++    : m_jsObject(jsObject)
++      , m_ref(Q_NULLPTR)
++{
++    napi_create_reference(qJs::env(), m_jsObject, 1, &m_ref);
++}
++
 +QOpenHarmonyJsObject::~QOpenHarmonyJsObject()
 +{
-+
++    if (m_ref)
++        napi_delete_reference(qJs::env(), m_ref);
 +}
 +
 +bool QOpenHarmonyJsObject::isValid() const
@@ -1507,7 +1676,7 @@ index 0000000000..94ca28c0ba
 +
 +napi_value QOpenHarmonyJsObject::jsNativeObject() const
 +{
-+    return qJs::jsObject(m_name);
++    return m_jsObject != nullptr ? m_jsObject : qJs::jsObject(m_name);
 +}
 +
 +void QOpenHarmonyJsObject::defineProperties(size_t property_count,
@@ -1538,10 +1707,10 @@ index 0000000000..94ca28c0ba
 +QT_END_NAMESPACE
 diff --git a/src/corelib/kernel/qopenharmonyjsobject.h b/src/corelib/kernel/qopenharmonyjsobject.h
 new file mode 100644
-index 0000000000..cd025c61b5
+index 0000000000..cfd851c84a
 --- /dev/null
 +++ b/src/corelib/kernel/qopenharmonyjsobject.h
-@@ -0,0 +1,62 @@
+@@ -0,0 +1,66 @@
 +#ifndef QOPENHARMONYJSOBJECT_H
 +#define QOPENHARMONYJSOBJECT_H
 +
@@ -1558,6 +1727,7 @@ index 0000000000..cd025c61b5
 +{
 +public:
 +    QOpenHarmonyJsObject(const QString &name);
++    QOpenHarmonyJsObject(napi_value jsObject);
 +    virtual ~QOpenHarmonyJsObject();
 +
 +    bool isValid() const;
@@ -1572,6 +1742,7 @@ index 0000000000..cd025c61b5
 +        if (f == nullptr)
 +            return;
 +        f->call(std::forward<Args>(args)...);
++        f->deleteLater();
 +    }
 +
 +    void defineProperties(size_t property_count,
@@ -1588,6 +1759,8 @@ index 0000000000..cd025c61b5
 +    QOpenHarmonyJsFunction *getJsFunction(const QString &jsFunction);
 +private:
 +    QString m_name;
++    napi_value m_jsObject;
++    napi_ref m_ref;
 +};
 +
 +template<typename RET, typename... Args>
@@ -1892,6 +2065,114 @@ index bd409c124f..29bb587b12 100644
      m_drag_icon_window->updateGeometry(pos);
      m_drag_icon_window->setVisible(true);
  }
+diff --git a/src/network/socket/qabstractsocketengine.cpp b/src/network/socket/qabstractsocketengine.cpp
+index 3fffff6d5a..f461b555dc 100644
+--- a/src/network/socket/qabstractsocketengine.cpp
++++ b/src/network/socket/qabstractsocketengine.cpp
+@@ -117,8 +117,7 @@ QAbstractSocketEngine *QAbstractSocketEngine::createSocketEngine(QAbstractSocket
+     // only NoProxy can have reached here
+     if (proxy.type() != QNetworkProxy::NoProxy)
+         return 0;
+-#endif
+-
++#endif    
+     return new QNativeSocketEngine(parent);
+ }
+ 
+diff --git a/src/network/socket/qnativesocketengine.cpp b/src/network/socket/qnativesocketengine.cpp
+index 8947a7ee8a..11ad26f306 100644
+--- a/src/network/socket/qnativesocketengine.cpp
++++ b/src/network/socket/qnativesocketengine.cpp
+@@ -440,7 +440,7 @@ QNativeSocketEngine::~QNativeSocketEngine()
+     broadcast enabled.
+ */
+ bool QNativeSocketEngine::initialize(QAbstractSocket::SocketType socketType, QAbstractSocket::NetworkLayerProtocol protocol)
+-{
++{    
+     Q_D(QNativeSocketEngine);
+     if (isValid())
+         close();
+@@ -691,15 +691,20 @@ bool QNativeSocketEngine::bind(const QHostAddress &address, quint16 port)
+ */
+ bool QNativeSocketEngine::listen()
+ {
++    qWarning() << "<-----------QNativeSocketEngine::listen()---000";
+     Q_D(QNativeSocketEngine);
++    qWarning() << "<-----------QNativeSocketEngine::listen()---111";
+     Q_CHECK_VALID_SOCKETLAYER(QNativeSocketEngine::listen(), false);
++    qWarning() << "<-----------QNativeSocketEngine::listen()---222";
+     Q_CHECK_STATE(QNativeSocketEngine::listen(), QAbstractSocket::BoundState, false);
+ #ifndef QT_NO_SCTP
+     Q_CHECK_TYPES(QNativeSocketEngine::listen(), QAbstractSocket::TcpSocket,
+                   QAbstractSocket::SctpSocket, false);
+ #else
++    qWarning() << "<-----------QNativeSocketEngine::listen()---333";
+     Q_CHECK_TYPE(QNativeSocketEngine::listen(), QAbstractSocket::TcpSocket, false);
+ #endif
++    qWarning() << "<-----------QNativeSocketEngine::listen()---444";
+ 
+     // We're using a backlog of 50. Most modern kernels support TCP
+     // syncookies by default, and if they do, the backlog is ignored.
+diff --git a/src/network/socket/qsocks5socketengine.cpp b/src/network/socket/qsocks5socketengine.cpp
+index e7e4d64c32..7a6dfe44bc 100644
+--- a/src/network/socket/qsocks5socketengine.cpp
++++ b/src/network/socket/qsocks5socketengine.cpp
+@@ -1906,13 +1906,13 @@ QAbstractSocketEngine *
+ QSocks5SocketEngineHandler::createSocketEngine(QAbstractSocket::SocketType socketType,
+                                                const QNetworkProxy &proxy, QObject *parent)
+ {
+-    Q_UNUSED(socketType);
+-
++    Q_UNUSED(socketType);    
+     // proxy type must have been resolved by now
+     if (proxy.type() != QNetworkProxy::Socks5Proxy) {
+         QSOCKS5_DEBUG << "not proxying";
+         return 0;
+     }
++
+     QScopedPointer<QSocks5SocketEngine> engine(new QSocks5SocketEngine(parent));
+     engine->setProxy(proxy);
+     return engine.take();
+diff --git a/src/network/socket/qtcpserver.cpp b/src/network/socket/qtcpserver.cpp
+index eddf789921..f0f3a62935 100644
+--- a/src/network/socket/qtcpserver.cpp
++++ b/src/network/socket/qtcpserver.cpp
+@@ -305,11 +305,10 @@ bool QTcpServer::listen(const QHostAddress &address, quint16 port)
+     static const QNetworkProxy &proxy = *(QNetworkProxy *)0;
+ #else
+     QNetworkProxy proxy = d->resolveProxy(addr, port);
+-#endif
+-
++#endif    
+     delete d->socketEngine;
+     d->socketEngine = QAbstractSocketEngine::createSocketEngine(d->socketType, proxy, this);
+-    if (!d->socketEngine) {
++    if (!d->socketEngine) {        
+         d->serverSocketError = QAbstractSocket::UnsupportedSocketOperationError;
+         d->serverSocketErrorString = tr("Operation on socket is not supported");
+         return false;
+@@ -318,18 +317,18 @@ bool QTcpServer::listen(const QHostAddress &address, quint16 port)
+     //copy network session down to the socket engine (if it has been set)
+     d->socketEngine->setProperty("_q_networksession", property("_q_networksession"));
+ #endif
+-    if (!d->socketEngine->initialize(d->socketType, proto)) {
++    if (!d->socketEngine->initialize(d->socketType, proto)) {        
+         d->serverSocketError = d->socketEngine->error();
+         d->serverSocketErrorString = d->socketEngine->errorString();
+         return false;
+     }
++
+     proto = d->socketEngine->protocol();
+     if (addr.protocol() == QAbstractSocket::AnyIPProtocol && proto == QAbstractSocket::IPv4Protocol)
+         addr = QHostAddress::AnyIPv4;
+ 
+     d->configureCreatedSocket();
+-
+-    if (!d->socketEngine->bind(addr, port)) {
++    if (!d->socketEngine->bind(addr, port)) {        
+         d->serverSocketError = d->socketEngine->error();
+         d->serverSocketErrorString = d->socketEngine->errorString();
+         return false;
 diff --git a/src/openharmony/entryability/EntryAbility.ts b/src/openharmony/entryability/EntryAbility.ts
 new file mode 100644
 index 0000000000..e90088613e
@@ -2269,57 +2550,114 @@ index 0000000000..4a0016359f
 \ No newline at end of file
 diff --git a/src/openharmony/native/QtInputManager.ts b/src/openharmony/native/QtInputManager.ts
 new file mode 100644
-index 0000000000..6824485c4f
+index 0000000000..bbcee574e2
 --- /dev/null
 +++ b/src/openharmony/native/QtInputManager.ts
-@@ -0,0 +1,9 @@
+@@ -0,0 +1,57 @@
++import window from '@ohos.window';
++import QtApplication from './QtApplication'
++
 +export class QtInputManager {
-+    constructor() {
++  public constructor() {
++  }
++
++  public complete(text: string) {
++    console.log('[SoftKeyboard] cocos input complete ' + text);
++    globalThis.qtinputmanager.callQtCommit(text);
++  }
++
++  public open(text: string) {
++    console.log('[SoftKeyboard] cocos open keyboard');
++    //globalThis.indexPage.dialogController.open();
++    globalThis.showMessage = text;
++    let windowClass = null;
++    try {
++      let qApp = QtApplication.getInstance();
++      let windowStage = qApp.getWindowStage();
++      let mainWindow = windowStage.getMainWindowSync();
++      let property = mainWindow.getWindowProperties();
++      let promise = windowStage.createSubWindow('EditBoxDialog');
++      promise.then((data) => {
++        windowClass = data;
++        let promiseUI = windowClass.setUIContent('pages/components/EditBoxDialog.ets');
++        promiseUI.then(() => {
++          windowClass.showWindow();
++          windowClass.setWindowBackgroundColor('#00000000');
++          windowClass.resize(property.windowRect.width, 30);
++          windowClass.moveWindowTo(0, property.windowRect.height - 30)
++        });
++      });
++    } catch (exception) {
++      console.error('Failed to create the subwindow. Cause: ' + JSON.stringify(exception));
++      //globalThis.qtwindowmanager.createWindowResult(false);
++    }
++    ;
++  }
++
++  public close() {
++    console.log('[SoftKeyboard] cocos close keyboard');
++    //globalThis.indexPage.dialogController.close();
++    let windowClass = null;
++    try {
++      windowClass = window.findWindow('EditBoxDialog');
++      windowClass.destroyWindow();
++    } catch (exception) {
++      console.error('Failed to find the Window. Cause: ' + JSON.stringify(exception));
 +    }
 +
-+    setKeyBoardVisible() {
-+        console.log('show keyboard 555555555555555555555555555555555555555555555')
-+        globalThis.qtinputmanager.jsTest(56);
-+    }
++  }
++
++  setKeyBoardVisible(visible: boolean) {
++    console.log('show keyboard 555555555555555555555555555555555555555555555', visible);
++  }
 +}
 \ No newline at end of file
 diff --git a/src/openharmony/native/QtObjectLoader.ts b/src/openharmony/native/QtObjectLoader.ts
 new file mode 100644
-index 0000000000..043f2edd47
+index 0000000000..faa79091d4
 --- /dev/null
 +++ b/src/openharmony/native/QtObjectLoader.ts
-@@ -0,0 +1,32 @@
+@@ -0,0 +1,41 @@
++import { QtNfc } from './QtNfc'
 +import { QtDialog } from './QtDialog'
++import { QtSensors } from './QtSensors'
 +import { QtPasteBoard } from './QtPasteBoard'
-+import { QtInputManager } from './QtInputManager'
-+import { QtWindowManager } from './QtWindowManager'
 +import { QtMediaPlayer } from './QtMediaPlayer'
-+import { QtAudioManager } from './QtAudioManager'
 +import { QtFileManager } from './QtFileManager'
++import { QtInputManager } from './QtInputManager'
++import { QtAudioManager } from './QtAudioManager'
++import { QtWindowManager } from './QtWindowManager'
++import { QtBluetoothServer } from './QtBluetoothServer'
++import { QtBluetoothManager } from './QtBluetoothManager'
 +
 +let classes = {
-+    "qtdialog": QtDialog,
-+    "qtpasteboard": QtPasteBoard,
-+    "qtinputmanager": QtInputManager,
-+    "qtwindowmanager": QtWindowManager,
-+    "qtmediaplayer": QtMediaPlayer,
-+    "qtaudiomanager": QtAudioManager,
-+    "qtfilemanager": QtFileManager,
++  "qtnfc": QtNfc,
++  "qtdialog": QtDialog,
++  "qtsensors": QtSensors,
++  "qtpasteboard": QtPasteBoard,
++  "qtmediaplayer": QtMediaPlayer,
++  "qtfilemanager": QtFileManager,
++  "qtaudiomanager": QtAudioManager,
++  "qtinputmanager": QtInputManager,
++  "qtwindowmanager": QtWindowManager,
++  "qtbluetoothserver": QtBluetoothServer,
++  "qtbluetoothmanager": QtBluetoothManager
 +}
 +
 +export class QtObjectLoader {
-+    constructor() {
++  constructor() {
 +
-+    }
++  }
 +
-+    createObject(name) {
-+        if (!classes.hasOwnProperty(name)) {
-+            return false;
-+        }
-+        var object = new classes[name];
-+        Reflect.defineProperty(globalThis, name, {value: object});
-+        return true;
++  // Todo 动态加载
++  createObject(name) {
++    if (!classes.hasOwnProperty(name)) {
++      return false;
 +    }
++    var object = new classes[name];
++    Reflect.defineProperty(globalThis, name, { value: object });
++    return true;
++  }
 +}
 \ No newline at end of file
 diff --git a/src/openharmony/native/QtPasteBoard.ts b/src/openharmony/native/QtPasteBoard.ts
@@ -2599,10 +2937,10 @@ index 0000000000..886625295c
 +}
 diff --git a/src/plugins/platforms/openharmony/openharmony.pro b/src/plugins/platforms/openharmony/openharmony.pro
 new file mode 100644
-index 0000000000..f1826735b1
+index 0000000000..9db6962dd4
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/openharmony.pro
-@@ -0,0 +1,62 @@
+@@ -0,0 +1,65 @@
 +TARGET = qopenharmony
 +
 +LIBS += -lEGL -lace_napi.z -lace_ndk.z
@@ -2611,6 +2949,7 @@ index 0000000000..f1826735b1
 +    core-private gui-private egl_support-private \
 +    eventdispatcher_support-private fontdatabase_support-private
 +
++qtConfig(vulkan): QT += vulkan_support-private
 +
 +OTHER_FILES += $$PWD/openharmony.json
 +
@@ -2633,7 +2972,8 @@ index 0000000000..f1826735b1
 +    $$PWD/qopenharmonyplatformtheme.h \
 +    $$PWD/qopenharmonyplatformdialoghelpers.h \
 +    $$PWD/qopenharmonydrag.h \
-+    $$PWD/qopenharmonyfileenginehandler.h
++    $$PWD/qopenharmonyfileenginehandler.h \
++    $$PWD/qopenharmonyplatformvulkaninstance.h
 +
 +SOURCES += $$PWD/qopenharmonyplatformplugin.cpp \
 +    $$PWD/qopenharmonyplatformwindow.cpp \
@@ -2655,7 +2995,8 @@ index 0000000000..f1826735b1
 +    $$PWD/qopenharmonyplatformdialoghelpers.cpp \
 +    $$PWD/qopenharmonyplatformclipboard.cpp \
 +    $$PWD/qopenharmonydrag.cpp \
-+    $$PWD/qopenharmonyfileenginehandler.cpp
++    $$PWD/qopenharmonyfileenginehandler.cpp \
++    $$PWD/qopenharmonyplatformvulkaninstance.cpp
 +
 +
 +PLUGIN_TYPE = platforms
@@ -3236,21 +3577,21 @@ index 0000000000..2f896bfadf
 +#endif // QOPENHARMONYEGLCORE_H
 diff --git a/src/plugins/platforms/openharmony/qopenharmonyeventdispatcher.cpp b/src/plugins/platforms/openharmony/qopenharmonyeventdispatcher.cpp
 new file mode 100644
-index 0000000000..a13261b509
+index 0000000000..d86340340b
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonyeventdispatcher.cpp
-@@ -0,0 +1,102 @@
+@@ -0,0 +1,127 @@
 +#include "qopenharmonyeventdispatcher.h"
 +
 +QOpenHarmonyEventDispatcher::QOpenHarmonyEventDispatcher(QObject *parent) :
 +    QUnixEventDispatcherQPA(parent)
 +{
-+
++    QOpenHarmonyEventDispatcherStopper::instance()->addEventDispatcher(this);
 +}
 +
 +QOpenHarmonyEventDispatcher::~QOpenHarmonyEventDispatcher()
 +{
-+
++    QOpenHarmonyEventDispatcherStopper::instance()->removeEventDispatcher(this);
 +}
 +
 +enum States {Running = 0, StopRequest = 1, Stopping = 2};
@@ -3282,18 +3623,43 @@ index 0000000000..a13261b509
 +        wakeUp();
 +}
 +
++class OpenHarmonyDeadlockProtector
++{
++public:
++    OpenHarmonyDeadlockProtector()
++        : m_acquired(0)
++    {
++    }
++
++    ~OpenHarmonyDeadlockProtector() {
++        if (m_acquired)
++            s_blocked.storeRelease(0);
++    }
++
++    bool acquire() {
++        m_acquired = s_blocked.testAndSetAcquire(0, 1);
++        return m_acquired;
++    }
++
++private:
++    static QAtomicInt s_blocked;
++    int m_acquired;
++};
++
++QAtomicInt OpenHarmonyDeadlockProtector::s_blocked(0);
++
 +bool QOpenHarmonyEventDispatcher::processEvents(QEventLoop::ProcessEventsFlags flags)
 +{
-+//    if (m_goingToStop.load())
-+//        flags |= QEventLoop::ExcludeSocketNotifiers | QEventLoop::X11ExcludeTimers;
++    if (m_goingToStop.load())
++        flags |= QEventLoop::ExcludeSocketNotifiers | QEventLoop::X11ExcludeTimers;
 +
-+//    {
-+//        DeadlockProtector protector;
-+//        if (protector.acquire() && m_stopRequest.testAndSetAcquire(StopRequest, Stopping)) {
-+//            m_semaphore.acquire();
-+//            wakeUp();
-+//        }
-+//    }
++    {
++        OpenHarmonyDeadlockProtector protector;
++        if (protector.acquire() && m_stopRequest.testAndSetAcquire(StopRequest, Stopping)) {
++            m_semaphore.acquire();
++            wakeUp();
++        }
++    }
 +
 +    return QUnixEventDispatcherQPA::processEvents(flags);
 +}
@@ -3763,10 +4129,10 @@ index 0000000000..1a88d88b24
 +#endif // QOPENHARMONYDEFINES_H
 diff --git a/src/plugins/platforms/openharmony/qopenharmonymain.cpp b/src/plugins/platforms/openharmony/qopenharmonymain.cpp
 new file mode 100644
-index 0000000000..860a4ae49d
+index 0000000000..637416639b
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonymain.cpp
-@@ -0,0 +1,271 @@
+@@ -0,0 +1,338 @@
 +#include <memory>
 +#include <semaphore.h>
 +#include <dlfcn.h>
@@ -3783,6 +4149,7 @@ index 0000000000..860a4ae49d
 +#include <QString>
 +#include <QStringList>
 +#include <QGuiApplication>
++#include <QtCore/private/qopenharmonyhelpers_p.h>
 +#include <QOpenHarmonyJsEnvironment>
 +
 +#include "qopenharmonyfileenginehandler.h"
@@ -3793,6 +4160,7 @@ index 0000000000..860a4ae49d
 +#include "qopenharmonyplatformdialoghelpers.h"
 +#include "qopenharmonyplatformclipboard.h"
 +#include "qopenharmonyplatforminputcontext.h"
++#include "qopenharmonyeventdispatcher.h"
 +#include "qopenharmonyeglcore.h"
 +#include "qopenharmonyplatformwindow.h"
 +
@@ -3962,6 +4330,70 @@ index 0000000000..860a4ae49d
 +    return nullptr;
 +}
 +
++static napi_value updateApplicationState(napi_env env, napi_callback_info info)
++{
++    if (!m_main || !m_platformIntegration) {
++        return nullptr;
++    }
++
++    size_t argc = 1;
++    napi_value args[1];
++    NAPI_CALL(env, napi_get_cb_info(env, info, &argc, args, nullptr, nullptr));
++
++    if (argc != 1) {
++        qJs::throwError("Wrong number of arguments in updateApplicationState");
++        return nullptr;
++    }
++
++    Qt::ApplicationState qtState = Qt::ApplicationSuspended;
++
++//    Openharmony doc
++//    SHOWN = 1,
++//    ACTIVE,
++//    INACTIVE,
++//    HIDDEN
++
++    int32_t state = qJs::getInt32(args[0]);
++    switch (state) {
++    case 1:
++        qtState = Qt::ApplicationActive;
++        break;
++    case 2:
++        qtState = Qt::ApplicationActive;
++        break;
++    case 3:
++        qtState = Qt::ApplicationInactive;
++        break;
++    case 4:
++        qtState = Qt::ApplicationSuspended;
++    }
++
++    if (qtState == Qt::ApplicationActive)
++        QtHarmonyPrivate::handleResume();
++    else if (state == Qt::ApplicationInactive)
++        QtHarmonyPrivate::handlePause();
++
++    if (qtState <= Qt::ApplicationInactive) {
++        // NOTE: sometimes we will receive two consecutive suspended notifications,
++        // In the second suspended notification, QWindowSystemInterface::flushWindowSystemEvents()
++        // will deadlock since the dispatcher has been stopped in the first suspended notification.
++        // To avoid the deadlock we simply return if we found the event dispatcher has been stopped.
++        if (QOpenHarmonyEventDispatcherStopper::instance()->stopped())
++            return nullptr;
++
++        // Don't send timers and sockets events anymore if we are going to hide all windows
++        QOpenHarmonyEventDispatcherStopper::instance()->goingToStop(true);
++        QWindowSystemInterface::handleApplicationStateChanged(qtState);
++        if (state == Qt::ApplicationSuspended)
++            QOpenHarmonyEventDispatcherStopper::instance()->stopAll();
++    } else {
++        QOpenHarmonyEventDispatcherStopper::instance()->startAll();
++        QWindowSystemInterface::handleApplicationStateChanged(qtState);
++        QOpenHarmonyEventDispatcherStopper::instance()->goingToStop(false);
++    }
++    return nullptr;
++}
++
 +static napi_value quitQtApplication(napi_env env, napi_callback_info info)
 +{
 +    QOpenHarmonyEGLCore::clear();
@@ -3986,6 +4418,7 @@ index 0000000000..860a4ae49d
 +        napi_property_descriptor desc[] ={
 +            DECLARE_NAPI_FUNCTION("startQtApplication", startQtApplication),
 +            DECLARE_NAPI_FUNCTION("setDisplayMetrics", setDisplayMetrics),
++            DECLARE_NAPI_FUNCTION("updateApplicationState", updateApplicationState),
 +            DECLARE_NAPI_FUNCTION("quitQtApplication", quitQtApplication),
 +        };
 +        NAPI_CALL(env, napi_define_properties(env, exports, sizeof(desc) / sizeof(desc[0]), desc));
@@ -4284,10 +4717,10 @@ index 0000000000..40b3576be4
 +#endif // QOPENHARMONYPLATFORMCLIPBOARD_H
 diff --git a/src/plugins/platforms/openharmony/qopenharmonyplatformdialoghelpers.cpp b/src/plugins/platforms/openharmony/qopenharmonyplatformdialoghelpers.cpp
 new file mode 100644
-index 0000000000..688d6211d2
+index 0000000000..6b97372299
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonyplatformdialoghelpers.cpp
-@@ -0,0 +1,277 @@
+@@ -0,0 +1,285 @@
 +#include "qopenharmonyplatformdialoghelpers.h"
 +#include "qopenharmonymain.h"
 +#include "qopenharmonyjsobjectloader.h"
@@ -4506,6 +4939,14 @@ index 0000000000..688d6211d2
 +    QList<QUrl> result;
 +    for (int i = 0; i < m_files.count(); ++i) {
 +        result << QUrl(m_files.at(i));
++    }
++    QSharedPointer<QFileDialogOptions> opt = options();
++    if (opt.data()) {
++        bool save = (opt->acceptMode() == QFileDialogOptions::AcceptSave);
++        if (save) {
++            // 等待js端把文件创建出来，100可调整
++            QThread::msleep(100);
++        }
 +    }
 +    return result;
 +}
@@ -5354,10 +5795,10 @@ index 0000000000..cc26555741
 +#endif // QOPENHARMONYPLATFORMINPUTCONTEXT_H
 diff --git a/src/plugins/platforms/openharmony/qopenharmonyplatformintegration.cpp b/src/plugins/platforms/openharmony/qopenharmonyplatformintegration.cpp
 new file mode 100644
-index 0000000000..7bb0eb52d6
+index 0000000000..ad1d5c01f1
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonyplatformintegration.cpp
-@@ -0,0 +1,275 @@
+@@ -0,0 +1,287 @@
 +#include "qopenharmonyplatformintegration.h"
 +
 +#include <QtGui/private/qguiapplication_p.h>
@@ -5384,6 +5825,7 @@ index 0000000000..7bb0eb52d6
 +#include "qopenharmonyplatforminputcontext.h"
 +#include "qopenharmonyplatformtheme.h"
 +#include "qopenharmonyplatformclipboard.h"
++#include "qopenharmonyplatformvulkaninstance.h"
 +#include "qopenharmonydefines.h"
 +#include "qopenharmonyeglcore.h"
 +#include "qopenharmonymain.h"
@@ -5622,6 +6064,15 @@ index 0000000000..7bb0eb52d6
 +}
 +#endif
 +
++#if QT_CONFIG(vulkan)
++
++QPlatformVulkanInstance *QOpenHarmonyPlatformIntegration::createPlatformVulkanInstance(QVulkanInstance *instance) const
++{
++    return new QOpenHarmonyPlatformVulkanInstance(instance);
++}
++
++#endif // QT_CONFIG(vulkan)
++
 +void QOpenHarmonyPlatformNativeInterface::customEvent(QEvent *event)
 +{
 +    if (event->type() != QEvent::User)
@@ -5631,14 +6082,16 @@ index 0000000000..7bb0eb52d6
 +    QtOpenHarmony::setOpenHarmonyPlatformIntegration(api);
 +    api->flushPendingUpdates();
 +}
++
++
 +QT_END_NAMESPACE
 +
 diff --git a/src/plugins/platforms/openharmony/qopenharmonyplatformintegration.h b/src/plugins/platforms/openharmony/qopenharmonyplatformintegration.h
 new file mode 100644
-index 0000000000..85efaab490
+index 0000000000..d215197c5c
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonyplatformintegration.h
-@@ -0,0 +1,128 @@
+@@ -0,0 +1,131 @@
 +#ifndef QOPENHARMONYPLATFORMINTERATION_H
 +#define QOPENHARMONYPLATFORMINTERATION_H
 +
@@ -5733,6 +6186,9 @@ index 0000000000..85efaab490
 +
 +    void flushPendingUpdates();
 +
++#if QT_CONFIG(vulkan)
++    QPlatformVulkanInstance *createPlatformVulkanInstance(QVulkanInstance *instance) const;
++#endif // QT_CONFIG(vulkan)
 +private:
 +    EGLDisplay m_eglDisplay;
 +    EGLConfig m_eglConfig;
@@ -6174,10 +6630,10 @@ index 0000000000..c4cb6257c3
 +
 diff --git a/src/plugins/platforms/openharmony/qopenharmonyplatformscreen.cpp b/src/plugins/platforms/openharmony/qopenharmonyplatformscreen.cpp
 new file mode 100644
-index 0000000000..708a2bb537
+index 0000000000..a8fe4b25a5
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonyplatformscreen.cpp
-@@ -0,0 +1,307 @@
+@@ -0,0 +1,308 @@
 +#include <QDebug>
 +#include <QTime>
 +
@@ -6206,7 +6662,7 @@ index 0000000000..708a2bb537
 +
 +
 +QOpenHarmonyPlatformScreen::QOpenHarmonyPlatformScreen()
-+    : QObject(), QPlatformScreen()
++    : QObject(), QPlatformScreen(), m_stopDraw(false)
 +{
 +    m_availableGeometry = QRect(0, 0, QOpenHarmonyPlatformIntegration::m_defaultGeometryWidth, QOpenHarmonyPlatformIntegration::m_defaultGeometryHeight);
 +    m_size = QSize(QOpenHarmonyPlatformIntegration::m_defaultScreenWidth, QOpenHarmonyPlatformIntegration::m_defaultScreenHeight);
@@ -6377,9 +6833,10 @@ index 0000000000..708a2bb537
 +    for (QOpenHarmonyPlatformWindow *w : qAsConst(m_windowStack))
 +        w->applicationStateChanged(state);
 +
-+    if (state <=  Qt::ApplicationHidden) {
-+        releaseSurface();
-+    }
++//    if (state <=  Qt::ApplicationHidden) {
++//        releaseSurface();
++//    }
++    m_stopDraw = (state <=  Qt::ApplicationHidden);
 +}
 +
 +void QOpenHarmonyPlatformScreen::topWindowChanged(QWindow *w)
@@ -6393,7 +6850,7 @@ index 0000000000..708a2bb537
 +
 +void QOpenHarmonyPlatformScreen::doRedraw()
 +{
-+    if (m_dirtyRect.isEmpty())
++    if (m_dirtyRect.isEmpty() || m_stopDraw)
 +        return;
 +
 +    // Stop if there are no visible raster windows. If we only have RasterGLSurface
@@ -6478,19 +6935,19 @@ index 0000000000..708a2bb537
 +
 +void QOpenHarmonyPlatformScreen::releaseSurface()
 +{
-+    if (m_component != nullptr) {
-+        QOpenHarmonyXComponentManager::instance()->remove(m_component);
-+        m_component = nullptr;
-+    }
++//    if (m_component != nullptr) {
++//        QOpenHarmonyXComponentManager::instance()->remove(m_component);
++//        m_component = nullptr;
++//    }
 +}
 +
 +QT_END_NAMESPACE
 diff --git a/src/plugins/platforms/openharmony/qopenharmonyplatformscreen.h b/src/plugins/platforms/openharmony/qopenharmonyplatformscreen.h
 new file mode 100644
-index 0000000000..6e26c0cfb2
+index 0000000000..033d7ed59b
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonyplatformscreen.h
-@@ -0,0 +1,79 @@
+@@ -0,0 +1,80 @@
 +#ifndef QOPENHARMONYPLATFORMSCREEN_H
 +#define QOPENHARMONYPLATFORMSCREEN_H
 +
@@ -6566,6 +7023,7 @@ index 0000000000..6e26c0cfb2
 +    QOpenHarmonyXComponent *m_component = nullptr;
 +    QWaitCondition m_surfaceWaitCondition;
 +    QSize m_size;
++    bool m_stopDraw;
 +};
 +
 +QT_END_NAMESPACE
@@ -6639,6 +7097,69 @@ index 0000000000..06de62426a
 +};
 +
 +#endif // QOPENHARMONYPLATFORMTHEME_H
+diff --git a/src/plugins/platforms/openharmony/qopenharmonyplatformvulkaninstance.cpp b/src/plugins/platforms/openharmony/qopenharmonyplatformvulkaninstance.cpp
+new file mode 100644
+index 0000000000..92e75915d3
+--- /dev/null
++++ b/src/plugins/platforms/openharmony/qopenharmonyplatformvulkaninstance.cpp
+@@ -0,0 +1,27 @@
++#include "qopenharmonyplatformvulkaninstance.h"
++
++QT_BEGIN_NAMESPACE
++
++QOpenHarmonyPlatformVulkanInstance::QOpenHarmonyPlatformVulkanInstance(QVulkanInstance *instance)
++    : m_instance(instance)
++{
++    m_lib.setFileName(QStringLiteral("vulkan"));
++
++    if (!m_lib.load()) {
++        qWarning("Failed to load %s", qPrintable(m_lib.fileName()));
++        return;
++    }
++
++    init(&m_lib);
++}
++
++void QOpenHarmonyPlatformVulkanInstance::createOrAdoptInstance()
++{
++    initInstance(m_instance, QByteArrayList() << QByteArrayLiteral("VK_KHR_android_surface"));
++}
++
++QOpenHarmonyPlatformVulkanInstance::~QOpenHarmonyPlatformVulkanInstance()
++{
++}
++
++QT_END_NAMESPACE
+diff --git a/src/plugins/platforms/openharmony/qopenharmonyplatformvulkaninstance.h b/src/plugins/platforms/openharmony/qopenharmonyplatformvulkaninstance.h
+new file mode 100644
+index 0000000000..27803ba6a1
+--- /dev/null
++++ b/src/plugins/platforms/openharmony/qopenharmonyplatformvulkaninstance.h
+@@ -0,0 +1,24 @@
++#ifndef QOPENHARMONYPLATFORMVULKANINSTANCE_H
++#define QOPENHARMONYPLATFORMVULKANINSTANCE_H
++
++#include <QtVulkanSupport/private/qbasicvulkanplatforminstance_p.h>
++#include <QLibrary>
++
++QT_BEGIN_NAMESPACE
++
++class QOpenHarmonyPlatformVulkanInstance : public QBasicPlatformVulkanInstance
++{
++public:
++    QOpenHarmonyPlatformVulkanInstance(QVulkanInstance *instance);
++    ~QOpenHarmonyPlatformVulkanInstance();
++
++    void createOrAdoptInstance() override;
++
++private:
++    QVulkanInstance *m_instance;
++    QLibrary m_lib;
++};
++
++QT_END_NAMESPACE
++
++#endif // QOPENHARMONYPLATFORMVULKANINSTANCE_H
 diff --git a/src/plugins/platforms/openharmony/qopenharmonyplatformwindow.cpp b/src/plugins/platforms/openharmony/qopenharmonyplatformwindow.cpp
 new file mode 100644
 index 0000000000..3b33a1d067
