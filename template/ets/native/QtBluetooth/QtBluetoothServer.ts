@@ -63,7 +63,7 @@ export class QtBluetoothServer {
           try {
             bluetoothManager.sppAccept(this.serverNumber, (code, number) => {
               console.log('bluetooth clientSocket Number: ' + number);
-              // 获取的clientNumber用作服务端后续读/写操作socket的id。
+              /* 获取的clientNumber用作服务端后续读/写操作socket的id */
               this.clientNumber = number;
               let server = new QtBluetoothSocket(this.clientNumber);
               Reflect.defineProperty(globalThis, this.clientNumber, { value: server });
