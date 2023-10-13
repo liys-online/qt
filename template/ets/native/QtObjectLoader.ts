@@ -1,18 +1,14 @@
-import { QtDialog } from './QtDialog'
-import { QtPasteBoard } from './QtPasteBoard'
-import { QtInputManager } from './QtInputManager'
-import { QtWindowManager } from './QtWindowManager'
-import { QtMediaPlayer } from './QtMediaPlayer'
-import { QtAudioManager } from './QtAudioManager'
-import { QtFileManager } from './QtFileManager'
+import { QtDialog } from './QtCore/QtDialog'
+import { QtPasteBoard } from './QtCore/QtPasteBoard'
+import { QtInputManager } from './QtCore/QtInputManager'
+import { QtWindowManager } from './QtCore/QtWindowManager'
+import { QtFileManager } from './QtCore/QtFileManager'
 
 let classes = {
     "qtdialog": QtDialog,
     "qtpasteboard": QtPasteBoard,
     "qtinputmanager": QtInputManager,
     "qtwindowmanager": QtWindowManager,
-    "qtmediaplayer": QtMediaPlayer,
-    "qtaudiomanager": QtAudioManager,
     "qtfilemanager": QtFileManager,
 }
 
@@ -21,7 +17,8 @@ export class QtObjectLoader {
 
     }
 
-    createObject(name) {
+    // Todo 动态加载
+    createObject(name: string) {
         if (!classes.hasOwnProperty(name)) {
             return false;
         }

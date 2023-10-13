@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022 Sinux Co., Ltd.
+ * Copyright (c) 2022 Huawei Device Co., Ltd.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -12,9 +12,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 import mediaLibrary from '@ohos.multimedia.mediaLibrary'
-import QtApplication from './QtApplication'
+import QtApplication from '../QtApplication'
 
 export class MediaUtils {
     private tag: string = 'MediaUtils'
@@ -45,11 +44,6 @@ export class MediaUtils {
     }
 
     async getFileAssetsFromType(mediaType: number) {
-        await QtApplication.getInstance().getAbilityContext().requestPermissionsFromUser([
-            'ohos.permission.MEDIA_LOCATION',
-            'ohos.permission.READ_MEDIA',
-            'ohos.permission.WRITE_MEDIA'
-        ])
         let fileKeyObj = mediaLibrary.FileKey
         let fetchOp = {
             selections: `${fileKeyObj.MEDIA_TYPE}=?`,
