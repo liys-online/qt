@@ -11,10 +11,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- */
-
-
-import hilog from '@ohos.hilog';
+ */import hilog from '@ohos.hilog';
 import UIAbility from '@ohos.app.ability.UIAbility';
 import Window from '@ohos.window'
 import QtApplication  from '../native/QtApplication'
@@ -25,6 +22,11 @@ export default class EntryAbility extends UIAbility {
 
     onCreate(want, launchParam) {
         this.qtApp.setContext(this.context);
+        this.qtApp.setElementName({
+            bundleName: want.bundleName,
+            abilityName: want.abilityName,
+            moduleName: want.moduleName
+        });
     }
 
     onDestroy() {

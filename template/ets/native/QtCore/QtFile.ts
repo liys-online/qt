@@ -1,17 +1,15 @@
 import fs from '@ohos.file.fs';
-import uri from '@ohos.uri';
 import deviceInfo from '@ohos.deviceInfo'
-import QtApplication  from './QtApplication'
 
 export class QtFile {
 
-  private uri = null;
-  private file = null;
-  private valid : Boolean = false;
+  private uri : string = '';
+  private file : fs.File= null;
+  private valid : boolean = false;
   private offset : number = 0;
 
 
-  constructor(uriString) {
+  constructor(uriString: string) {
     let _uri = uriString;
     const versionRegex = /(\d+\.\d+\.\d+\.\d+)/;
     const match = deviceInfo.displayVersion.match(versionRegex);
@@ -24,7 +22,7 @@ export class QtFile {
     this.uri = _uri;
   }
 
-  open(mode) {
+  open(mode: number): boolean {
     try {
       console.log("open file:", this.uri, mode)
       this.file = fs.openSync(this.uri, mode);
@@ -37,7 +35,7 @@ export class QtFile {
     }
   }
 
-   write(buffer) {
+   write(buffer : ArrayBuffer): number {
     try {
       return fs.writeSync(this.file.fd, buffer);
     } catch (error) {
@@ -46,24 +44,24 @@ export class QtFile {
     }
   }
 
-  seek(offset) {
+  seek(offset: number): boolean {
     this.offset = offset;
     return true;
   }
 
-  pos() {
+  pos(): number {
     return this.offset;
   }
 
-  size() {
+  size(): number {
     return fs.statSync(this.file.fd).size;
   }
 
-  flush() {
+  flush(): boolean {
     return true;
   }
 
-  read(length) {
+  read(length: number): ArrayBuffer {
     let buf = new ArrayBuffer(length);
     try {
       let options = { "offset": this.offset, "length": length }
@@ -76,7 +74,7 @@ export class QtFile {
     }
   }
 
-  close() {
+  close(): boolean {
     if (this.valid) {
       try {
         fs.closeSync(this.file);
@@ -86,6 +84,8 @@ export class QtFile {
         this.valid = false;
         return true;
       }
+    } else {
+      return true;
     }
   }
 }

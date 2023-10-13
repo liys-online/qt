@@ -1,24 +1,11 @@
-/*
- * Copyright (C) 2022 Sinux Co., Ltd.
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
-import Window from '@ohos.window';
+import window from '@ohos.window';
 import display from '@ohos.display';
 import fs from '@ohos.file.fs';
+import common from '@ohos.app.ability.common';
 import resourceManager from '@ohos.resourceManager';
 import qpa from "libplugins_platforms_qopenharmony.so";
 import { QtObjectLoader } from './QtObjectLoader'
+import bundleManager from '@ohos.bundle.bundleManager';
 
 export default class QtApplication {
   private static instance: QtApplication;
@@ -26,11 +13,12 @@ export default class QtApplication {
   private constructor() {
   }
 
-  private context = null;
-  private mainWindow: Window.Window = null;
+  private context: common.UIAbilityContext = null;
+  private mainWindow: window.Window = null;
   private mainWindowName: string = "opemharmony_qt_mainwindow";
-  private windowStage: Window.WindowStage;
-  private dirs = null
+  private windowStage: window.WindowStage;
+  private dirs = null;
+  private elementName: bundleManager.ElementName = null;
 
   public static getInstance(): QtApplication {
     if (!QtApplication.instance) {
@@ -40,7 +28,7 @@ export default class QtApplication {
     return QtApplication.instance;
   }
 
-  setContext(context) {
+  setContext(context: common.UIAbilityContext) {
     this.context = context;
     var appContext = this.context.getApplicationContext();
     this.dirs = {
@@ -55,15 +43,23 @@ export default class QtApplication {
     };
   }
 
-  getAbilityContext() {
+  setElementName(en: bundleManager.ElementName) {
+    this.elementName = en;
+  }
+
+  getElementName(): bundleManager.ElementName {
+    return this.elementName;
+  }
+
+  getAbilityContext(): common.UIAbilityContext {
     return this.context;
   }
 
-  getWindowStage(): Window.WindowStage {
+  getWindowStage(): window.WindowStage {
     return this.windowStage;
   }
 
-  getMainWindow(): Window.Window {
+  getMainWindow(): window.Window {
     return this.mainWindow;
   }
 
@@ -71,7 +67,7 @@ export default class QtApplication {
     return this.mainWindowName;
   }
 
-  async run(windowStage: Window.WindowStage) {
+  async run(windowStage: window.WindowStage) {
     this.windowStage = windowStage;
     this.mainWindow = this.windowStage.getMainWindowSync();
     globalThis.createWindowName = this.mainWindowName;
@@ -80,6 +76,10 @@ export default class QtApplication {
       console.info('Succeeded in enabling the listener for window size. Data: ' + JSON.stringify(data));
       let d = display.getDefaultDisplaySync();
       qpa.setDisplayMetrics(d.densityDPI, d.densityPixels, d.scaledDensity, data.width, data.height, data.width, data.height);
+    });
+    this.windowStage.on("windowStageEvent", (state)=>{
+      qpa.updateApplicationState(state);
+      console.log("window stage changed", state);
     });
     await this.extractFilesToCache();
     this.loadQtApplication()
@@ -92,12 +92,10 @@ export default class QtApplication {
   loadQtApplication() {
     globalThis.qtobjectloader = new QtObjectLoader();
     globalThis.qpa = qpa;
-    qpa.startQtApplication(this.dirs, "libQtForHarmony.so");
-    // qpa.startQtApplication(this.dirs, "libplanets-qml.so");
-    // qpa.startQtApplication(this.dirs, "libQmlTest.so");
+    qpa.startQtApplication(this.dirs, "libentry.so");
   }
 
-  private saveFileToCache(file, des) {
+  private saveFileToCache(file: resourceManager.RawFileDescriptor, des: string) {
     let paths = des.split("/").slice(0, -1);
     let temp = this.dirs.cacheDir + "/";
     for (let i = 0; i < paths.length; ++i) {
@@ -138,10 +136,10 @@ export default class QtApplication {
     fs.close(cacheFile);
   }
 
-  async extractFile(src) {
+  async extractFile(src: string) {
     try {
       let R = this.context.resourceManager;
-      let file = await R.getRawFileDescriptor(src);
+      let file: resourceManager.RawFileDescriptor = await R.getRawFd(src);
       this.saveFileToCache(file, src);
     } catch (err) {
       console.log("extract file failed: ", JSON.stringify(err), src);
@@ -151,8 +149,8 @@ export default class QtApplication {
   async extractFilesToCache() {
     try {
       let R = this.context.resourceManager;
-      let rawContent = await R.getRawFile("qt.json");
-      let str = String.fromCharCode.apply(null, rawContent)
+      let rawContent: Uint8Array = await R.getRawFileContent("qt.json");
+      let str: string = String.fromCharCode.apply(null, rawContent)
       let files = JSON.parse(str);
       for (var i = 0; i < files.files.length; ++i) {
         await this.extractFile(files.files[i]);

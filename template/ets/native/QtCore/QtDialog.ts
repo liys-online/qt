@@ -1,15 +1,15 @@
 import promptAction from '@ohos.promptAction'
 import picker from '@ohos.file.picker';
-import QtApplication from './QtApplication'
+import QtApplication from '../QtApplication'
 import uri from '@ohos.uri';
-
+import fs from '@ohos.file.fs';
 export class QtDialog {
     private context  = QtApplication.getInstance().getAbilityContext()
 
     constructor() {
     }
 
-    messageBox(handler, title, text, buttons) {
+    messageBox(handler : number, title : string, text : string, buttons : Array<string>): boolean {
         var opt: promptAction.ShowDialogOptions = {
             title: title,
             message: text,
@@ -31,7 +31,6 @@ export class QtDialog {
             }
             opt.buttons.push(button)
         }
-
         promptAction.showDialog(opt, (err, data) => {
             if (err) {
                 console.log("show dialog error: ", JSON.stringify(err));
@@ -42,23 +41,23 @@ export class QtDialog {
         return true;
     }
 
-    isVideo(filter) {
+    isVideo(filter: string): boolean {
         return filter.includes("mp4") || filter.includes("MPEG")
         || filter.includes("MPG") || filter.includes("DAT")
         || filter.includes("MOV") || filter.includes("FLV");
     }
 
-    isAudio(filter) {
+    isAudio(filter: string): boolean {
         return filter.includes("mp3") || filter.includes("wma") || filter.includes("ogg") || filter.includes("flac")
         || filter.includes("wv");
     }
 
-    isImage(filter) {
+    isImage(filter: string): boolean {
         return filter.includes("png") || filter.includes("jpeg")
         || filter.includes("jpg") || filter.includes("bmp")
     }
 
-    async openFileDialog(handler, filter) {
+    async openFileDialog(handler: number, filter: string) : Promise<boolean> {
         // let isImage = this.isImage(filter);
         // let isVideo = this.isVideo(filter);
         // let isAudio = this.isAudio(filter);
@@ -111,7 +110,7 @@ export class QtDialog {
         this.context.startAbilityForResult(config).then((result) => {
             // 获取到文档文件的uri
             let select_item_list = result.want.parameters.select_item_list;
-
+            console.log("select file: ", select_item_list.toString());
             globalThis.qpa.selectedFilesResult(handler, [select_item_list.toString()]);
         }).catch((error) => {
             console.log("open file dialog result", JSON.stringify(error));
@@ -120,7 +119,7 @@ export class QtDialog {
         return true;
     }
 
-    async saveFileDialog(handler, fileName) {
+    async saveFileDialog(handler : number, fileName: string) : Promise<boolean> {
         // let isImage = this.isImage(fileName);
         // let isVideo = this.isVideo(fileName);
         // let isAudio = this.isAudio(fileName);
@@ -165,12 +164,13 @@ export class QtDialog {
             }
         }
 
-        this.context.startAbilityForResult(config, {windowMode: 0}).then((result) => {
+        try {
+            let result = await this.context.startAbilityForResult(config);
             globalThis.qpa.selectedFilesResult(handler, [result.want.parameters.pick_path_return.toString()]);
-        }, (error) => {
+        } catch (error) {
             console.info("startAbilityForResult Promise.Reject is called, error.code = " + error.code)
             globalThis.qpa.selectedFilesResult(handler, []);
-        })
+        }
         return true;
     }
 }

@@ -1,37 +1,21 @@
-/*
- * Copyright (C) 2022 Sinux Co., Ltd.
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
-
 import window from '@ohos.window';
 import HashMap from '@ohos.util.HashMap';
-import QtApplication from './QtApplication'
+import QtApplication from '../QtApplication'
 
 export class QtWindowManager {
-    private windowRect = null;
-    private windows = null;
+    private windowRect: HashMap<string, window.Rect> = null;
+    private windows: HashMap<string, window.Window> = null;
     private qtApp: QtApplication = QtApplication.getInstance()
     constructor() {
         this.windowRect = new HashMap;
         this.windows = new HashMap;
     }
 
-    addWindow(window) {
+    addWindow(window: window.Window) {
         this.windows.set(globalThis.createWindowName, window)
     }
 
-    findWindow(name) {
+    findWindow(name: string): window.Window {
         if (this.windows.hasKey(name)) {
             let p = this.windows.get(name);
             return p;
@@ -39,7 +23,7 @@ export class QtWindowManager {
         return null;
     }
 
-     async createWindow(name) {
+     async createWindow(name): Promise<boolean> {
          if (name == this.qtApp.getMainWindowName()) {
              this.windows.set(name, this.qtApp.getMainWindow());
          } else {
@@ -57,8 +41,8 @@ export class QtWindowManager {
          return true;
     }
 
-    async destroyWindow(name) {
-        let windowClass = null;
+    async destroyWindow(name: string): Promise<boolean> {
+        let windowClass: window.Window = null;
         try {
             windowClass = this.findWindow(name);
             await windowClass.destroyWindow();
@@ -67,10 +51,9 @@ export class QtWindowManager {
             console.error('Failed to call destroyWindow for the Window. Cause: ' + JSON.stringify(exception));
             return false;
         }
-        return true;
     }
 
-    async setGeometry(name, x, y, w, h) {
+    async setGeometry(name: string, x: number, y: number, w: number, h: number): Promise<boolean> {
         console.log('set window geometry:', name, x, y, w, h)
         let windowClass = this.findWindow(name);
         if (windowClass != null) {
@@ -79,14 +62,13 @@ export class QtWindowManager {
                 await windowClass.moveWindowTo(x, y);
                 await windowClass.resize(w, h);
             }
-            this.windowRect.set(name, {'w': w, 'h': h, 'x': x, 'y': y})
+            this.windowRect.set(name, {'width': w, 'height': h, 'left': x, 'top': y})
         }
         return true;
     }
 
-    async showWindow(name, visible) {
+    async showWindow(name: string, visible: boolean) {
         console.log("show window:", name, visible);
-        let windowClass = null;
         try {
             let windowClass = this.findWindow(name);
             if (windowClass != null) {
@@ -94,8 +76,8 @@ export class QtWindowManager {
                     await windowClass.showWindow();
                     if (this.windowRect.hasKey(name)) {
                         let p = this.windowRect.get(name);
-                        await windowClass.moveWindowTo(p.x, p.y);
-                        await windowClass.resize(p.w, p.h);
+                        await windowClass.moveWindowTo(p.left, p.top);
+                        await windowClass.resize(p.width, p.height);
                     }
                 }
             }
@@ -104,6 +86,5 @@ export class QtWindowManager {
             console.error('Failed to call showWindow for the Window. Cause: ' + JSON.stringify(exception));
             return false;
         }
-        return true;
     }
 }

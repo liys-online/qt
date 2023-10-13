@@ -1,19 +1,3 @@
-/*
- * Copyright (C) 2022 Sinux Co., Ltd.
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
-
 import pasteboard from '@ohos.pasteboard';
 
 export class QtPasteBoard {
@@ -25,20 +9,20 @@ export class QtPasteBoard {
         });
     }
 
-    async hasClipboardText() {
+    async hasClipboardText() : Promise<boolean> {
         let systemPasteboard = pasteboard.getSystemPasteboard();
         let result = await systemPasteboard.hasPasteData()
         return result;
     }
 
-    async clipboardText() {
+    async clipboardText() : Promise<string> {
         let systemPasteboard = pasteboard.getSystemPasteboard();
         let pastedata = await systemPasteboard.getPasteData();
         let result = pastedata.getPrimaryText();
         return result;
     }
 
-    setClipboardText(text) {
+    setClipboardText(text: string) : boolean {
         console.log('set clipboard text', text);
         var pasteData = pasteboard.createData(pasteboard.MIMETYPE_TEXT_PLAIN, text);
         let systemPasteboard = pasteboard.getSystemPasteboard();
