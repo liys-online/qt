@@ -2,16 +2,16 @@
 set "e=|| exit /b 1"
 set ROOT_DIR=%cd%
 set PATH=%PATH%;%cd%
-set V3SDK=http://download.ci.openharmony.cn/version/Master_Version/OpenHarmony_3.2.10.9/20230225_073754/version-Master_Version-OpenHarmony_3.2.10.9-20230225_073754-ohos-sdk-full.tar.gz
+set V3SDK=http://download.ci.openharmony.cn/version/Daily_Version/OpenHarmony_3.2.10.10/20230303_145524/version-Daily_Version-OpenHarmony_3.2.10.10-20230303_145524-ohos-sdk-full.tar.gz
 set V4SDK=http://download.ci.openharmony.cn/version/Master_Version/OpenHarmony_4.0.10.5/20230824_120941/version-Master_Version-OpenHarmony_4.0.10.5-20230824_120941-ohos-sdk-full_monthly.tar.gz
 
 set ARGS=%*
+set OHOS_ARCH=arm64-v8a
 
 goto :doargs %ARGS%
 REM goto doneargs
 
 :doneargs
-set OHOS_ARCH=%PLATFORM%
 
 call :acquireUnzip
 call :acquireQtSrc
@@ -146,6 +146,14 @@ if not exist "%ROOT_DIR%\%UN_ZIP_DIR%" (
 	echo "SDK package has already unzip."	
 ) 
 
+if not exist "%ROOT_DIR%\%UN_ZIP_DIR%\ohos-sdk" (
+	mkdir %ROOT_DIR%\%UN_ZIP_DIR%
+	tar -xzvf %SDK_PACKAGE% -C %ROOT_DIR%\%UN_ZIP_DIR%
+	cd %ROOT_DIR%
+) else (
+	echo "SDK package has already unzip."	
+)
+
 for /f "delims="  %%a in ('dir %ROOT_DIR%\%UN_ZIP_DIR%\ohos-sdk\windows^|findstr native-windows') do (				
 	for /f "tokens=4" %%i in ("%%a") do (		
 		set nativefile=%%i
@@ -162,7 +170,8 @@ if not exist "%ROOT_DIR%\%UN_ZIP_DIR%\ohos-sdk\windows\native" (
 ) 
 
 set OHOS_SDK_PATH=%ROOT_DIR%\%UN_ZIP_DIR%\ohos-sdk\windows
-set PATH=%PATH%;%OHOS_SDK_PATH%\native\llvm\bin;F:\QtComplete\Tools\mingw810_64\bin
+set PATH=%PATH%;%OHOS_SDK_PATH%\native\llvm\bin;%OHOS_SDK_PATH%\native\llvm\lib;
+echo "OHOS_SDK_PATH:%OHOS_SDK_PATH%"
 goto :eof
 
 :acquirePatch
@@ -227,7 +236,7 @@ if "%OHOS_ARCH%" == "arm64-v8a" (
 ) else if "%OHOS_ARCH%" == "x86_64" (
   set OHOS_TARGET=x86_64-linux-ohos
 ) else (
-  set OHOS_ARCH=arm64-v8a
+  set OHOS_ARCH=armeabi-v7a
   set OHOS_TARGET=arm-linux-ohos
 )
 
@@ -241,15 +250,11 @@ if not exist "%BUILD_DIR%" (
 )
 
 cd %BUILD_DIR%
-call %ROOT_DIR%\qt5\configure.bat -platform win32-g++ -xplatform oh-clang -device-option OHOS_ARCH=%OHOS_ARCH% -opensource -confirm-license -disable-rpath -make tests -make examples -v ^
--prefix %QT_INSTALL_DIR% -opengl es2 -opengles3 -skip qtserialport -skip webengine ^
--skip qtpurchasing -skip qtwebchannel -skip qtgamepad ^
--skip qtsensors -skip qtlocation -skip qtscript -skip qtnetworkauth ^
--skip qtsystems -no-feature-bearermanagement -no-feature-http ^
--no-dbus -recheck-all
+call %ROOT_DIR%\qt5\configure.bat -platform win32-g++ -xplatform oh-clang -device-option OHOS_ARCH=%OHOS_ARCH% -opensource -confirm-license -nomake tests -make examples -v ^
+-prefix %QT_INSTALL_DIR% -skip qtvirtualkeyboard -skip qtnetworkauth -skip webengine -skip location -skip qtwebchannel -skip qtgamepad -skip qtscript -opengl es2 -opengles3 -no-dbus -recheck-all
 
 mingw32-make -j16
-mingw32-make install
+REM mingw32-make install
 
 cd %ROOT_DIR%
 goto :eof

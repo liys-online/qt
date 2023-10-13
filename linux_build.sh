@@ -6,7 +6,7 @@ BLUE='\E[1;34m'
 PINK='\E[1;35m'     
 RES='\E[0m'         
 
-export V3SDK=http://download.ci.openharmony.cn/version/Master_Version/OpenHarmony_3.2.10.9/20230225_073754/version-Master_Version-OpenHarmony_3.2.10.9-20230225_073754-ohos-sdk-full.tar.gz
+export V3SDK=http://download.ci.openharmony.cn/version/Daily_Version/OpenHarmony_3.2.10.10/20230303_145524/version-Daily_Version-OpenHarmony_3.2.10.10-20230303_145524-ohos-sdk-full.tar.gz
 export V4SDK=http://download.ci.openharmony.cn/version/Master_Version/OpenHarmony_4.0.10.5/20230824_120941/version-Master_Version-OpenHarmony_4.0.10.5-20230824_120941-ohos-sdk-full_monthly.tar.gz
 
 function downloadQtSrc(){
@@ -72,7 +72,7 @@ function downloadOHSDK() {
 	export OHOS_SDK_PATH=$ROOT_DIR/$SUB_DIR/ohos-sdk/linux
 	echo "OHOS_SDK_PATH=$OHOS_SDK_PATH"
 	
-	export PATH=$ROOT_DIR/$SUB_DIR/ohos-sdk/linux/native/llvm/bin:$PATH
+	export PATH=$ROOT_DIR/$SUB_DIR/ohos-sdk/linux/native/llvm/bin:$ROOT_DIR/$SUB_DIR/ohos-sdk/linux/native/llvm/lib:$PATH
 	echo "Append Compiler Path......$PATH"
 }
 
@@ -127,8 +127,8 @@ function downloadQtSrcPatch() {
 }
 
 function buildQtSrc() {
-	OH_SDK_VERSION=$(echo $(echo "$1" | awk -F '/' '{print $6}') | awk -F '_' '{print $2}')
-	BIN_DIR=$ROOT_DIR/qt_oh_sdk_$OH_SDK_VERSION_bin/Qt5.12.12
+	OH_SDK_VERSION="$(echo $(echo "$1" | awk -F '/' '{print $6}') | awk -F '_' '{print $2}')"
+	BIN_DIR=$ROOT_DIR/qt_oh_sdk_${OH_SDK_VERSION}_bin/Qt5.12.12
 	if [ "$OHOS_ARCH" == "arm64-v8a" ]
 	then
 		QT_INSTALL_DIR=$BIN_DIR/aarch64-linux-ohos
@@ -142,7 +142,10 @@ function buildQtSrc() {
 
 
 	echo "Build Qt......"
-	BUILD_DIR=$ROOT_DIR/build_qt_oh_sdk_$OH_SDK_VERSION
+	echo "openharmony sdk version:$OH_SDK_VERSION"
+	echo "INSTALL path:$QT_INSTALL_DIR"
+	
+	BUILD_DIR="$ROOT_DIR/build_qt_oh_sdk_$OH_SDK_VERSION"
 	if [ ! -d $BUILD_DIR ]
 	then
 		mkdir -p $BUILD_DIR
@@ -150,12 +153,9 @@ function buildQtSrc() {
 
 	chmod +x $ROOT_DIR/qt5 -R
 	cd $BUILD_DIR
-	$ROOT_DIR/qt5/configure -xplatform oh-clang -device-option OHOS_ARCH=$OHOS_ARCH -opensource -confirm-license -disable-rpath -make tests -make examples -v \
-				-prefix $QT_INSTALL_DIR -opengl es2 -opengles3 -skip qtserialport -skip webengine \
-				-skip qtpurchasing -skip qtwebchannel -skip qtgamepad \
-				-skip qtsensors -skip qtlocation -skip qtscript -skip qtnetworkauth \
-				-skip qtsystems -no-feature-bearermanagement -no-feature-http \
-				-no-dbus -recheck-all
+	$ROOT_DIR/qt5/configure -xplatform oh-clang -device-option OHOS_ARCH=$OHOS_ARCH -opensource -confirm-license -nomake tests -make examples -v \
+	-prefix $QT_INSTALL_DIR -skip qtvirtualkeyboard -skip qtnetworkauth -skip webengine -skip location -skip qtwebchannel -skip qtgamepad -skip qtscript \
+	-opengl es2 -opengles3 -no-dbus -recheck-all
 				
 	make -j16
 	make install

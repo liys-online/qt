@@ -113,7 +113,7 @@ export class QtNfcTag {
       let result = await this.target.sendData(data);
       let arrayBuffer = new Uint8Array(result).buffer;
       return arrayBuffer;
-    } catch(err) {
+    } catch (err) {
       console.log("tagSession sendData Promise err: " + err);
       return null;
     }
@@ -170,5 +170,4 @@ export class QtNfcTag {
     //Todo close
     return true;
   }
-
 }
