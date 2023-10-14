@@ -1,23 +1,33 @@
 import bluetoothManager from '@ohos.bluetoothManager';
 
 export class QtBluetoothSocket {
-
   private clientSocket = null
 
   private id = 0;
+
   constructor(id) {
     this.id = id;
   }
 
+  setId(id) {
+    this.id = id;
+    return true;
+  }
+
+  setSocketNumber(number) {
+    this.clientSocket = number;
+    return true;
+  }
+
   connect(address, uuid, sec) {
     try {
-      let sppOption = {uuid: uuid, secure: sec, type: 0};
+      let sppOption = { uuid: uuid, secure: sec, type: 0 };
       bluetoothManager.sppConnect(address, sppOption, (code, client) => {
-         if (code.code != 0) {
-            return;
+        if (code.code != 0) {
+          return;
         }
         console.log('bluetooth serverSocket Number: ' + client);
-        // 获取的clientNumber用作客户端后续读/写操作socket的id。
+        /* 获取的clientNumber用作客户端后续读/写操作socket的id */
         this.clientSocket = client;
       });
       return true;
@@ -30,9 +40,9 @@ export class QtBluetoothSocket {
   start() {
     try {
       bluetoothManager.on('sppRead', this.clientSocket, (dataBuffer) => {
-            globalThis.qtbluetooth.socketDataAvailable(this.id, dataBuffer);
+        globalThis.qtbluetooth.socketDataAvailable(this.id, dataBuffer);
       });
-     } catch (err) {
+    } catch (err) {
       console.error("sppRead errCode:" + err.code + ",errMessage:" + err.message);
       return false;
     }
@@ -52,5 +62,4 @@ export class QtBluetoothSocket {
     bluetoothManager.off('sppRead', this.clientSocket);
     bluetoothManager.sppCloseClientSocket(this.clientSocket);
   }
-
 }

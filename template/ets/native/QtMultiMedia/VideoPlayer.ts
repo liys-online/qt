@@ -1,5 +1,5 @@
 import media from '@ohos.multimedia.media'
-import { MediaUtils }  from './MediaUtils'
+import { MediaUtils }  from '../QtMultiMedia/MediaUtils'
 import mediaLibrary from '@ohos.multimedia.mediaLibrary'
 
 export default class VideoPlayer {

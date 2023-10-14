@@ -658,11 +658,12 @@ index 0000000000..7480dc1c20
 +#endif // QOPENHARMONYDEFINES_H
 diff --git a/src/corelib/kernel/qopenharmonyhelpers.cpp b/src/corelib/kernel/qopenharmonyhelpers.cpp
 new file mode 100644
-index 0000000000..52c51ee89f
+index 0000000000..6ac33f6a4a
 --- /dev/null
 +++ b/src/corelib/kernel/qopenharmonyhelpers.cpp
-@@ -0,0 +1,61 @@
+@@ -0,0 +1,129 @@
 +#include "qopenharmonyhelpers_p.h"
++#include "qopenharmonyjsenvironment.h"
 +#include "qmutex.h"
 +#include "qlist.h"
 +#include "qsemaphore.h"
@@ -681,15 +682,82 @@ index 0000000000..52c51ee89f
 +    ResumePauseListener::~ResumePauseListener() {}
 +    void ResumePauseListener::handlePause() {}
 +    void ResumePauseListener::handleResume() {}
++
++    napi_value variant_to_napi_value(const QVariant &value)
++    {
++        napi_value ret = nullptr;
++        QVariant::Type t = value.type();
++        switch (t) {
++        case QVariant::Int:
++            ret = qJs::createInt32(value.toInt());
++            break;
++        case QVariant::String:
++            ret = qJs::createString(value.toString());
++            break;
++        case QVariant::StringList:
++            ret = qJs::createStringArray(value.toStringList());
++            break;
++        case QVariant::Bool:
++            ret = qJs::createBool(value.toBool());
++            break;
++        case QVariant::LongLong:
++            ret = qJs::createInt64(value.toLongLong());
++            break;
++        case QVariant::ByteArray:
++            ret = qJs::createArrayBuffer(value.toByteArray());
++            break;
++        case QVariant::Map:
++            ret = qJs::createObject(value.toMap());
++            break;
++        default:
++            //Todo other type
++            break;
++        }
++        return ret;
++    }
++
++    QVariant napi_value_to_variant(napi_value value, int t)
++    {
++        QVariant ret;
++        switch (t) {
++        case QMetaType::Int:
++            ret = qJs::getInt32(value);
++            break;
++        case QMetaType::QString:
++            ret = qJs::getString(value);
++            break;
++        case QMetaType::QStringList:
++            ret = qJs::getStringList(value);
++            break;
++        case QMetaType::Bool:
++            ret = qJs::getBool(value);
++            break;
++        case QMetaType::LongLong:
++            ret = QVariant::fromValue(qJs::getInt64(value));
++            break;
++        case QMetaType::QByteArray:
++            ret = QVariant::fromValue(qJs::getByteArray(value));
++            break;
++        case QMetaType::QByteArrayList:
++            ret = QVariant::fromValue(qJs::getByteArrayList(value));
++            break;
++        default:
++            //Todo other type
++            break;
++        }
++        return ret;
++    }
++
++
 +}
 +
 +namespace {
-+    class ResumePauseListeners
-+    {
-+    public:
-+        QMutex mutex;
-+        QList<QtHarmonyPrivate::ResumePauseListener *> listeners;
-+    };
++class ResumePauseListeners
++{
++public:
++    QMutex mutex;
++    QList<QtHarmonyPrivate::ResumePauseListener *> listeners;
++};
 +}
 +
 +Q_GLOBAL_STATIC(ResumePauseListeners, g_resumePauseListeners)
@@ -725,10 +793,10 @@ index 0000000000..52c51ee89f
 +QT_END_NAMESPACE
 diff --git a/src/corelib/kernel/qopenharmonyhelpers_p.h b/src/corelib/kernel/qopenharmonyhelpers_p.h
 new file mode 100644
-index 0000000000..13b602491b
+index 0000000000..0c0bd12c64
 --- /dev/null
 +++ b/src/corelib/kernel/qopenharmonyhelpers_p.h
-@@ -0,0 +1,37 @@
+@@ -0,0 +1,43 @@
 +#ifndef QOPENHARMONYHELPERS_H
 +#define QOPENHARMONYHELPERS_H
 +
@@ -737,6 +805,8 @@ index 0000000000..13b602491b
 +#include <QtCore/private/qglobal_p.h>
 +#include <QHash>
 +#include <QMetaType>
++#include <napi/native_api.h>
++#include <QtCore/qvariant.h>
 +
 +QT_BEGIN_NAMESPACE
 +
@@ -761,6 +831,10 @@ index 0000000000..13b602491b
 +    Q_CORE_EXPORT void handleResume();
 +    Q_CORE_EXPORT void registerResumePauseListener(ResumePauseListener *listener);
 +    Q_CORE_EXPORT void unregisterResumePauseListener(ResumePauseListener *listener);
++
++    Q_CORE_EXPORT napi_value variant_to_napi_value(const QVariant &value);
++
++    Q_CORE_EXPORT QVariant napi_value_to_variant(napi_value value, int t);
 +}
 +
 +QT_END_NAMESPACE
@@ -768,12 +842,13 @@ index 0000000000..13b602491b
 +#endif // QJNIHELPERS_H
 diff --git a/src/corelib/kernel/qopenharmonyjsenvironment.cpp b/src/corelib/kernel/qopenharmonyjsenvironment.cpp
 new file mode 100644
-index 0000000000..15f43e7e23
+index 0000000000..bad52e7b7c
 --- /dev/null
 +++ b/src/corelib/kernel/qopenharmonyjsenvironment.cpp
-@@ -0,0 +1,335 @@
+@@ -0,0 +1,350 @@
 +#include "qopenharmonyjsenvironment.h"
 +#include "qopenharmonydefines.h"
++#include "qopenharmonyhelpers_p.h"
 +
 +napi_env QOpenHarmonyJsEnvironment::m_env = nullptr;
 +
@@ -812,6 +887,20 @@ index 0000000000..15f43e7e23
 +    void *data = nullptr;
 +    NAPI_CALL_BASE(m_env, napi_create_arraybuffer(m_env, buffer.length(), &data, &result), nullptr);
 +    memcpy(data, buffer.data(), buffer.length());
++    return result;
++}
++
++napi_value QOpenHarmonyJsEnvironment::createObject(const QVariantMap &map)
++{
++    napi_value result = nullptr;
++    QMapIterator<QString, QVariant> i(map);
++    NAPI_CALL_BASE(m_env, napi_create_object(m_env, &result), nullptr);
++    while (i.hasNext()) {
++        i.next();
++        napi_value name = createString(i.key());
++        napi_value v = QtHarmonyPrivate::variant_to_napi_value(i.value());
++        napi_set_property(m_env, result, name, v);
++    }
 +    return result;
 +}
 +
@@ -1109,10 +1198,10 @@ index 0000000000..15f43e7e23
 +}
 diff --git a/src/corelib/kernel/qopenharmonyjsenvironment.h b/src/corelib/kernel/qopenharmonyjsenvironment.h
 new file mode 100644
-index 0000000000..d5716d8756
+index 0000000000..7ccf82b6cd
 --- /dev/null
 +++ b/src/corelib/kernel/qopenharmonyjsenvironment.h
-@@ -0,0 +1,110 @@
+@@ -0,0 +1,112 @@
 +#ifndef QOPENHARMONYJSENVIRONMENT_H
 +#define QOPENHARMONYJSENVIRONMENT_H
 +
@@ -1147,6 +1236,8 @@ index 0000000000..d5716d8756
 +    static napi_value createStringArray(const QStringList &strList);
 +
 +    static napi_value createArrayBuffer(const QByteArray &buffer);
++
++    static napi_value createObject(const QVariantMap &map);
 +
 +    static napi_value globalObject();
 +
@@ -1225,14 +1316,15 @@ index 0000000000..d5716d8756
 +#endif // QOPENHARMONYJSENVIRONMENT_H
 diff --git a/src/corelib/kernel/qopenharmonyjsfunction.cpp b/src/corelib/kernel/qopenharmonyjsfunction.cpp
 new file mode 100644
-index 0000000000..59ce9c2b1d
+index 0000000000..1e3a8f3728
 --- /dev/null
 +++ b/src/corelib/kernel/qopenharmonyjsfunction.cpp
-@@ -0,0 +1,316 @@
+@@ -0,0 +1,245 @@
 +#include "qopenharmonyjsfunction.h"
 +#include "qopenharmonyjsenvironment.h"
 +#include "qopenharmonydefines.h"
 +#include "qopenharmonyjsobject.h"
++#include "qopenharmonyhelpers_p.h"
 +
 +#include <QtCore/qscopedpointer.h>
 +#include <QtCore/qtimer.h>
@@ -1246,68 +1338,6 @@ index 0000000000..59ce9c2b1d
 +#include <uv.h>
 +
 +QT_BEGIN_NAMESPACE
-+
-+static napi_value variant_to_napi_value(const QVariant &value)
-+{
-+    napi_value ret = nullptr;
-+    QVariant::Type t = value.type();
-+    switch (t) {
-+    case QVariant::Int:
-+        ret = qJs::createInt32(value.toInt());
-+        break;
-+    case QVariant::String:
-+        ret = qJs::createString(value.toString());
-+        break;
-+    case QVariant::StringList:
-+        ret = qJs::createStringArray(value.toStringList());
-+        break;
-+    case QVariant::Bool:
-+        ret = qJs::createBool(value.toBool());
-+        break;
-+    case QVariant::LongLong:
-+        ret = qJs::createInt64(value.toLongLong());
-+        break;
-+    case QVariant::ByteArray:
-+        ret = qJs::createArrayBuffer(value.toByteArray());
-+    default:
-+        //Todo other type
-+        break;
-+    }
-+    return ret;
-+}
-+
-+
-+static QVariant napi_value_to_variant(napi_value value, int t)
-+{
-+    QVariant ret;
-+    switch (t) {
-+    case QMetaType::Int:
-+        ret = qJs::getInt32(value);
-+        break;
-+    case QMetaType::QString:
-+        ret = qJs::getString(value);
-+        break;
-+    case QMetaType::QStringList:
-+        ret = qJs::getStringList(value);
-+        break;
-+    case QMetaType::Bool:
-+        ret = qJs::getBool(value);
-+        break;
-+    case QMetaType::LongLong:
-+        ret = QVariant::fromValue(qJs::getInt64(value));
-+        break;
-+    case QMetaType::QByteArray:
-+        ret = QVariant::fromValue(qJs::getByteArray(value));
-+        break;
-+    case QMetaType::QByteArrayList:
-+        ret = QVariant::fromValue(qJs::getByteArrayList(value));
-+        break;
-+    default:
-+        //Todo other type
-+        break;
-+    }
-+    return ret;
-+}
 +
 +class QOpenHarmonyJsFunctionPrivate
 +{
@@ -1331,30 +1361,34 @@ index 0000000000..59ce9c2b1d
 +    QString m_name;
 +    QVariantList m_args;
 +    QOpenHarmonyJsObject *m_nativeObject;
-+    napi_value m_jsFunction;
++    napi_threadsafe_function m_function;
 +    QTimer *m_timer;
 +    QVariant m_result;
++    napi_value m_napi_value_result;
 +    int m_resultType;
 +    QMutex m_mutex;
 +    bool m_bResultReceived;
 +};
 +
 +QOpenHarmonyJsFunctionPrivate::QOpenHarmonyJsFunctionPrivate()
-+    : m_jsFunction(nullptr)
++    : m_function(nullptr)
 +    , m_resultType(QVariant::Invalid)
 +    , m_bResultReceived(false)
 +{
-+
 +}
 +
 +QOpenHarmonyJsFunctionPrivate::~QOpenHarmonyJsFunctionPrivate()
 +{
-+
++    if (m_function != nullptr)
++        napi_release_threadsafe_function(m_function, napi_tsfn_release);
 +}
 +
 +void QOpenHarmonyJsFunctionPrivate::init(napi_value function, const QString &functionName)
 +{
-+    m_jsFunction = function;
++    napi_threadsafe_function threadsafe_function = nullptr;
++    napi_value cb_name = qJs::createString(functionName);
++    NAPI_CALL_RETURN_VOID(qJs::env(), napi_create_threadsafe_function(qJs::env(), function, nullptr, cb_name, 0, 1, nullptr, nullptr, nullptr, callJsFunction, &threadsafe_function));
++    m_function = threadsafe_function;
 +    m_name = functionName;
 +}
 +
@@ -1432,7 +1466,7 @@ index 0000000000..59ce9c2b1d
 +        QScopedArrayPointer<napi_value> argv(new napi_value[argc]);
 +        for (int i = 0; i < args.count(); ++i) {
 +            argv[i] = nullptr;
-+            argv[i] = variant_to_napi_value(args.at(i));
++            argv[i] = QtHarmonyPrivate::variant_to_napi_value(args.at(i));
 +        }
 +        result = qJs::callFunction(function->nativeObject(), js_cb, argc, argv.get());
 +    }
@@ -1460,11 +1494,16 @@ index 0000000000..59ce9c2b1d
 +    QMutexLocker locker(&m_mutex);
 +    Q_UNUSED(m_mutex)
 +    m_bResultReceived = true;
-+    m_result = napi_value_to_variant(result, m_resultType);
-+    if (m_result.type() == QVariant::ByteArray) {
-+        qDebug() << QString("Get js method %1 result from callback QByteArrary length: %2").arg(m_name).arg(m_result.toByteArray().length()) << m_loop.isRunning();
++    m_napi_value_result = result;
++    if (m_resultType == QOpenHarmonyJsFunction::NapiValueType) {
++        qDebug() << QString("Get js method %1 result from callback:").arg(m_name) << m_napi_value_result;
 +    } else {
-+        qDebug() << QString("Get js method %1 result from callback:").arg(m_name) << m_result << m_loop.isRunning();
++        m_result = QtHarmonyPrivate::napi_value_to_variant(result, m_resultType);
++        if (m_result.type() == QVariant::ByteArray) {
++            qDebug() << QString("Get js method %1 result from callback QByteArrary length: %2").arg(m_name).arg(m_result.toByteArray().length()) << m_loop.isRunning();
++        } else {
++            qDebug() << QString("Get js method %1 result from callback:").arg(m_name) << m_result << m_loop.isRunning();
++        }
 +    }
 +    cancelWait();
 +}
@@ -1485,6 +1524,7 @@ index 0000000000..59ce9c2b1d
 +void QOpenHarmonyJsFunction::call(const QVariantList &args)
 +{    
 +    d_ptr->m_args = args;
++    napi_acquire_threadsafe_function(d_ptr->m_function);
 +    bool printArgs = !args.isEmpty();
 +    for (int i = 0 ;i < args.count(); ++i) {
 +        if (args.at(i).type() == QMetaType::QByteArray) {
@@ -1492,40 +1532,14 @@ index 0000000000..59ce9c2b1d
 +            break;
 +        }
 +    }
-+    uv_loop_s *loop = nullptr;
-+    napi_get_uv_event_loop(qJs::env(), &loop);
-+    if (!loop) {
-+        qDebug() << "failed to get event loop";
-+        return;
-+    }
-+
-+    uv_work_t *work = new (std::nothrow) uv_work_t;
-+    if (!work) {
-+        qDebug() << "failed to allocate work";
-+        return;
-+    }
-+    work->data = d_ptr.data();
-+
-+    int ret = uv_queue_work(
-+                loop, work, [](uv_work_t *work) {},
-+            [](uv_work_t *work, int status) {
-+        napi_value return_value;
-+        QOpenHarmonyJsFunctionPrivate *fp = reinterpret_cast<QOpenHarmonyJsFunctionPrivate *>(work->data);
-+        QOpenHarmonyJsFunctionPrivate::callJsFunction(qJs::env(), fp->m_jsFunction, nullptr, fp);
-+        delete work;
-+    });
-+
-+    if (ret) {
-+        qDebug() << "failed to execute work";
-+        delete work;
-+        return;
++    if (printArgs) {
++        qDebug() << QString("call js function: %1").arg(d_ptr->m_name) << args;
 +    } else {
-+        if (printArgs) {
-+            qDebug() << QString("call js function: %1 succedeed").arg(d_ptr->m_name) << args;
-+        } else {
-+            qDebug() << QString("call js function: %1 succedeed").arg(d_ptr->m_name);
-+        }
++        qDebug() << QString("call js function: %1").arg(d_ptr->m_name);
 +    }
++
++    qDebug() << QString("call js function: %1 result").arg(d_ptr->m_name)
++             << napi_call_threadsafe_function(d_ptr->m_function, d_ptr.data(), napi_tsfn_nonblocking);
 +    if (!d_ptr->hasResult()) {
 +        // 没有返回值的不等待
 +        return;
@@ -1539,6 +1553,12 @@ index 0000000000..59ce9c2b1d
 +    return d_ptr->m_result;
 +}
 +
++napi_value QOpenHarmonyJsFunction::napi_value_result() const
++{
++    const_cast<QOpenHarmonyJsFunction *>(this)->deleteLater();
++    return d_ptr->m_napi_value_result;
++}
++
 +void QOpenHarmonyJsFunction::setResultType(int t)
 +{
 +    d_ptr->m_resultType = t;
@@ -1547,10 +1567,10 @@ index 0000000000..59ce9c2b1d
 +QT_END_NAMESPACE
 diff --git a/src/corelib/kernel/qopenharmonyjsfunction.h b/src/corelib/kernel/qopenharmonyjsfunction.h
 new file mode 100644
-index 0000000000..f541ef3e4f
+index 0000000000..c0e02577aa
 --- /dev/null
 +++ b/src/corelib/kernel/qopenharmonyjsfunction.h
-@@ -0,0 +1,73 @@
+@@ -0,0 +1,86 @@
 +#ifndef QOPENHARMONYJSFUNCTION_H
 +#define QOPENHARMONYJSFUNCTION_H
 +
@@ -1570,6 +1590,9 @@ index 0000000000..f541ef3e4f
 +{
 +    Q_OBJECT
 +public:
++    enum {
++        NapiValueType = QMetaType::User + 1000
++    };
 +    ~QOpenHarmonyJsFunction();
 +
 +    template<typename RET, typename... Args>
@@ -1577,6 +1600,14 @@ index 0000000000..f541ef3e4f
 +    {
 +        QVariantList params;
 +        setResultType(qMetaTypeId<RET>());
++        call(packParams(params, std::forward<Args>(args)...));
++    }
++
++    template<typename... Args>
++    void callReturnNapiValue(Args&&... args)
++    {
++        QVariantList params;
++        setResultType(NapiValueType);
 +        call(packParams(params, std::forward<Args>(args)...));
 +    }
 +
@@ -1593,6 +1624,8 @@ index 0000000000..f541ef3e4f
 +    RETURN_TYPE result() const;
 +
 +    QVariant jsResult() const;
++
++    napi_value napi_value_result() const;
 +private:
 +    template<typename Arg0, typename... Args>
 +    const QVariantList &packParams(QVariantList& paramList, Arg0&& arg, Args&&... args)
@@ -1626,7 +1659,7 @@ index 0000000000..f541ef3e4f
 +#endif // QOPENHARMONYJSFUNCTION_H
 diff --git a/src/corelib/kernel/qopenharmonyjsobject.cpp b/src/corelib/kernel/qopenharmonyjsobject.cpp
 new file mode 100644
-index 0000000000..6561f7935d
+index 0000000000..9f71c56e26
 --- /dev/null
 +++ b/src/corelib/kernel/qopenharmonyjsobject.cpp
 @@ -0,0 +1,75 @@
@@ -1640,7 +1673,7 @@ index 0000000000..6561f7935d
 +QT_BEGIN_NAMESPACE
 +
 +QOpenHarmonyJsObject::QOpenHarmonyJsObject(const QString &name)
-+    : m_name(name), m_jsObject(nullptr), m_ref(Q_NULLPTR)
++    : m_name(name), m_jsObject(nullptr), m_ref(nullptr)
 +{
 +
 +}
@@ -1654,7 +1687,7 @@ index 0000000000..6561f7935d
 +
 +QOpenHarmonyJsObject::~QOpenHarmonyJsObject()
 +{
-+    if (m_ref)
++    if (m_ref != nullptr)
 +        napi_delete_reference(qJs::env(), m_ref);
 +}
 +
@@ -1707,10 +1740,10 @@ index 0000000000..6561f7935d
 +QT_END_NAMESPACE
 diff --git a/src/corelib/kernel/qopenharmonyjsobject.h b/src/corelib/kernel/qopenharmonyjsobject.h
 new file mode 100644
-index 0000000000..cfd851c84a
+index 0000000000..7c6ccd44cd
 --- /dev/null
 +++ b/src/corelib/kernel/qopenharmonyjsobject.h
-@@ -0,0 +1,66 @@
+@@ -0,0 +1,80 @@
 +#ifndef QOPENHARMONYJSOBJECT_H
 +#define QOPENHARMONYJSOBJECT_H
 +
@@ -1734,6 +1767,9 @@ index 0000000000..cfd851c84a
 +
 +    template<typename RET, typename... Args>
 +    RET call(const QString &jsFunction, Args&&... args);
++
++    template<typename... Args>
++    napi_value callReturnNapiValue(const QString &jsFunction, Args&&... args);
 +
 +    template<typename... Args>
 +    void call(const QString &jsFunction, Args&&... args)
@@ -1772,6 +1808,17 @@ index 0000000000..cfd851c84a
 +
 +    f->call<RET>(std::forward<Args>(args)...);
 +    return f->result<RET>();
++}
++
++template<typename... Args>
++napi_value QOpenHarmonyJsObject::callReturnNapiValue(const QString &jsFunction, Args&&... args)
++{
++    QOpenHarmonyJsFunction *f = getJsFunction(jsFunction);
++    if (f == nullptr)
++        return nullptr;
++
++    f->callReturnNapiValue(std::forward<Args>(args)...);
++    return f->napi_value_result();
 +}
 +
 +QT_END_NAMESPACE
@@ -2175,92 +2222,251 @@ index eddf789921..f0f3a62935 100644
          return false;
 diff --git a/src/openharmony/entryability/EntryAbility.ts b/src/openharmony/entryability/EntryAbility.ts
 new file mode 100644
-index 0000000000..e90088613e
+index 0000000000..a27807a01f
 --- /dev/null
 +++ b/src/openharmony/entryability/EntryAbility.ts
-@@ -0,0 +1,64 @@
+@@ -0,0 +1,49 @@
 +import hilog from '@ohos.hilog';
 +import UIAbility from '@ohos.app.ability.UIAbility';
 +import Window from '@ohos.window'
-+import display from '@ohos.display';
-+import qtCore from "libQt5Core.so"
-+import qpa from "libplugins_platforms_qopenharmony.so"
-+import { QtObjectLoader } from '../native/QtObjectLoader'
++import QtApplication  from '../native/QtApplication'
 +
 +export default class EntryAbility extends UIAbility {
++
++    private qtApp: QtApplication = QtApplication.getInstance()
++
 +    onCreate(want, launchParam) {
-+        globalThis.abilityContext = this.context
++        this.qtApp.setContext(this.context);
++        this.qtApp.setElementName({
++            bundleName: want.bundleName,
++            abilityName: want.abilityName,
++            moduleName: want.moduleName
++        });
 +    }
 +
 +    onDestroy() {
-+        hilog.isLoggable(0x0000, 'testTag', hilog.LogLevel.INFO);
-+        hilog.info(0x0000, 'testTag', '%{public}s', 'Ability onDestroy');
-+        qpa.quitQtApplication();
++        hilog.isLoggable(0x0000, 'QtApplication', hilog.LogLevel.INFO);
++        hilog.info(0x0000, 'QtApplication', '%{public}s', 'Ability onDestroy');
++        this.qtApp.quit();
 +    }
 +
 +    onWindowStageCreate(windowStage: Window.WindowStage) {
 +        // Main window is created, set main page for this ability
-+        let mainWindow = windowStage.getMainWindowSync();
-+        let property = mainWindow.getWindowProperties();
-+        var appContext = this.context.getApplicationContext();
-+        var dirs = {
-+            "tempDir": appContext.tempDir,
-+            "filesDir": appContext.filesDir,
-+            "cacheDir": appContext.cacheDir,
-+            "databaseDir": appContext.databaseDir,
-+            "bundleCodeDir": appContext.bundleCodeDir,
-+            "preferencesDir": appContext.preferencesDir,
-+            "distributedFilesDir": appContext.distributedFilesDir
-+        };
-+        globalThis.qtobjectloader = new QtObjectLoader();
-+        globalThis.qpa = qpa;
-+        let d = display.getDefaultDisplaySync();
-+        qpa.setDisplayMetrics(d.densityDPI, d.densityPixels, d.scaledDensity, d.width, d.height, property.windowRect.width, property.windowRect.height);
-+        qpa.startQtApplication(dirs, "libQtForHarmony.so");
-+        mainWindow.on('windowSizeChange', (data) => {
-+            console.info('Succeeded in enabling the listener for window size. Data: ' + JSON.stringify(data));
-+            let d = display.getDefaultDisplaySync();
-+            qpa.setDisplayMetrics(d.densityDPI, d.densityPixels, d.scaledDensity, d.width, d.height, data.width, data.height);
-+        });
-+        AppStorage.SetOrCreate("windowStage", windowStage);
++        hilog.isLoggable(0x0000, 'QtApplication', hilog.LogLevel.INFO);
++        hilog.info(0x0000, 'QtApplication', '%{public}s', 'Ability onWindowStageCreate');
++        this.qtApp.run(windowStage);
 +    }
 +
 +    onWindowStageDestroy() {
 +        // Main window is destroyed, release UI related resources
-+        hilog.isLoggable(0x0000, 'testTag', hilog.LogLevel.INFO);
-+        hilog.info(0x0000, 'testTag', '%{public}s', 'Ability onWindowStageDestroy');
++        hilog.isLoggable(0x0000, 'QtApplication', hilog.LogLevel.INFO);
++        hilog.info(0x0000, 'QtApplication', '%{public}s', 'Ability onWindowStageDestroy');
 +    }
 +
 +    onForeground() {
 +        // Ability has brought to foreground
-+        hilog.isLoggable(0x0000, 'testTag', hilog.LogLevel.INFO);
-+        hilog.info(0x0000, 'testTag', '%{public}s', 'Ability onForeground');
++        hilog.isLoggable(0x0000, 'QtApplication', hilog.LogLevel.INFO);
++        hilog.info(0x0000, 'QtApplication', '%{public}s', 'Ability onForeground');
 +    }
 +
 +    onBackground() {
 +        // Ability has back to background
-+        hilog.isLoggable(0x0000, 'testTag', hilog.LogLevel.INFO);
-+        hilog.info(0x0000, 'testTag', '%{public}s', 'Ability onBackground');
++        hilog.isLoggable(0x0000, 'QtApplication', hilog.LogLevel.INFO);
++        hilog.info(0x0000, 'QtApplication', '%{public}s', 'Ability onBackground');
 +    }
 +};
-diff --git a/src/openharmony/native/QtDialog.ts b/src/openharmony/native/QtDialog.ts
+diff --git a/src/openharmony/native/QtApplication.ts b/src/openharmony/native/QtApplication.ts
 new file mode 100644
-index 0000000000..9fd1d25d73
+index 0000000000..719f6d48ef
 --- /dev/null
-+++ b/src/openharmony/native/QtDialog.ts
-@@ -0,0 +1,176 @@
++++ b/src/openharmony/native/QtApplication.ts
+@@ -0,0 +1,167 @@
++import window from '@ohos.window';
++import display from '@ohos.display';
++import fs from '@ohos.file.fs';
++import common from '@ohos.app.ability.common';
++import resourceManager from '@ohos.resourceManager';
++import qpa from "libplugins_platforms_qopenharmony.so";
++import { QtObjectLoader } from './QtObjectLoader'
++import bundleManager from '@ohos.bundle.bundleManager';
++
++export default class QtApplication {
++  private static instance: QtApplication;
++
++  private constructor() {
++  }
++
++  private context: common.UIAbilityContext = null;
++  private mainWindow: window.Window = null;
++  private mainWindowName: string = "opemharmony_qt_mainwindow";
++  private windowStage: window.WindowStage;
++  private dirs = null;
++  private elementName: bundleManager.ElementName = null;
++
++  public static getInstance(): QtApplication {
++    if (!QtApplication.instance) {
++      QtApplication.instance = new QtApplication();
++    }
++
++    return QtApplication.instance;
++  }
++
++  setContext(context: common.UIAbilityContext) {
++    this.context = context;
++    var appContext = this.context.getApplicationContext();
++    this.dirs = {
++      "tempDir": appContext.tempDir,
++      "filesDir": appContext.filesDir,
++      "cacheDir": appContext.cacheDir,
++      "databaseDir": appContext.databaseDir,
++      "bundleCodeDir": appContext.bundleCodeDir,
++      "preferencesDir": appContext.preferencesDir,
++      "distributedFilesDir": appContext.distributedFilesDir,
++      "qmlDir": appContext.cacheDir + "/Qt/qml"
++    };
++  }
++
++  setElementName(en: bundleManager.ElementName) {
++    this.elementName = en;
++  }
++
++  getElementName(): bundleManager.ElementName {
++    return this.elementName;
++  }
++
++  getAbilityContext(): common.UIAbilityContext {
++    return this.context;
++  }
++
++  getWindowStage(): window.WindowStage {
++    return this.windowStage;
++  }
++
++  getMainWindow(): window.Window {
++    return this.mainWindow;
++  }
++
++  getMainWindowName(): string {
++    return this.mainWindowName;
++  }
++
++  async run(windowStage: window.WindowStage) {
++    this.windowStage = windowStage;
++    this.mainWindow = this.windowStage.getMainWindowSync();
++    globalThis.createWindowName = this.mainWindowName;
++    windowStage.loadContent('pages/Index');
++    this.mainWindow.on('windowSizeChange', (data) => {
++      console.info('Succeeded in enabling the listener for window size. Data: ' + JSON.stringify(data));
++      let d = display.getDefaultDisplaySync();
++      qpa.setDisplayMetrics(d.densityDPI, d.densityPixels, d.scaledDensity, data.width, data.height, data.width, data.height);
++    });
++    this.windowStage.on("windowStageEvent", (state)=>{
++      qpa.updateApplicationState(state);
++      console.log("window stage changed", state);
++    });
++    await this.extractFilesToCache();
++    this.loadQtApplication()
++  }
++
++  quit() {
++    qpa.quitQtApplication();
++  }
++
++  loadQtApplication() {
++    globalThis.qtobjectloader = new QtObjectLoader();
++    globalThis.qpa = qpa;
++    // qpa.startQtApplication(this.dirs, "liblowenergyscanner.so")
++    qpa.startQtApplication(this.dirs, "libentry.so");
++    // qpa.startQtApplication(this.dirs, "libdigitalclock.so");
++    // qpa.startQtApplication(this.dirs, "libQtForHarmony.so");
++    // qpa.startQtApplication(this.dirs, "libplanets-qml.so");
++    // qpa.startQtApplication(this.dirs, "libQmlTest.so");
++  }
++
++  private saveFileToCache(file: resourceManager.RawFileDescriptor, des: string) {
++    let paths = des.split("/").slice(0, -1);
++    let temp = this.dirs.cacheDir + "/";
++    for (let i = 0; i < paths.length; ++i) {
++      temp = temp + paths[i];
++      let result = fs.accessSync(temp);
++      if (!result) {
++        fs.mkdirSync(temp);
++      }
++      temp = temp + "/";
++    }
++
++    let fileName = this.dirs.cacheDir + "/" + des;
++    // 创建缓存文件(当前是覆盖式创建)
++    let cacheFile = fs.openSync(fileName,
++      fs.OpenMode.WRITE_ONLY | fs.OpenMode.CREATE | fs.OpenMode.TRUNC)
++    let buffer = new ArrayBuffer(4096);
++    let currentOffset = file.offset;
++    let lengthNeedToReed = file.length;
++    let readOption = {
++      offset: currentOffset,
++      length: lengthNeedToReed > buffer.byteLength ? 4096 : lengthNeedToReed
++    }
++    while (true) {
++      // 读取buffer容量的内容
++      let readLength = fs.readSync(file.fd, buffer, readOption);
++      // 写入buffer容量的内容
++      fs.writeSync(cacheFile.fd, buffer, {
++        length: readLength
++      })
++      // 判断后续内容 修改读文件的参数
++      if (readLength < 4096) {
++        break;
++      }
++      lengthNeedToReed -= readLength;
++      readOption.offset += readLength;
++      readOption.length = lengthNeedToReed > buffer.byteLength ? 4096 : lengthNeedToReed;
++    }
++    fs.close(cacheFile);
++  }
++
++  async extractFile(src: string) {
++    try {
++      let R = this.context.resourceManager;
++      let file: resourceManager.RawFileDescriptor = await R.getRawFd(src);
++      this.saveFileToCache(file, src);
++    } catch (err) {
++      console.log("extract file failed: ", JSON.stringify(err), src);
++    }
++  }
++
++  async extractFilesToCache() {
++    try {
++      let R = this.context.resourceManager;
++      let rawContent: Uint8Array = await R.getRawFileContent("qt.json");
++      let str: string = String.fromCharCode.apply(null, rawContent)
++      let files = JSON.parse(str);
++      for (var i = 0; i < files.files.length; ++i) {
++        await this.extractFile(files.files[i]);
++      }
++    } catch (err) {
++      console.log("read file qt.json failed: ", JSON.stringify(err));
++    }
++  }
++}
+\ No newline at end of file
+diff --git a/src/openharmony/native/QtCore/QtDialog.ts b/src/openharmony/native/QtCore/QtDialog.ts
+new file mode 100644
+index 0000000000..4fe4992840
+--- /dev/null
++++ b/src/openharmony/native/QtCore/QtDialog.ts
+@@ -0,0 +1,177 @@
 +import promptAction from '@ohos.promptAction'
 +import picker from '@ohos.file.picker';
-+import QtApplication from './QtApplication'
++import QtApplication from '../QtApplication'
 +import uri from '@ohos.uri';
-+
++import fs from '@ohos.file.fs';
 +export class QtDialog {
 +    private context  = QtApplication.getInstance().getAbilityContext()
 +
 +    constructor() {
 +    }
 +
-+    messageBox(handler, title, text, buttons) {
++    messageBox(handler : number, title : string, text : string, buttons : Array<string>): boolean {
 +        var opt: promptAction.ShowDialogOptions = {
 +            title: title,
 +            message: text,
@@ -2293,23 +2499,23 @@ index 0000000000..9fd1d25d73
 +        return true;
 +    }
 +
-+    isVideo(filter) {
++    isVideo(filter: string): boolean {
 +        return filter.includes("mp4") || filter.includes("MPEG")
 +        || filter.includes("MPG") || filter.includes("DAT")
 +        || filter.includes("MOV") || filter.includes("FLV");
 +    }
 +
-+    isAudio(filter) {
++    isAudio(filter: string): boolean {
 +        return filter.includes("mp3") || filter.includes("wma") || filter.includes("ogg") || filter.includes("flac")
 +        || filter.includes("wv");
 +    }
 +
-+    isImage(filter) {
++    isImage(filter: string): boolean {
 +        return filter.includes("png") || filter.includes("jpeg")
 +        || filter.includes("jpg") || filter.includes("bmp")
 +    }
 +
-+    async openFileDialog(handler, filter) {
++    async openFileDialog(handler: number, filter: string) : Promise<boolean> {
 +        // let isImage = this.isImage(filter);
 +        // let isVideo = this.isVideo(filter);
 +        // let isAudio = this.isAudio(filter);
@@ -2362,7 +2568,7 @@ index 0000000000..9fd1d25d73
 +        this.context.startAbilityForResult(config).then((result) => {
 +            // 获取到文档文件的uri
 +            let select_item_list = result.want.parameters.select_item_list;
-+
++            console.log("select file: ", select_item_list.toString());
 +            globalThis.qpa.selectedFilesResult(handler, [select_item_list.toString()]);
 +        }).catch((error) => {
 +            console.log("open file dialog result", JSON.stringify(error));
@@ -2371,7 +2577,7 @@ index 0000000000..9fd1d25d73
 +        return true;
 +    }
 +
-+    async saveFileDialog(handler, fileName) {
++    async saveFileDialog(handler : number, fileName: string) : Promise<boolean> {
 +        // let isImage = this.isImage(fileName);
 +        // let isVideo = this.isVideo(fileName);
 +        // let isAudio = this.isAudio(fileName);
@@ -2416,36 +2622,35 @@ index 0000000000..9fd1d25d73
 +            }
 +        }
 +
-+        this.context.startAbilityForResult(config, {windowMode: 0}).then((result) => {
++        try {
++            let result = await this.context.startAbilityForResult(config);
 +            globalThis.qpa.selectedFilesResult(handler, [result.want.parameters.pick_path_return.toString()]);
-+        }, (error) => {
++        } catch (error) {
 +            console.info("startAbilityForResult Promise.Reject is called, error.code = " + error.code)
 +            globalThis.qpa.selectedFilesResult(handler, []);
-+        })
++        }
 +        return true;
 +    }
 +}
 \ No newline at end of file
-diff --git a/src/openharmony/native/QtFile.ts b/src/openharmony/native/QtFile.ts
+diff --git a/src/openharmony/native/QtCore/QtFile.ts b/src/openharmony/native/QtCore/QtFile.ts
 new file mode 100644
-index 0000000000..50c9ebe17a
+index 0000000000..61168000a5
 --- /dev/null
-+++ b/src/openharmony/native/QtFile.ts
++++ b/src/openharmony/native/QtCore/QtFile.ts
 @@ -0,0 +1,91 @@
 +import fs from '@ohos.file.fs';
-+import uri from '@ohos.uri';
 +import deviceInfo from '@ohos.deviceInfo'
-+import QtApplication  from './QtApplication'
 +
 +export class QtFile {
 +
-+  private uri = null;
-+  private file = null;
-+  private valid : Boolean = false;
++  private uri : string = '';
++  private file : fs.File= null;
++  private valid : boolean = false;
 +  private offset : number = 0;
 +
 +
-+  constructor(uriString) {
++  constructor(uriString: string) {
 +    let _uri = uriString;
 +    const versionRegex = /(\d+\.\d+\.\d+\.\d+)/;
 +    const match = deviceInfo.displayVersion.match(versionRegex);
@@ -2458,7 +2663,7 @@ index 0000000000..50c9ebe17a
 +    this.uri = _uri;
 +  }
 +
-+  open(mode) {
++  open(mode: number): boolean {
 +    try {
 +      console.log("open file:", this.uri, mode)
 +      this.file = fs.openSync(this.uri, mode);
@@ -2471,7 +2676,7 @@ index 0000000000..50c9ebe17a
 +    }
 +  }
 +
-+   write(buffer) {
++   write(buffer : ArrayBuffer): number {
 +    try {
 +      return fs.writeSync(this.file.fd, buffer);
 +    } catch (error) {
@@ -2480,24 +2685,24 @@ index 0000000000..50c9ebe17a
 +    }
 +  }
 +
-+  seek(offset) {
++  seek(offset: number): boolean {
 +    this.offset = offset;
 +    return true;
 +  }
 +
-+  pos() {
++  pos(): number {
 +    return this.offset;
 +  }
 +
-+  size() {
++  size(): number {
 +    return fs.statSync(this.file.fd).size;
 +  }
 +
-+  flush() {
++  flush(): boolean {
 +    return true;
 +  }
 +
-+  read(length) {
++  read(length: number): ArrayBuffer {
 +    let buf = new ArrayBuffer(length);
 +    try {
 +      let options = { "offset": this.offset, "length": length }
@@ -2510,7 +2715,7 @@ index 0000000000..50c9ebe17a
 +    }
 +  }
 +
-+  close() {
++  close(): boolean {
 +    if (this.valid) {
 +      try {
 +        fs.closeSync(this.file);
@@ -2520,39 +2725,41 @@ index 0000000000..50c9ebe17a
 +        this.valid = false;
 +        return true;
 +      }
++    } else {
++      return true;
 +    }
 +  }
 +}
 \ No newline at end of file
-diff --git a/src/openharmony/native/QtFileManager.ts b/src/openharmony/native/QtFileManager.ts
+diff --git a/src/openharmony/native/QtCore/QtFileManager.ts b/src/openharmony/native/QtCore/QtFileManager.ts
 new file mode 100644
-index 0000000000..4a0016359f
+index 0000000000..28ac854645
 --- /dev/null
-+++ b/src/openharmony/native/QtFileManager.ts
++++ b/src/openharmony/native/QtCore/QtFileManager.ts
 @@ -0,0 +1,17 @@
 +import { QtFile } from './QtFile';
 +
 +export class QtFileManager {
 +
-+  async createFile(fileHandler, fileName) {
++  async createFile(fileHandler: string, fileName: string) : Promise<boolean> {
 +    let file = new QtFile(fileName);
 +    console.log("create js file object for file: ", fileHandler, fileName)
 +    Reflect.defineProperty(globalThis, fileHandler, {value: file});
 +    return true;
 +  }
 +
-+  async deleteFile(fileHandler) {
++  async deleteFile(fileHandler: string) : Promise<boolean> {
 +    console.log("delete js file object for: ", fileHandler)
 +    Reflect.deleteProperty(globalThis, fileHandler);
 +    return true;
 +  }
 +}
 \ No newline at end of file
-diff --git a/src/openharmony/native/QtInputManager.ts b/src/openharmony/native/QtInputManager.ts
+diff --git a/src/openharmony/native/QtCore/QtInputManager.ts b/src/openharmony/native/QtCore/QtInputManager.ts
 new file mode 100644
 index 0000000000..bbcee574e2
 --- /dev/null
-+++ b/src/openharmony/native/QtInputManager.ts
++++ b/src/openharmony/native/QtCore/QtInputManager.ts
 @@ -0,0 +1,57 @@
 +import window from '@ohos.window';
 +import QtApplication from './QtApplication'
@@ -2612,90 +2819,37 @@ index 0000000000..bbcee574e2
 +  }
 +}
 \ No newline at end of file
-diff --git a/src/openharmony/native/QtObjectLoader.ts b/src/openharmony/native/QtObjectLoader.ts
+diff --git a/src/openharmony/native/QtCore/QtPasteBoard.ts b/src/openharmony/native/QtCore/QtPasteBoard.ts
 new file mode 100644
-index 0000000000..faa79091d4
+index 0000000000..c6fb19f4ae
 --- /dev/null
-+++ b/src/openharmony/native/QtObjectLoader.ts
-@@ -0,0 +1,41 @@
-+import { QtNfc } from './QtNfc'
-+import { QtDialog } from './QtDialog'
-+import { QtSensors } from './QtSensors'
-+import { QtPasteBoard } from './QtPasteBoard'
-+import { QtMediaPlayer } from './QtMediaPlayer'
-+import { QtFileManager } from './QtFileManager'
-+import { QtInputManager } from './QtInputManager'
-+import { QtAudioManager } from './QtAudioManager'
-+import { QtWindowManager } from './QtWindowManager'
-+import { QtBluetoothServer } from './QtBluetoothServer'
-+import { QtBluetoothManager } from './QtBluetoothManager'
-+
-+let classes = {
-+  "qtnfc": QtNfc,
-+  "qtdialog": QtDialog,
-+  "qtsensors": QtSensors,
-+  "qtpasteboard": QtPasteBoard,
-+  "qtmediaplayer": QtMediaPlayer,
-+  "qtfilemanager": QtFileManager,
-+  "qtaudiomanager": QtAudioManager,
-+  "qtinputmanager": QtInputManager,
-+  "qtwindowmanager": QtWindowManager,
-+  "qtbluetoothserver": QtBluetoothServer,
-+  "qtbluetoothmanager": QtBluetoothManager
-+}
-+
-+export class QtObjectLoader {
-+  constructor() {
-+
-+  }
-+
-+  // Todo 动态加载
-+  createObject(name) {
-+    if (!classes.hasOwnProperty(name)) {
-+      return false;
-+    }
-+    var object = new classes[name];
-+    Reflect.defineProperty(globalThis, name, { value: object });
-+    return true;
-+  }
-+}
-\ No newline at end of file
-diff --git a/src/openharmony/native/QtPasteBoard.ts b/src/openharmony/native/QtPasteBoard.ts
-new file mode 100644
-index 0000000000..1322ffd4e9
---- /dev/null
-+++ b/src/openharmony/native/QtPasteBoard.ts
-@@ -0,0 +1,37 @@
++++ b/src/openharmony/native/QtCore/QtPasteBoard.ts
+@@ -0,0 +1,32 @@
 +import pasteboard from '@ohos.pasteboard';
-+import LightWeightMap from '@ohos.util.LightWeightMap';
 +
 +export class QtPasteBoard {
 +
 +    constructor() {
-+    }
-+
-+    async registerSystemPasteboard() {
 +        let systemPasteboard = pasteboard.getSystemPasteboard();
 +        systemPasteboard.on('update', () => {
 +            globalThis.qpa.pasteChanged();
 +        });
-+        return true;
 +    }
 +
-+    async hasClipboardText() {
++    async hasClipboardText() : Promise<boolean> {
 +        let systemPasteboard = pasteboard.getSystemPasteboard();
 +        let result = await systemPasteboard.hasPasteData()
 +        return result;
 +    }
 +
-+    async clipboardText() {
++    async clipboardText() : Promise<string> {
 +        let systemPasteboard = pasteboard.getSystemPasteboard();
 +        let pastedata = await systemPasteboard.getPasteData();
 +        let result = pastedata.getPrimaryText();
 +        return result;
 +    }
 +
-+    setClipboardText(text) {
++    setClipboardText(text: string) : boolean {
 +        console.log('set clipboard text', text);
 +        var pasteData = pasteboard.createData(pasteboard.MIMETYPE_TEXT_PLAIN, text);
 +        let systemPasteboard = pasteboard.getSystemPasteboard();
@@ -2704,38 +2858,59 @@ index 0000000000..1322ffd4e9
 +    }
 +}
 \ No newline at end of file
-diff --git a/src/openharmony/native/QtWindowManager.ts b/src/openharmony/native/QtWindowManager.ts
+diff --git a/src/openharmony/native/QtCore/QtWindowManager.ts b/src/openharmony/native/QtCore/QtWindowManager.ts
 new file mode 100644
-index 0000000000..2a5930c92e
+index 0000000000..67b0103032
 --- /dev/null
-+++ b/src/openharmony/native/QtWindowManager.ts
-@@ -0,0 +1,78 @@
++++ b/src/openharmony/native/QtCore/QtWindowManager.ts
+@@ -0,0 +1,90 @@
 +import window from '@ohos.window';
 +import HashMap from '@ohos.util.HashMap';
-+
++import QtApplication from '../QtApplication'
 +
 +export class QtWindowManager {
-+    private postions = null;
++    private windowRect: HashMap<string, window.Rect> = null;
++    private windows: HashMap<string, window.Window> = null;
++    private qtApp: QtApplication = QtApplication.getInstance()
 +    constructor() {
-+        this.postions = new HashMap;
++        this.windowRect = new HashMap;
++        this.windows = new HashMap;
 +    }
 +
-+     async createWindow(name) {
-+         try {
-+             let windowStage = AppStorage.Get("windowStage") as window.WindowStage;
-+             let windowClass = await windowStage.createSubWindow(name);
-+             globalThis.createWindowName = name;
-+             await windowClass.setUIContent('pages/template');
-+             return true;
-+         } catch (e) {
-+             return false;
++    addWindow(window: window.Window) {
++        this.windows.set(globalThis.createWindowName, window)
++    }
++
++    findWindow(name: string): window.Window {
++        if (this.windows.hasKey(name)) {
++            let p = this.windows.get(name);
++            return p;
++        }
++        return null;
++    }
++
++     async createWindow(name): Promise<boolean> {
++         if (name == this.qtApp.getMainWindowName()) {
++             this.windows.set(name, this.qtApp.getMainWindow());
++         } else {
++             try {
++                 let windowStage = this.qtApp.getWindowStage();
++                 let windowClass = await windowStage.createSubWindow(name);
++                 globalThis.createWindowName = name;
++                 await windowClass.setUIContent('pages/Index');
++                 this.windows.set(name, windowClass);
++                 return true;
++             } catch (e) {
++                 return false;
++             }
 +         }
++         return true;
 +    }
 +
-+    async destroyWindow(name) {
-+        let windowClass = null;
++    async destroyWindow(name: string): Promise<boolean> {
++        let windowClass: window.Window = null;
 +        try {
-+            windowClass = window.findWindow(name);
++            windowClass = this.findWindow(name);
 +            await windowClass.destroyWindow();
 +            return true;
 +        } catch (exception) {
@@ -2744,48 +2919,79 @@ index 0000000000..2a5930c92e
 +        }
 +    }
 +
-+    async setGeometry(name, x, y, w, h) {
++    async setGeometry(name: string, x: number, y: number, w: number, h: number): Promise<boolean> {
 +        console.log('set window geometry:', name, x, y, w, h)
-+        let windowClass = null;
-+        try {
-+            windowClass = window.findWindow(name);
-+            let windowStage = AppStorage.Get("windowStage") as window.WindowStage;
-+            let mainWindow = windowStage.getMainWindowSync();
-+            let property = mainWindow.getWindowProperties();
-+            await windowClass.moveWindowTo(x, property.windowRect.top + y);
-+            await windowClass.resize(w, h);
-+            this.postions.set(name, {'x': x, 'y': property.windowRect.top + y});
-+            return true;
-+        } catch (exception) {
-+            console.error('Failed to call setGeometry for the Window. Cause: ' + JSON.stringify(exception));
-+            return false;
++        let windowClass = this.findWindow(name);
++        if (windowClass != null) {
++            let visible = windowClass.isWindowShowing();
++            if (visible) {
++                await windowClass.moveWindowTo(x, y);
++                await windowClass.resize(w, h);
++            }
++            this.windowRect.set(name, {'width': w, 'height': h, 'left': x, 'top': y})
 +        }
++        return true;
 +    }
 +
-+    async showWindow(name, visible) {
++    async showWindow(name: string, visible: boolean) {
 +        console.log("show window:", name, visible);
-+        let windowClass = null;
 +        try {
-+            windowClass = window.findWindow(name);
-+            if (visible) {
-+                console.log("show window:", name, visible);
-+                await windowClass.showWindow();
-+                if (this.postions.hasKey(name)) {
-+                    let p = this.postions.get(name);
-+                    windowClass.moveWindowTo(p.x, p.y);
++            let windowClass = this.findWindow(name);
++            if (windowClass != null) {
++                if (visible) {
++                    await windowClass.showWindow();
++                    if (this.windowRect.hasKey(name)) {
++                        let p = this.windowRect.get(name);
++                        await windowClass.moveWindowTo(p.left, p.top);
++                        await windowClass.resize(p.width, p.height);
++                    }
 +                }
-+            }
-+            else {
-+                let windowStage = AppStorage.Get("windowStage") as window.WindowStage;
-+                let mainWindow = windowStage.getMainWindowSync();
-+                let property = mainWindow.getWindowProperties();
-+                windowClass.moveWindowTo(property.windowRect.width, 0);
 +            }
 +            return true;
 +        } catch (exception) {
 +            console.error('Failed to call showWindow for the Window. Cause: ' + JSON.stringify(exception));
 +            return false;
 +        }
++    }
++}
+\ No newline at end of file
+diff --git a/src/openharmony/native/QtObjectLoader.ts b/src/openharmony/native/QtObjectLoader.ts
+new file mode 100644
+index 0000000000..b67fcd9711
+--- /dev/null
++++ b/src/openharmony/native/QtObjectLoader.ts
+@@ -0,0 +1,33 @@
++import { QtDialog } from './QtCore/QtDialog'
++import { QtPasteBoard } from './QtCore/QtPasteBoard'
++import { QtInputManager } from './QtCore/QtInputManager'
++import { QtWindowManager } from './QtCore/QtWindowManager'
++import { QtFileManager } from './QtCore/QtFileManager'
++
++let classes = {
++    "qtdialog": QtDialog,
++    "qtpasteboard": QtPasteBoard,
++    "qtinputmanager": QtInputManager,
++    "qtwindowmanager": QtWindowManager,
++    "qtmediaplayer": QtMediaPlayer,
++    "qtaudiomanager": QtAudioManager,
++    "qtfilemanager": QtFileManager,
++    "qtnfc": QtNfc,
++    "qtbluetoothmanager": QtBluetoothManager
++}
++
++export class QtObjectLoader {
++    constructor() {
++
++    }
++
++    // Todo 动态加载
++    createObject(name: string) {
++        if (!classes.hasOwnProperty(name)) {
++            return false;
++        }
++        var object = new classes[name];
++        Reflect.defineProperty(globalThis, name, {value: object});
++        return true;
 +    }
 +}
 \ No newline at end of file
@@ -2937,10 +3143,10 @@ index 0000000000..886625295c
 +}
 diff --git a/src/plugins/platforms/openharmony/openharmony.pro b/src/plugins/platforms/openharmony/openharmony.pro
 new file mode 100644
-index 0000000000..9db6962dd4
+index 0000000000..6b564fe021
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/openharmony.pro
-@@ -0,0 +1,65 @@
+@@ -0,0 +1,69 @@
 +TARGET = qopenharmony
 +
 +LIBS += -lEGL -lace_napi.z -lace_ndk.z
@@ -2949,7 +3155,13 @@ index 0000000000..9db6962dd4
 +    core-private gui-private egl_support-private \
 +    eventdispatcher_support-private fontdatabase_support-private
 +
-+qtConfig(vulkan): QT += vulkan_support-private
++qtConfig(vulkan){
++    QT += vulkan_support-private
++
++    HEADERS += $$PWD/qopenharmonyplatformvulkaninstance.h
++
++    SOURCES += $$PWD/qopenharmonyplatformvulkaninstance.cpp
++}
 +
 +OTHER_FILES += $$PWD/openharmony.json
 +
@@ -2972,8 +3184,7 @@ index 0000000000..9db6962dd4
 +    $$PWD/qopenharmonyplatformtheme.h \
 +    $$PWD/qopenharmonyplatformdialoghelpers.h \
 +    $$PWD/qopenharmonydrag.h \
-+    $$PWD/qopenharmonyfileenginehandler.h \
-+    $$PWD/qopenharmonyplatformvulkaninstance.h
++    $$PWD/qopenharmonyfileenginehandler.h
 +
 +SOURCES += $$PWD/qopenharmonyplatformplugin.cpp \
 +    $$PWD/qopenharmonyplatformwindow.cpp \
@@ -2995,8 +3206,7 @@ index 0000000000..9db6962dd4
 +    $$PWD/qopenharmonyplatformdialoghelpers.cpp \
 +    $$PWD/qopenharmonyplatformclipboard.cpp \
 +    $$PWD/qopenharmonydrag.cpp \
-+    $$PWD/qopenharmonyfileenginehandler.cpp \
-+    $$PWD/qopenharmonyplatformvulkaninstance.cpp
++    $$PWD/qopenharmonyfileenginehandler.cpp
 +
 +
 +PLUGIN_TYPE = platforms
@@ -5795,10 +6005,10 @@ index 0000000000..cc26555741
 +#endif // QOPENHARMONYPLATFORMINPUTCONTEXT_H
 diff --git a/src/plugins/platforms/openharmony/qopenharmonyplatformintegration.cpp b/src/plugins/platforms/openharmony/qopenharmonyplatformintegration.cpp
 new file mode 100644
-index 0000000000..ad1d5c01f1
+index 0000000000..e7553bbf26
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonyplatformintegration.cpp
-@@ -0,0 +1,287 @@
+@@ -0,0 +1,289 @@
 +#include "qopenharmonyplatformintegration.h"
 +
 +#include <QtGui/private/qguiapplication_p.h>
@@ -5825,7 +6035,9 @@ index 0000000000..ad1d5c01f1
 +#include "qopenharmonyplatforminputcontext.h"
 +#include "qopenharmonyplatformtheme.h"
 +#include "qopenharmonyplatformclipboard.h"
++#if QT_CONFIG(vulkan)
 +#include "qopenharmonyplatformvulkaninstance.h"
++#endif
 +#include "qopenharmonydefines.h"
 +#include "qopenharmonyeglcore.h"
 +#include "qopenharmonymain.h"

@@ -77,7 +77,7 @@ export default class QtApplication {
       let d = display.getDefaultDisplaySync();
       qpa.setDisplayMetrics(d.densityDPI, d.densityPixels, d.scaledDensity, data.width, data.height, data.width, data.height);
     });
-    this.windowStage.on("windowStageEvent", (state)=>{
+    this.windowStage.on("windowStageEvent", (state) => {
       qpa.updateApplicationState(state);
       console.log("window stage changed", state);
     });
