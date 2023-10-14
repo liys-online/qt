@@ -254,7 +254,7 @@ call %ROOT_DIR%\qt5\configure.bat -platform win32-g++ -xplatform oh-clang -devic
 -prefix %QT_INSTALL_DIR% -skip qtvirtualkeyboard -skip qtnetworkauth -skip webengine -skip location -skip qtwebchannel -skip qtgamepad -skip qtscript -opengl es2 -opengles3 -no-dbus -recheck-all
 
 mingw32-make -j16
-REM mingw32-make install
+mingw32-make install
 
 cd %ROOT_DIR%
 goto :eof
