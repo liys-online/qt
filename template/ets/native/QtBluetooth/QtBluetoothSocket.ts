@@ -27,7 +27,7 @@ export class QtBluetoothSocket {
           return;
         }
         console.log('bluetooth serverSocket Number: ' + client);
-        // 获取的clientNumber用作客户端后续读/写操作socket的id。
+        /* 获取的clientNumber用作客户端后续读/写操作socket的id */
         this.clientSocket = client;
       });
       return true;

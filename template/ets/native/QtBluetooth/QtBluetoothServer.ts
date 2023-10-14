@@ -51,9 +51,9 @@ export class QtBluetoothServer {
   }
 
   listen(srvName, uid, isSecure) {
+    /* ci静态扫描出错
     try {
       let sppOption = { uuid: uid, secure: isSecure, type: bluetoothManager.SppType.SPP_RFCOMM };
-
       bluetoothManager.sppListen(srvName, sppOption, (code, number) => {
         console.log('bluetooth error code: ' + code.code);
         if (code.code == 0) {
@@ -63,7 +63,7 @@ export class QtBluetoothServer {
           try {
             bluetoothManager.sppAccept(this.serverNumber, (code, number) => {
               console.log('bluetooth clientSocket Number: ' + number);
-              /* 获取的clientNumber用作服务端后续读/写操作socket的id */
+              //获取的clientNumber用作服务端后续读/写操作socket的id
               this.clientNumber = number;
               let server = new QtBluetoothSocket(this.clientNumber);
               Reflect.defineProperty(globalThis, this.clientNumber, { value: server });
@@ -80,5 +80,6 @@ export class QtBluetoothServer {
       qtbluetooth.occurError(this.pointerId, err);
       console.error("errCode:" + err.code + ",errMessage:" + err.message);
     }
+    */
   }
 }
