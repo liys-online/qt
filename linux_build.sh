@@ -124,6 +124,15 @@ function downloadQtSrcPatch() {
 	git apply --stat $PATCH_DIR/patch/qtremoteobjects.patch
 	git apply $PATCH_DIR/patch/qtremoteobjects.patch
 	cd $ROOT_DIR
+	
+	echo "Apply QtSensors Patch......"
+	cd $ROOT_DIR/qt5/qtsensors
+	git reset --hard 
+	git clean -fdx
+	git apply --check $PATCH_DIR/patch/qtsensors.patch
+	git apply --stat $PATCH_DIR/patch/qtsensors.patch
+	git apply $PATCH_DIR/patch/qtsensors.patch
+	cd $ROOT_DIR
 }
 
 function buildQtSrc() {
