@@ -13,9 +13,9 @@ REM goto doneargs
 
 :doneargs
 
-REM call :acquireUnzip
-REM call :acquireQtSrc
-REM call :acquirePatch
+call :acquireUnzip
+call :acquireQtSrc
+call :acquirePatch
 
 if not "%V3SDK%" == "" (
 	if not "%V4SDK%" == "" (		
