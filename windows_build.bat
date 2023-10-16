@@ -241,12 +241,12 @@ goto :eof
 :buildQt
 echo "<---------------buildQt------------------>"
 if "%OHOS_ARCH%" == "arm64-v8a" ( 
-  set OHOS_TARGET=aarch64-linux-ohos
+  set OHOS_TARGET=aarch64-windows-ohos
 ) else if "%OHOS_ARCH%" == "x86_64" (
-  set OHOS_TARGET=x86_64-linux-ohos
+  set OHOS_TARGET=x86_64-windows-ohos
 ) else (
   set OHOS_ARCH=armeabi-v7a
-  set OHOS_TARGET=arm-linux-ohos
+  set OHOS_TARGET=arm-windows-ohos
 )
 
 echo "Build Qt for OpenHarmony with %OHOS_ARCH%"
