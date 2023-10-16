@@ -6583,21 +6583,19 @@ index 00000000..cb8a815b
 +#endif // QNEARFIELDTARGET_OPENHARMONY_P_H
 diff --git a/src/openharmony/bluetooth/bluetooth.pro b/src/openharmony/bluetooth/bluetooth.pro
 new file mode 100644
-index 00000000..17e44b2b
+index 00000000..fa4a2436
 --- /dev/null
 +++ b/src/openharmony/bluetooth/bluetooth.pro
-@@ -0,0 +1,11 @@
+@@ -0,0 +1,9 @@
 +TEMPLATE = aux
 +
 +CONFIG -= qt
 +
-+templates.files += $$files($$PWD/native/bluetooth/*.ts, true)
++templates.files += $$files($$PWD/native/QtBluetooth/*.ts, true)
 +templates.path = $$[QT_INSTALL_PREFIX]/openharmony/qtconnectivity
 +templates.base = $$PWD
 +
 +INSTALLS += templates
-+
-+OTHER_FILES += $$templates.files
 diff --git a/src/openharmony/bluetooth/native/QtBluetooth/QtBluetooth.ts b/src/openharmony/bluetooth/native/QtBluetooth/QtBluetooth.ts
 new file mode 100644
 index 00000000..aa65a203
@@ -8533,7 +8531,7 @@ index 00000000..04152bb6
 \ No newline at end of file
 diff --git a/src/openharmony/nfc/nfc.pro b/src/openharmony/nfc/nfc.pro
 new file mode 100644
-index 00000000..38658bf9
+index 00000000..00614707
 --- /dev/null
 +++ b/src/openharmony/nfc/nfc.pro
 @@ -0,0 +1,11 @@
@@ -8541,7 +8539,7 @@ index 00000000..38658bf9
 +
 +CONFIG -= qt
 +
-+templates.files += $$files($$PWD/native/nfc/*.ts, true)
++templates.files += $$files($$PWD/native/QtNfc/*.ts, true)
 +templates.path = $$[QT_INSTALL_PREFIX]/openharmony/qtconnectivity
 +templates.base = $$PWD
 +
