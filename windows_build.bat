@@ -1,8 +1,8 @@
 @echo off
 set "e=|| exit /b 1"
 set ROOT_DIR=%cd%
-set PATH=%PATH%;%cd%
-set V3SDK=http://download.ci.openharmony.cn/version/Daily_Version/OpenHarmony_3.2.10.10/20230303_145524/version-Daily_Version-OpenHarmony_3.2.10.10-20230303_145524-ohos-sdk-full.tar.gz
+set PATH=%PATH%;%cd%;
+set V3SDK=http://download.ci.openharmony.cn/version/Master_Version/OpenHarmony_3.2.10.9/20230225_073754/version-Master_Version-OpenHarmony_3.2.10.9-20230225_073754-ohos-sdk-full.tar.gz
 set V4SDK=http://download.ci.openharmony.cn/version/Master_Version/OpenHarmony_4.0.10.5/20230824_120941/version-Master_Version-OpenHarmony_4.0.10.5-20230824_120941-ohos-sdk-full_monthly.tar.gz
 
 set ARGS=%*
@@ -13,9 +13,9 @@ REM goto doneargs
 
 :doneargs
 
-call :acquireUnzip
-call :acquireQtSrc
-call :acquirePatch
+REM call :acquireUnzip
+REM call :acquireQtSrc
+REM call :acquirePatch
 
 if not "%V3SDK%" == "" (
 	if not "%V4SDK%" == "" (		
@@ -170,7 +170,8 @@ if not exist "%ROOT_DIR%\%UN_ZIP_DIR%\ohos-sdk\windows\native" (
 ) 
 
 set OHOS_SDK_PATH=%ROOT_DIR%\%UN_ZIP_DIR%\ohos-sdk\windows
-set PATH=%PATH%;%OHOS_SDK_PATH%\native\llvm\bin;%OHOS_SDK_PATH%\native\llvm\lib;
+set LLVM_INSTALL_DIR=%OHOS_SDK_PATH%\native\llvm
+set PATH=%PATH%;%OHOS_SDK_PATH%\native\llvm\bin;%OHOS_SDK_PATH%\native\llvm\lib;%OHOS_SDK_PATH%\native\llvm\include;
 echo "OHOS_SDK_PATH:%OHOS_SDK_PATH%"
 goto :eof
 
@@ -196,7 +197,6 @@ cd %ROOT_DIR%/qt5/qtbase
  git apply --stat %PATCH_DIR%/patch/qtbase.patch 
  git apply %PATCH_DIR%/patch/qtbase.patch  
 cd %ROOT_DIR%
-
 
 echo "Apply QtConnectivity Patch......"
 cd %ROOT_DIR%/qt5/qtconnectivity
@@ -227,6 +227,15 @@ cd %ROOT_DIR%/qt5/qtremoteobjects
  git apply %PATCH_DIR%/patch/qtremoteobjects.patch 
 cd %ROOT_DIR%
 
+echo "Apply QtSensors Patch......"
+cd %ROOT_DIR%/qt5/qtremoteobjects
+ git reset --hard 
+ git clean -fdx 
+ git apply --check %PATCH_DIR%/patch/qtsensors.patch
+ git apply --stat %PATCH_DIR%/patch/qtsensors.patch 
+ git apply %PATCH_DIR%/patch/qtsensors.patch
+cd %ROOT_DIR%
+
 goto :eof
 
 :buildQt
@@ -251,7 +260,7 @@ if not exist "%BUILD_DIR%" (
 
 cd %BUILD_DIR%
 call %ROOT_DIR%\qt5\configure.bat -platform win32-g++ -xplatform oh-clang -device-option OHOS_ARCH=%OHOS_ARCH% -opensource -confirm-license -nomake tests -make examples -v ^
--prefix %QT_INSTALL_DIR% -skip qtvirtualkeyboard -skip qtnetworkauth -skip webengine -skip location -skip qtwebchannel -skip qtgamepad -skip qtscript -opengl es2 -opengles3 -no-dbus -recheck-all
+-prefix %QT_INSTALL_DIR% -skip doc -skip qtvirtualkeyboard -skip qtnetworkauth -skip webengine -skip location -skip qtwebchannel -skip qtgamepad -skip qtscript -opengl es2 -opengles3 -no-dbus -recheck-all
 
 mingw32-make -j16
 mingw32-make install
