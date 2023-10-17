@@ -1,8 +1,8 @@
-diff --git a/src/openharmony/native/QtSensors.ts b/src/openharmony/native/QtSensors.ts
+diff --git a/src/openharmony/native/QtSensors/QtSensors.ts b/src/openharmony/native/QtSensors/QtSensors.ts
 new file mode 100644
 index 00000000..8c7ad9a0
 --- /dev/null
-+++ b/src/openharmony/native/QtSensors.ts
++++ b/src/openharmony/native/QtSensors/QtSensors.ts
 @@ -0,0 +1,132 @@
 +import sensor from '@ohos.sensor';
 +import qtsensorsplugin from 'libplugins_sensors_qtsensors_openharmony.so';
@@ -139,7 +139,7 @@ index 00000000..8c7ad9a0
 \ No newline at end of file
 diff --git a/src/openharmony/openharmony.pro b/src/openharmony/openharmony.pro
 new file mode 100644
-index 00000000..6f56bfea
+index 00000000..3fdb3db8
 --- /dev/null
 +++ b/src/openharmony/openharmony.pro
 @@ -0,0 +1,11 @@
@@ -147,7 +147,7 @@ index 00000000..6f56bfea
 +
 +CONFIG -= qt
 +
-+templates.files += $$files($$PWD/native/*.ts, true)
++templates.files += $$files($$PWD/native/QtSensors/*.ts, true)
 +templates.path = $$[QT_INSTALL_PREFIX]/openharmony/qtsensors
 +templates.base = $$PWD
 +

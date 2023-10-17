@@ -2957,42 +2957,50 @@ index 0000000000..67b0103032
 \ No newline at end of file
 diff --git a/src/openharmony/native/QtObjectLoader.ts b/src/openharmony/native/QtObjectLoader.ts
 new file mode 100644
-index 0000000000..b67fcd9711
+index 0000000000..07d8fab91b
 --- /dev/null
 +++ b/src/openharmony/native/QtObjectLoader.ts
-@@ -0,0 +1,33 @@
+@@ -0,0 +1,41 @@
++import { QtNfc } from './QtNfc/QtNfc'
 +import { QtDialog } from './QtCore/QtDialog'
++import { QtSensors } from './QtSensors/QtSensors'
 +import { QtPasteBoard } from './QtCore/QtPasteBoard'
-+import { QtInputManager } from './QtCore/QtInputManager'
-+import { QtWindowManager } from './QtCore/QtWindowManager'
++import { QtMediaPlayer } from './QtMultiMedia/QtMediaPlayer'
 +import { QtFileManager } from './QtCore/QtFileManager'
++import { QtInputManager } from './QtCore/QtInputManager'
++import { QtAudioManager } from './QtMultiMedia/QtAudioManager'
++import { QtWindowManager } from './QtCore/QtWindowManager'
++import { QtBluetoothServer } from './QtBluetooth/QtBluetoothServer'
++import { QtBluetoothManager } from './QtBluetooth/QtBluetoothManager'
 +
 +let classes = {
-+    "qtdialog": QtDialog,
-+    "qtpasteboard": QtPasteBoard,
-+    "qtinputmanager": QtInputManager,
-+    "qtwindowmanager": QtWindowManager,
-+    "qtmediaplayer": QtMediaPlayer,
-+    "qtaudiomanager": QtAudioManager,
-+    "qtfilemanager": QtFileManager,
-+    "qtnfc": QtNfc,
-+    "qtbluetoothmanager": QtBluetoothManager
++  "qtnfc": QtNfc,
++  "qtdialog": QtDialog,
++  "qtsensors": QtSensors,
++  "qtpasteboard": QtPasteBoard,
++  "qtmediaplayer": QtMediaPlayer,
++  "qtfilemanager": QtFileManager,
++  "qtaudiomanager": QtAudioManager,
++  "qtinputmanager": QtInputManager,
++  "qtwindowmanager": QtWindowManager,
++  "qtbluetoothserver": QtBluetoothServer,
++  "qtbluetoothmanager": QtBluetoothManager
 +}
 +
 +export class QtObjectLoader {
-+    constructor() {
++  constructor() {
 +
-+    }
++  }
 +
-+    // Todo 动态加载
-+    createObject(name: string) {
-+        if (!classes.hasOwnProperty(name)) {
-+            return false;
-+        }
-+        var object = new classes[name];
-+        Reflect.defineProperty(globalThis, name, {value: object});
-+        return true;
++  // Todo 动态加载
++  createObject(name) {
++    if (!classes.hasOwnProperty(name)) {
++      return false;
 +    }
++    var object = new classes[name];
++    Reflect.defineProperty(globalThis, name, { value: object });
++    return true;
++  }
 +}
 \ No newline at end of file
 diff --git a/src/openharmony/openharmony.pro b/src/openharmony/openharmony.pro
