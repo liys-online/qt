@@ -30,6 +30,567 @@ index 13df416f3..f247bc79a 100644
          if (m_sample->state() != QSample::Ready)
              return 0;
  
+diff --git a/src/openharmony/native/QtMultiMedia/MediaUtils.ts b/src/openharmony/native/QtMultiMedia/MediaUtils.ts
+new file mode 100644
+index 000000000..4b41d105e
+--- /dev/null
++++ b/src/openharmony/native/QtMultiMedia/MediaUtils.ts
+@@ -0,0 +1,53 @@
++import mediaLibrary from '@ohos.multimedia.mediaLibrary'
++import QtApplication from '../QtApplication'
++import abilityAccessCtrl from '@ohos.abilityAccessCtrl';
++
++export class MediaUtils {
++  private tag: string = 'MediaUtils'
++  private mediaList: Array<mediaLibrary.FileAsset> = []
++  private qtApp: QtApplication = QtApplication.getInstance()
++  private atManager: abilityAccessCtrl.AtManager = abilityAccessCtrl.createAtManager();
++  private mediaLib: mediaLibrary.MediaLibrary = mediaLibrary.getMediaLibrary(this.qtApp.getAbilityContext())
++
++  async queryFile() {
++    let fileKeyObj = mediaLibrary.FileKey
++    let id = mediaLibrary.MediaType.VIDEO;
++    let args = id.toString()
++    let fetchOp = {
++      selections: fileKeyObj.MEDIA_TYPE + '= ?',
++      selectionArgs: [args],
++    }
++    const fetchFileResult = await this.mediaLib.getFileAssets(fetchOp)
++    const asset = await fetchFileResult.getFirstObject();
++    return asset;
++  }
++
++  getMediaList() {
++    return this.mediaList
++  }
++
++  async getFdPath(fileAsset: any) {
++    let fd = await fileAsset.open('Rw')
++    return fd
++  }
++
++  async getFileAssetsFromType(mediaType: number) {
++    await this.atManager.requestPermissionsFromUser(QtApplication.getInstance().getAbilityContext(), [
++      'ohos.permission.MEDIA_LOCATION',
++      'ohos.permission.READ_MEDIA',
++      'ohos.permission.WRITE_MEDIA'
++    ])
++    let fileKeyObj = mediaLibrary.FileKey
++    let fetchOp = {
++      selections: `${fileKeyObj.MEDIA_TYPE}=?`,
++      selectionArgs: [`${mediaType}`],
++    }
++
++    this.mediaLib = mediaLibrary.getMediaLibrary(QtApplication.getInstance().getAbilityContext())
++    let fetchFileResult = await this.mediaLib.getFileAssets(fetchOp)
++    if (fetchFileResult.getCount() > 0) {
++      this.mediaList = await fetchFileResult.getAllObject()
++    }
++    return this.mediaList
++  }
++}
+\ No newline at end of file
+diff --git a/src/openharmony/native/QtMultiMedia/QtAudioManager.ts b/src/openharmony/native/QtMultiMedia/QtAudioManager.ts
+new file mode 100644
+index 000000000..0612bafd4
+--- /dev/null
++++ b/src/openharmony/native/QtMultiMedia/QtAudioManager.ts
+@@ -0,0 +1,106 @@
++/*
++ * Copyright (C) 2022 Sinux Co., Ltd.
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *     http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++import audio from '@ohos.multimedia.audio';
++
++export class QtAudioManager {
++    private audioManager: audio.AudioManager = audio.getAudioManager();
++    private routingManager: audio.AudioRoutingManager = this.audioManager.getRoutingManager();
++    private deviceDescript = new Map([
++        [0, "INVALID"], [1, "EARPIECE"], [2, "SPEAKER"], [3, "WIRED_HEADSET"], [4, "WIRED_HEADPHONES"],
++        [7, "BLUETOOTH_SCO"], [8, "BLUETOOTH_A2DP"], [15, "MIC"], [22, "USB_HEADSET"], [1000, "DEFAULT"]
++    ]);
++
++    public constructor() {
++    }
++
++    /* 获取可用的输入设备描述 */
++    private async availableInputDevicesDes() {
++        let devicesDes = await this.routingManager.getDevices(audio.DeviceFlag.INPUT_DEVICES_FLAG);
++        return devicesDes;
++    }
++
++    /* 获取可用的输出设备描述 */
++    private async availableOutputDevicesDes() {
++        let devices = await this.routingManager.getDevices(audio.DeviceFlag.OUTPUT_DEVICES_FLAG);
++        return devices;
++    }
++
++    /* 获取可用的输入设备id值 */
++    async availableInputDevices() {
++        let ids:Array<string> = new Array();
++        let devDes = await this.availableInputDevicesDes();
++        for (let des of devDes) {
++            if (audio.DeviceType.INVALID != des.deviceType) {
++                ids.push(String(des.id));
++            }
++        }
++        return ids;
++    }
++    /* 获取可用的输出设备id值 */
++    async availableOutputDevices() {
++        let ids:Array<string> = new Array();
++        let devDes = await this.availableOutputDevicesDes();
++        for (let des of devDes) {
++            if (audio.DeviceType.INVALID != des.deviceType) {
++                ids.push(String(des.id));
++            }
++        }
++        return ids;
++    }
++
++    /* 获取指定输入设备支持的通道数 param id---设备id */
++    async inputChannelCounts(id: string) {
++        let devices = await this.availableInputDevicesDes();
++        for (let dev of devices) {
++            if (Number(dev.id) === dev.id) {
++                return dev.channelCounts;
++            }
++        }
++        return undefined;
++    }
++
++    /* 获取指定输出设备支持的通道数 param id---设备id */
++    async outputChannelCounts(id: string) {
++        let devices = await this.availableOutputDevicesDes();
++        for (let dev of devices) {
++            if (Number(dev.id) === dev.id) {
++                return dev.channelCounts;
++            }
++        }
++        return undefined;
++    }
++
++    /* 返回指定输入设备支持的采样率列表 param id---设备id */
++    async inputSupportedSampleRates(id: string) {
++        let devices = await this.availableInputDevicesDes();
++        for (let dev of devices) {
++            if (Number(dev.id) === dev.id) {
++                return dev.sampleRates;
++            }
++        }
++        return undefined;
++    }
++    /* 返回输出设备支持的采样率列表 param id---设备id */
++    async outputSupportedSampleRates(id: string) {
++        let devices = await this.availableOutputDevicesDes();
++        for (let dev of devices) {
++            if (Number(dev.id) === dev.id) {
++                return dev.sampleRates;
++            }
++        }
++        return undefined;
++    }
++}
+diff --git a/src/openharmony/native/QtMultiMedia/QtMediaPlayer.ts b/src/openharmony/native/QtMultiMedia/QtMediaPlayer.ts
+new file mode 100644
+index 000000000..c2c258ad3
+--- /dev/null
++++ b/src/openharmony/native/QtMultiMedia/QtMediaPlayer.ts
+@@ -0,0 +1,81 @@
++/*
++ * Copyright (C) 2022 Sinux Co., Ltd.
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *     http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++
++import media from '@ohos.multimedia.media';
++import HashMap from '@ohos.util.HashMap';
++import VideoPlayer from './VideoPlayer'
++
++export class QtMediaPlayer {
++    private avPlayers = null;
++    private surfaceIds = null;
++    private unsetPlayers = null;
++    constructor() {
++        this.avPlayers = new HashMap;
++        this.surfaceIds = new HashMap;
++        this.unsetPlayers = new HashMap;
++    }
++
++    async createPlayer(player) {
++        var p = new VideoPlayer;
++        await p.create();
++        this.avPlayers.set(player, p);
++        return true;
++    }
++
++    async setDisplay(player, name) {
++        // 如果surfaceId已经创建,取出id,并设置，如果没有则保存下来等待surfaceId
++        if (this.surfaceIds.hasKey(name)) {
++            var surfaceId = this.surfaceIds.get(name)
++            var p = this.avPlayers.get(player);
++            await p.setDisplaySurface(surfaceId);
++        } else {
++            this.unsetPlayers.set(name, player);
++        }
++    }
++
++    async setSurfaceId(name, id) {
++        if (this.unsetPlayers.hasKey(name)) {
++            var p = this.unsetPlayers.get(name);
++            if (this.avPlayers.hasKey(p)) {
++                var player = this.avPlayers.get(p)
++                await player.setDisplaySurface(id);
++                this.unsetPlayers.remove(name);
++            }
++
++        } else {
++            this.surfaceIds.set(name, id);
++        }
++    }
++
++    setDataSource(player, data) {
++        if (this.avPlayers.hasKey(player)) {
++            var p = this.avPlayers.get(player)
++            p.setDataSource(data)
++            return true;
++        }
++        return false;
++    }
++
++    play(player) {
++        console.log("bbbbbbbbbbbbbbbbbbbbbbbbbbbb", this.avPlayers.hasKey(player))
++        if (this.avPlayers.hasKey(player)) {
++            var p = this.avPlayers.get(player);
++            p.play();
++            return true;
++        }
++        return false;
++    }
++}
+diff --git a/src/openharmony/native/QtMultiMedia/QtMediaRecorder.ts b/src/openharmony/native/QtMultiMedia/QtMediaRecorder.ts
+new file mode 100644
+index 000000000..ba608637e
+--- /dev/null
++++ b/src/openharmony/native/QtMultiMedia/QtMediaRecorder.ts
+@@ -0,0 +1,106 @@
++/*
++ * Copyright (C) 2022 Sinux Co., Ltd.
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *     http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++
++import to from './QtUtils'
++import media from '@ohos.multimedia.media';
++
++export class MediaRecorder {
++    private mRecorder: media.AVRecorder = null;
++
++    constructor() {
++    }
++
++    private async hasRecorder() {
++        if (null != this.mRecorder) {
++            return true;
++        }
++
++        let [error, record] = await to(media.createAVRecorder());
++        if (null != error) {
++            console.error(`createAVRecorder catchCallback, error:${error}`);
++            return false;
++        }
++        this.mRecorder = record;
++        return true;
++    }
++
++    async release() {
++        if (this.hasRecorder()) {
++            let [error, placeholder] = await to(this.mRecorder.release());
++            if (null != error) {
++                console.error('release AVRecorder failed and catch error is ' + error.message);
++            }
++        }
++    }
++
++    /* NOTE 配置项数据,C++端调用时传入json字符串 */
++    async prepare(configs:string) {
++        if (this.hasRecorder()) {
++            //TODO
++            var obj = JSON.parse(configs);
++            let AVRecorderProfile = {
++                audioBitrate : 48000,
++                audioChannels : 2,
++                audioCodec : media.CodecMimeType.AUDIO_AAC,
++                audioSampleRate : 48000,
++                fileFormat : media.ContainerFormatType.CFT_MPEG_4,
++                videoBitrate : 48000,
++                videoCodec : media.CodecMimeType.VIDEO_MPEG4,
++                videoFrameWidth : 640,
++                videoFrameHeight : 480,
++                videoFrameRate : 30
++            }
++            let AVRecorderConfig = {
++                audioSourceType : media.AudioSourceType.AUDIO_SOURCE_TYPE_MIC,
++                videoSourceType : media.VideoSourceType.VIDEO_SOURCE_TYPE_SURFACE_YUV,
++                profile : AVRecorderProfile,
++                url : 'fd://', // 文件需先由调用者创建，赋予读写权限，将文件fd传给此参数，eg.fd://45
++                rotation : 0, // 合理值0、90、180、270，非合理值prepare接口将报错
++                location : { latitude : 30, longitude : 130 }
++            }
++
++            this.mRecorder.prepare(AVRecorderConfig);
++        }
++    }
++
++    async reset() {
++        if (this.hasRecorder()) {
++            let [error, placeholder] = await to(this.mRecorder.reset());
++            if (null != error) {
++                console.error('reset AVRecorder failed and catch error is ' + error.message);
++            }
++        }
++    }
++
++    async start() {
++        if (this.hasRecorder()) {
++            let [error, placeholder] = await to(this.mRecorder.start());
++            if (null != error) {
++                console.info('start AVRecorder failed and catch error is ' + error.message);
++            }
++        }
++    }
++
++    async stop() {
++        if (this.hasRecorder()) {
++            let [error, placeholder] = await to(this.mRecorder.stop());
++            if (null != error) {
++                console.info('stop AVRecorder failed and error is ' + error.message);
++            }
++        }
++    }
++}
++
+diff --git a/src/openharmony/native/QtMultiMedia/QtMultimediaUtils.ts b/src/openharmony/native/QtMultiMedia/QtMultimediaUtils.ts
+new file mode 100644
+index 000000000..6c9f23d60
+--- /dev/null
++++ b/src/openharmony/native/QtMultiMedia/QtMultimediaUtils.ts
+@@ -0,0 +1,29 @@
++/*
++ * Copyright (C) 2022 Sinux Co., Ltd.
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *     http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++
++import media from '@ohos.multimedia.media';
++import mediaLibrary from '@ohos.multimedia.mediaLibrary';
++
++export class QtMultimediaUtils {
++    private media = mediaLibrary.getMediaLibrary(globalThis.appContext);
++
++    constructor(){}
++
++    async getMediaDirectory(type:number){
++        const dictResult = await this.media.getPublicDirectory(type);
++        return dictResult;
++    }
++}
+diff --git a/src/openharmony/native/QtMultiMedia/VideoPlayer.ts b/src/openharmony/native/QtMultiMedia/VideoPlayer.ts
+new file mode 100644
+index 000000000..a34e23ade
+--- /dev/null
++++ b/src/openharmony/native/QtMultiMedia/VideoPlayer.ts
+@@ -0,0 +1,133 @@
++import media from '@ohos.multimedia.media'
++import { MediaUtils }  from '../QtMultiMedia/MediaUtils'
++import mediaLibrary from '@ohos.multimedia.mediaLibrary'
++
++export default class VideoPlayer {
++    private videoPlayer = undefined
++    private surfaceID: string = ''
++    private finishCallBack: () => void = undefined
++    private fileAsset: mediaLibrary.FileAsset = undefined
++    private fd: number = undefined
++    private mediaUtils = new MediaUtils;
++
++    async create() {
++        this.videoPlayer = await media.createVideoPlayer();
++        this.videoPlayer.on('error', (error) => {
++            console.info(`audio error called, errName is ${error.name}`);
++            console.info(`audio error called, errCode is ${error.code}`);
++            console.info(`audio error called, errMessage is ${error.message}`);
++        });
++        this.videoPlayer.on('playbackCompleted', () => {
++            console.info('xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx playbackCompleted success!');
++        });
++        this.videoPlayer.on('bufferingUpdate', (infoType, value) => {
++            console.log('}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}video bufferingInfo type: ' + infoType);
++            console.log('}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}video bufferingInfo value: ' + value);
++        });
++    }
++
++    async setDisplaySurface(surfaceID) {
++        console.log("??????????????????????????????????", this.surfaceID)
++        this.surfaceID = surfaceID;
++//        await this.videoPlayer.setDisplaySurface(this.surfaceID)
++        return true;
++    }
++
++    async setDataSource(data) {
++        let localFile = "file:";
++        let start = data.substr(0, localFile.length);
++
++        console.log("{{{{{{{{{{{{{{{{{{{{{{{{{{", localFile, start, data)
++        let url = ''
++        if (start == localFile) {
++            url = data.substr(localFile.length);
++        } else {
++            url = data;
++        }
++
++//        let fd = await QtApplication.getInstance().getAbilityConext().resourceManager.getRawFd('videoTest.mp4')
++//        let fd = 'fd://56';
++//        this.videoPlayer.url = fd;
++//
++//        this.videoPlayer.prepare();
++//        console.log("dddddddddddddffffffffffffffffffffffffff");
++    }
++
++    async getMediaList() {
++        console.log("xxxxxxxxxxxxxxxxxxxxxxxxxxxx 111111111111111")
++        let mediaList = await this.mediaUtils.getFileAssetsFromType(mediaLibrary.MediaType.VIDEO)
++        console.log("xxxxxxxxxxxxxxxxxxxxxxxxxxxx 2222222222222222222222")
++        mediaList.forEach((file, index) => {
++            this.fileAsset = file
++        })
++    }
++
++    async prepareVideo() {
++        this.fd = await this.fileAsset.open('r')
++        return 'fd://' + this.fd
++    }
++
++    async play() {
++        if (typeof (this.videoPlayer) != 'undefined') {
++            //            await QtApplication.getInstance().getAbilityConext().requestPermissionsFromUser([
++            //                'ohos.permission.MEDIA_LOCATION',
++            //                'ohos.permission.READ_MEDIA',
++            //                'ohos.permission.WRITE_MEDIA'
++            //            ])
++            //            await this.videoPlayer.play()
++            console.log("<<<<<<<<<<<<<<<<xxxxxxxxxxxxxxxxxxxxxxxxxxx>>>>>>>>>>>>>>>>")
++            await this.getMediaList()
++            let fdPath = await this.prepareVideo()
++            this.videoPlayer.url = fdPath;
++            console.log(",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,", this.videoPlayer.url, this.surfaceID);
++            await this.videoPlayer.setDisplaySurface(this.surfaceID)
++            await this.videoPlayer.prepare()
++            await this.videoPlayer.play()
++        }
++    }
++
++    async seek(time) {
++        if (typeof (this.videoPlayer) != 'undefined') {
++            await this.videoPlayer.seek(time)
++        }
++    }
++
++    getCurrentTime() {
++        if (typeof (this.videoPlayer) != 'undefined') {
++            return this.videoPlayer.currentTime
++        }
++        return 0
++    }
++
++    async pause() {
++        if (typeof (this.videoPlayer) != 'undefined') {
++            await this.videoPlayer.pause()
++        }
++    }
++
++    async stop() {
++        if (typeof (this.videoPlayer) != 'undefined') {
++            await this.videoPlayer.stop()
++        }
++    }
++
++//    async reset(playSrc) {
++//        if (typeof (this.videoPlayer) != 'undefined') {
++//            this.playPath = playSrc
++//            await this.videoPlayer.reset()
++//            this.videoPlayer.url = this.playPath
++//            await this.videoPlayer.prepare()
++//            await this.videoPlayer.play()
++//        }
++//    }
++
++    async release() {
++        if (typeof (this.videoPlayer) != 'undefined') {
++            await this.videoPlayer.release()
++        }
++    }
++
++    setFinishCallBack(callback) {
++        this.finishCallBack = callback
++    }
++}
+\ No newline at end of file
+diff --git a/src/openharmony/openharmony.pro b/src/openharmony/openharmony.pro
+new file mode 100644
+index 000000000..966d9dcf0
+--- /dev/null
++++ b/src/openharmony/openharmony.pro
+@@ -0,0 +1,9 @@
++TEMPLATE = aux
++
++CONFIG -= qt
++
++templates.files += $$files($$PWD/native/QtMultiMedia/*.ts, true)
++templates.path = $$[QT_INSTALL_PREFIX]/openharmony/qtmultimedia
++templates.base = $$PWD
++
++INSTALLS += templates
 diff --git a/src/plugins/android/src/mediaplayer/qandroidmediaservice.cpp b/src/plugins/android/src/mediaplayer/qandroidmediaservice.cpp
 index 2688f3550..f74f6a1d4 100644
 --- a/src/plugins/android/src/mediaplayer/qandroidmediaservice.cpp
@@ -2828,3 +3389,15 @@ index c3694f533..fbb6dc609 100644
  
  QT_BEGIN_NAMESPACE
  
+diff --git a/src/src.pro b/src/src.pro
+index 97a053379..501514fa0 100644
+--- a/src/src.pro
++++ b/src/src.pro
+@@ -1,6 +1,7 @@
+ TEMPLATE = subdirs
+ 
+ SUBDIRS += multimedia
++SUBDIRS += openharmony
+ 
+ include($$OUT_PWD/multimedia/qtmultimedia-config.pri)
+ QT_FOR_CONFIG += multimedia-private
