@@ -2757,12 +2757,12 @@ index 0000000000..28ac854645
 \ No newline at end of file
 diff --git a/src/openharmony/native/QtCore/QtInputManager.ts b/src/openharmony/native/QtCore/QtInputManager.ts
 new file mode 100644
-index 0000000000..bbcee574e2
+index 0000000000..6444b5d261
 --- /dev/null
 +++ b/src/openharmony/native/QtCore/QtInputManager.ts
 @@ -0,0 +1,57 @@
 +import window from '@ohos.window';
-+import QtApplication from './QtApplication'
++import QtApplication from '../QtApplication'
 +
 +export class QtInputManager {
 +  public constructor() {
@@ -2818,7 +2818,6 @@ index 0000000000..bbcee574e2
 +    console.log('show keyboard 555555555555555555555555555555555555555555555', visible);
 +  }
 +}
-\ No newline at end of file
 diff --git a/src/openharmony/native/QtCore/QtPasteBoard.ts b/src/openharmony/native/QtCore/QtPasteBoard.ts
 new file mode 100644
 index 0000000000..c6fb19f4ae
@@ -2957,34 +2956,22 @@ index 0000000000..67b0103032
 \ No newline at end of file
 diff --git a/src/openharmony/native/QtObjectLoader.ts b/src/openharmony/native/QtObjectLoader.ts
 new file mode 100644
-index 0000000000..07d8fab91b
+index 0000000000..b1d1133d61
 --- /dev/null
 +++ b/src/openharmony/native/QtObjectLoader.ts
-@@ -0,0 +1,41 @@
-+import { QtNfc } from './QtNfc/QtNfc'
+@@ -0,0 +1,29 @@
 +import { QtDialog } from './QtCore/QtDialog'
-+import { QtSensors } from './QtSensors/QtSensors'
 +import { QtPasteBoard } from './QtCore/QtPasteBoard'
-+import { QtMediaPlayer } from './QtMultiMedia/QtMediaPlayer'
 +import { QtFileManager } from './QtCore/QtFileManager'
 +import { QtInputManager } from './QtCore/QtInputManager'
-+import { QtAudioManager } from './QtMultiMedia/QtAudioManager'
 +import { QtWindowManager } from './QtCore/QtWindowManager'
-+import { QtBluetoothServer } from './QtBluetooth/QtBluetoothServer'
-+import { QtBluetoothManager } from './QtBluetooth/QtBluetoothManager'
 +
-+let classes = {
-+  "qtnfc": QtNfc,
-+  "qtdialog": QtDialog,
-+  "qtsensors": QtSensors,
-+  "qtpasteboard": QtPasteBoard,
-+  "qtmediaplayer": QtMediaPlayer,
-+  "qtfilemanager": QtFileManager,
-+  "qtaudiomanager": QtAudioManager,
++let classes = {  
++  "qtdialog": QtDialog,  
++  "qtpasteboard": QtPasteBoard,  
++  "qtfilemanager": QtFileManager,  
 +  "qtinputmanager": QtInputManager,
-+  "qtwindowmanager": QtWindowManager,
-+  "qtbluetoothserver": QtBluetoothServer,
-+  "qtbluetoothmanager": QtBluetoothManager
++  "qtwindowmanager": QtWindowManager
 +}
 +
 +export class QtObjectLoader {
@@ -3002,7 +2989,6 @@ index 0000000000..07d8fab91b
 +    return true;
 +  }
 +}
-\ No newline at end of file
 diff --git a/src/openharmony/openharmony.pro b/src/openharmony/openharmony.pro
 new file mode 100644
 index 0000000000..1c9156fde0
@@ -4347,10 +4333,10 @@ index 0000000000..1a88d88b24
 +#endif // QOPENHARMONYDEFINES_H
 diff --git a/src/plugins/platforms/openharmony/qopenharmonymain.cpp b/src/plugins/platforms/openharmony/qopenharmonymain.cpp
 new file mode 100644
-index 0000000000..637416639b
+index 0000000000..749cae5ece
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonymain.cpp
-@@ -0,0 +1,338 @@
+@@ -0,0 +1,364 @@
 +#include <memory>
 +#include <semaphore.h>
 +#include <dlfcn.h>
@@ -4524,27 +4510,27 @@ index 0000000000..637416639b
 +
 +    m_density = value[1];
 +    m_scaledDensity = value[2];
-+    m_screenWidthPixels = static_cast<int>(value[3]);
-+    m_screenHeightPixels = static_cast<int>(value[4]);
++//    m_screenWidthPixels = static_cast<int>(value[3]);
++//    m_screenHeightPixels = static_cast<int>(value[4]);
 +
-+    m_desktopWidthPixels = static_cast<int>(value[5]);
-+    m_desktopHeightPixels = static_cast<int>(value[6]);
++//    m_desktopWidthPixels = static_cast<int>(value[5]);
++//    m_desktopHeightPixels = static_cast<int>(value[6]);
 +    // openharmony xdpi and ydpi is 0
-+    double xdpi = 72;
-+    double ydpi = 72;
-+    if (m_platformIntegration == nullptr) {
-+        QOpenHarmonyPlatformIntegration::setDefaultDisplayMetrics(m_desktopWidthPixels,
-+                                                              m_desktopHeightPixels,
-+                                                              qRound(double(m_screenWidthPixels)  / xdpi * 25.4),
-+                                                              qRound(double(m_screenHeightPixels) / ydpi * 25.4),
-+                                                              m_screenWidthPixels,
-+                                                              m_screenHeightPixels);
-+    } else {
-+        m_platformIntegration->setDisplayMetrics(qRound(double(m_desktopWidthPixels)  / xdpi * 25.4),
-+                                                        qRound(double(m_desktopHeightPixels) / ydpi * 25.4));
-+        m_platformIntegration->setScreenSize(m_screenWidthPixels, m_screenHeightPixels);
-+        m_platformIntegration->setDesktopSize(m_desktopWidthPixels, m_desktopHeightPixels);
-+    }
++//    double xdpi = 72;
++//    double ydpi = 72;
++//    if (m_platformIntegration == nullptr) {
++//        QOpenHarmonyPlatformIntegration::setDefaultDisplayMetrics(m_desktopWidthPixels,
++//                                                              m_desktopHeightPixels,
++//                                                              qRound(double(m_screenWidthPixels)  / xdpi * 25.4),
++//                                                              qRound(double(m_screenHeightPixels) / ydpi * 25.4),
++//                                                              m_screenWidthPixels,
++//                                                              m_screenHeightPixels);
++//    } else {
++//        m_platformIntegration->setDisplayMetrics(qRound(double(m_desktopWidthPixels)  / xdpi * 25.4),
++//                                                        qRound(double(m_desktopHeightPixels) / ydpi * 25.4));
++//        m_platformIntegration->setScreenSize(m_screenWidthPixels, m_screenHeightPixels);
++//        m_platformIntegration->setDesktopSize(m_desktopWidthPixels, m_desktopHeightPixels);
++//    }
 +    return nullptr;
 +}
 +
@@ -4689,12 +4675,38 @@ index 0000000000..637416639b
 +{
 +    m_platformIntegration = integration;
 +}
++
++void QtOpenHarmony::updateDisplayMetrics(int w, int h)
++{
++
++    m_screenWidthPixels = w;
++    m_screenHeightPixels = h;
++
++    m_desktopWidthPixels = w;
++    m_desktopHeightPixels = h;
++//    openharmony xdpi and ydpi is 0
++    double xdpi = 72;
++    double ydpi = 72;
++    if (m_platformIntegration == nullptr) {
++        QOpenHarmonyPlatformIntegration::setDefaultDisplayMetrics(m_desktopWidthPixels,
++                                                                  m_desktopHeightPixels,
++                                                                  qRound(double(m_screenWidthPixels)  / xdpi * 25.4),
++                                                                  qRound(double(m_screenHeightPixels) / ydpi * 25.4),
++                                                                  m_screenWidthPixels,
++                                                                  m_screenHeightPixels);
++    } else {
++        m_platformIntegration->setDisplayMetrics(qRound(double(m_desktopWidthPixels)  / xdpi * 25.4),
++                                                 qRound(double(m_desktopHeightPixels) / ydpi * 25.4));
++        m_platformIntegration->setScreenSize(m_screenWidthPixels, m_screenHeightPixels);
++        m_platformIntegration->setDesktopSize(m_desktopWidthPixels, m_desktopHeightPixels);
++    }
++}
 diff --git a/src/plugins/platforms/openharmony/qopenharmonymain.h b/src/plugins/platforms/openharmony/qopenharmonymain.h
 new file mode 100644
-index 0000000000..af8f4303e4
+index 0000000000..0e606c8c74
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonymain.h
-@@ -0,0 +1,19 @@
+@@ -0,0 +1,21 @@
 +#ifndef QOPENHARMONYMAIN_H
 +#define QOPENHARMONYMAIN_H
 +
@@ -4708,6 +4720,8 @@ index 0000000000..af8f4303e4
 +double scaledDensity();
 +
 +double pixelDensity();
++
++void updateDisplayMetrics(int w, int h);
 +
 +napi_env jsEnv();
 +
@@ -7843,16 +7857,17 @@ index 0000000000..f768f216f2
 +#endif // QOPENHARMONYSURFACE_H
 diff --git a/src/plugins/platforms/openharmony/qopenharmonyxcomponent.cpp b/src/plugins/platforms/openharmony/qopenharmonyxcomponent.cpp
 new file mode 100644
-index 0000000000..e8bf8722e9
+index 0000000000..58331d3131
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonyxcomponent.cpp
-@@ -0,0 +1,217 @@
+@@ -0,0 +1,219 @@
 +#include "qopenharmonyxcomponent.h"
 +#include "qopenharmonyplatforminputcontext.h"
 +#include "qopenharmonyeglcore.h"
 +#include "qopenharmonyxcomponentmanager.h"
 +#include "qopenharmonyplatformwindow.h"
 +#include "qopenharmonylog.h"
++#include "qopenharmonymain.h"
 +#include <ace/xcomponent/native_interface_xcomponent.h>
 +
 +#include <QDebug>
@@ -7984,6 +7999,7 @@ index 0000000000..e8bf8722e9
 +    LOGI("Get surface size %{public}lu, %{public}lu", w, h);
 +    m_width = w;
 +    m_height = h;
++    QtOpenHarmony::updateDisplayMetrics(w, h);
 +}
 +
 +void QOpenHarmonyXComponent::initXComponent(OH_NativeXComponent *component)
