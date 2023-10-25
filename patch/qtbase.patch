@@ -8402,6 +8402,45 @@ index 1c76a2e46f..18d8903d9b 100644
  TR_EXCLUDE = \
      src_tools_bootstrap src_tools_moc src_tools_rcc src_tools_uic src_tools_qlalr \
      src_tools_bootstrap_dbus src_tools_qdbusxml2cpp src_tools_qdbuscpp2xml \
+diff --git a/src/testlib/qplaintestlogger.cpp b/src/testlib/qplaintestlogger.cpp
+index ed53dcdde8..35097057e7 100644
+--- a/src/testlib/qplaintestlogger.cpp
++++ b/src/testlib/qplaintestlogger.cpp
+@@ -66,6 +66,10 @@
+ #  include <android/log.h>
+ #endif
+ 
++#ifdef Q_OS_OPENHARMONY
++#include <QDebug>
++#endif
++
+ #ifdef Q_OS_WIN
+ #  include <qt_windows.h>
+ #endif
+@@ -221,6 +225,9 @@ void QPlainTestLogger::outputMessage(const char *str)
+     }
+ #elif defined(Q_OS_ANDROID)
+     __android_log_write(ANDROID_LOG_INFO, "QTestLib", str);
++#elif defined(Q_OS_OPENHARMONY)
++        /* wanghao TODO */
++        qInfo() << str;
+ #endif
+     outputString(str);
+ }
+diff --git a/src/testlib/qtestlog.cpp b/src/testlib/qtestlog.cpp
+index ff5dbaa44a..2401af425e 100644
+--- a/src/testlib/qtestlog.cpp
++++ b/src/testlib/qtestlog.cpp
+@@ -417,7 +417,9 @@ void QTestLog::startLogging()
+     elapsedFunctionTime.start();
+     FOREACH_TEST_LOGGER
+         logger->startLogging();
++#ifndef Q_OS_OPENHARMONY
+     QTest::oldMessageHandler = qInstallMessageHandler(QTest::messageHandler);
++#endif
+ }
+ 
+ void QTestLog::stopLogging()
 diff --git a/src/widgets/dialogs/qfiledialog.cpp b/src/widgets/dialogs/qfiledialog.cpp
 index eb3479b3e0..39cd4c95c8 100644
 --- a/src/widgets/dialogs/qfiledialog.cpp
