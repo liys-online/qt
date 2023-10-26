@@ -505,7 +505,7 @@ index 6d82981fd6..5896fcbdb5 100644
         ) {
          flags |= IsLocalFile;
 diff --git a/src/corelib/kernel/kernel.pri b/src/corelib/kernel/kernel.pri
-index 3f7bf3cd47..3af5ac0840 100644
+index 3f7bf3cd47..175fc835b4 100644
 --- a/src/corelib/kernel/kernel.pri
 +++ b/src/corelib/kernel/kernel.pri
 @@ -212,4 +212,22 @@ android:!android-embedded {
@@ -527,7 +527,7 @@ index 3f7bf3cd47..3af5ac0840 100644
 +            kernel/qopenharmonyjsobjectloader.h \
 +            kernel/qopenharmonyhelpers_p.h
 +
-+    LIBS += -lace_napi.z -luv
++    LIBS += -lace_napi.z -luv -lc++ -lz -lm -ldl -lc -lhilog_ndk.z
 +}
 +
  !darwin:!unix:!win32: SOURCES += kernel/qelapsedtimer_generic.cpp
@@ -4950,10 +4950,10 @@ index 0000000000..40b3576be4
 +#endif // QOPENHARMONYPLATFORMCLIPBOARD_H
 diff --git a/src/plugins/platforms/openharmony/qopenharmonyplatformdialoghelpers.cpp b/src/plugins/platforms/openharmony/qopenharmonyplatformdialoghelpers.cpp
 new file mode 100644
-index 0000000000..6b97372299
+index 0000000000..8bfdab5db3
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonyplatformdialoghelpers.cpp
-@@ -0,0 +1,285 @@
+@@ -0,0 +1,294 @@
 +#include "qopenharmonyplatformdialoghelpers.h"
 +#include "qopenharmonymain.h"
 +#include "qopenharmonyjsobjectloader.h"
@@ -5026,7 +5026,16 @@ index 0000000000..6b97372299
 +        addButtons(opt, static_cast<ButtonRole>(role));
 +        ++currentLayout;
 +    }
-+    m_jsDialog->call("messageBox", QVariant(qlonglong(static_cast<QObject*>(this))), htmlText(opt->windowTitle()), htmlText(opt->text()), m_buttons);
++
++    QString text = htmlText(opt->text());
++    QString str = htmlText(opt->informativeText());
++    if (!str.isEmpty())
++        text += str;
++    str = htmlText(opt->detailedText());
++    if (!str.isEmpty())
++        text += str;
++
++    m_jsDialog->call("messageBox", QVariant(qlonglong(static_cast<QObject*>(this))), htmlText(opt->windowTitle()), text, m_buttons);
 +    m_shown = true;
 +    return true;
 +}
