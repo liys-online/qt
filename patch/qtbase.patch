@@ -13,7 +13,7 @@ index 3b55a63f49..e0518dd242 100644
  } else:wasm {
 diff --git a/mkspecs/common/oh-base-head.conf b/mkspecs/common/oh-base-head.conf
 new file mode 100644
-index 0000000000..f8d0699f2a
+index 0000000000..08dfc0b7de
 --- /dev/null
 +++ b/mkspecs/common/oh-base-head.conf
 @@ -0,0 +1,24 @@
@@ -33,7 +33,7 @@ index 0000000000..f8d0699f2a
 +QMAKE_CFLAGS += -D_OPENHARMONY
 +QMAKE_CXXFLAGS += -D_OPENHARMONY
 +
-+CROSS_COMPILE = $$SDK_ROOT/native/llvm/bin/
++CROSS_COMPILE = $$shell_path($$SDK_ROOT/native/llvm/bin/)
 +
 +QMAKE_PCH_OUTPUT_EXT    = .gch
 +
@@ -43,7 +43,7 @@ index 0000000000..f8d0699f2a
 +QMAKE_CXXFLAGS_USE_PRECOMPILE = $$QMAKE_CFLAGS_USE_PRECOMPILE
 diff --git a/mkspecs/common/oh-base-tail.conf b/mkspecs/common/oh-base-tail.conf
 new file mode 100644
-index 0000000000..777ccacf84
+index 0000000000..a9b28bfefd
 --- /dev/null
 +++ b/mkspecs/common/oh-base-tail.conf
 @@ -0,0 +1,76 @@
@@ -97,23 +97,23 @@ index 0000000000..777ccacf84
 +
 +QMAKE_RANLIB            = $${CROSS_COMPILE}llvm-ranlib
 +
-+QMAKE_INCDIR_POST       = $$SDK_ROOT/native/sysroot/usr/include/$${NDK_TOOLCHAIN_PREFIX}
-+QMAKE_LIBDIR_POST       = $$SDK_ROOT/native/sysroot/usr/lib/$${NDK_TOOLCHAIN_PREFIX}
++QMAKE_INCDIR_POST       = $$shell_path($$SDK_ROOT/native/sysroot/usr/include/$${NDK_TOOLCHAIN_PREFIX})
++QMAKE_LIBDIR_POST       = $$shell_path($$SDK_ROOT/native/sysroot/usr/lib/$${NDK_TOOLCHAIN_PREFIX})
 +QMAKE_INCDIR_X11        =
 +QMAKE_LIBDIR_X11        =
 +QMAKE_INCDIR_OPENGL     =
 +QMAKE_LIBDIR_OPENGL     =
 +
 +QMAKE_LINK_SHLIB        = $$QMAKE_LINK
-+QMAKE_LFLAGS            = --sysroot=$$SDK_ROOT/native/sysroot
-+QMAKE_LFLAGS_APP        = -Wl,--no-undefined -Wl,-z,noexecstack -shared
-+QMAKE_LFLAGS_SHLIB      = -Wl,--no-undefined -Wl,-z,noexecstack -shared
++QMAKE_LFLAGS            = --sysroot=$$shell_path($$SDK_ROOT/native/sysroot)
++#QMAKE_LFLAGS_APP        = -Wl,--no-undefined -Wl,-z,noexecstack -shared
++#QMAKE_LFLAGS_SHLIB      = -Wl,--no-undefined -Wl,-z,noexecstack -shared
 +QMAKE_LFLAGS_PLUGIN     = $$QMAKE_LFLAGS_SHLIB
 +QMAKE_LFLAGS_NOUNDEF    = -Wl,--no-undefined
 +QMAKE_LFLAGS_RPATH      = -Wl,-rpath=
 +QMAKE_LFLAGS_RPATHLINK  = -Wl,-rpath-link=
 +
-+QMAKE_LIBS_PRIVATE      = -lc++ -lz -lm -ldl -lc -lhilog_ndk.z
++#QMAKE_LIBS_PRIVATE      = -lc++ -lz -lm -ldl -lc -lhilog_ndk.z
 +QMAKE_LIBS_X11          =
 +QMAKE_LIBS_THREAD       =
 +QMAKE_LIBS_EGL          = -lEGL
@@ -188,10 +188,10 @@ index 40528a65e2..3e563b8cc0 100644
  
 diff --git a/mkspecs/oh-clang/qmake.conf b/mkspecs/oh-clang/qmake.conf
 new file mode 100644
-index 0000000000..96eac24a1d
+index 0000000000..03139d2b22
 --- /dev/null
 +++ b/mkspecs/oh-clang/qmake.conf
-@@ -0,0 +1,38 @@
+@@ -0,0 +1,39 @@
 +# qmake configuration for building with oh-clang
 +MAKEFILE_GENERATOR      = UNIX
 +QMAKE_PLATFORM          = openharmony
@@ -216,11 +216,12 @@ index 0000000000..96eac24a1d
 +        QMAKE_CFLAGS += -target x86_64-linux-ohos
 +
 +#QMAKE_CFLAGS+=--gcc-toolchain=$$NDK_LLVM_PATH
-+QMAKE_LINK += -Wl,--exclude-libs,$$SDK_ROOT/native/llvm/lib/$$NDK_TOOLCHAIN_PREFIX/libunwind.a
-+QMAKE_CFLAGS += -isysroot=$$SDK_ROOT/native/sysroot \
-+                -isystem=$$SDK_ROOT/native/sysroot\
-+                -isystem=$$SDK_ROOT/native/sysroot/usr/include \
-+                -isystem=$$SDK_ROOT/native/llvm/include/libcxx-ohos/include/c++/v1
++QMAKE_LINK += -Wl,--exclude-libs,$$shell_path($$SDK_ROOT/native/llvm/lib/$$NDK_TOOLCHAIN_PREFIX/libunwind.a)
++
++QMAKE_CFLAGS += --sysroot=$$shell_path($$SDK_ROOT/native/sysroot) \
++                -isystem=$$shell_path($$SDK_ROOT/native/sysroot) \
++                -isystem=$$shell_path($$SDK_ROOT/native/sysroot/usr/include) \
++                -isystem=$$shell_path($$SDK_ROOT/native/llvm/include/libcxx-ohos/include/c++/v1)
 +
 +
 +QMAKE_CLFAGS += -g -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -fno-addrsig -Wa,--noexecstack -Wformat -Werror=format-security
@@ -504,7 +505,7 @@ index 6d82981fd6..5896fcbdb5 100644
         ) {
          flags |= IsLocalFile;
 diff --git a/src/corelib/kernel/kernel.pri b/src/corelib/kernel/kernel.pri
-index 3f7bf3cd47..3af5ac0840 100644
+index 3f7bf3cd47..175fc835b4 100644
 --- a/src/corelib/kernel/kernel.pri
 +++ b/src/corelib/kernel/kernel.pri
 @@ -212,4 +212,22 @@ android:!android-embedded {
@@ -526,7 +527,7 @@ index 3f7bf3cd47..3af5ac0840 100644
 +            kernel/qopenharmonyjsobjectloader.h \
 +            kernel/qopenharmonyhelpers_p.h
 +
-+    LIBS += -lace_napi.z -luv
++    LIBS += -lace_napi.z -luv -lc++ -lz -lm -ldl -lc -lhilog_ndk.z
 +}
 +
  !darwin:!unix:!win32: SOURCES += kernel/qelapsedtimer_generic.cpp
@@ -4949,10 +4950,10 @@ index 0000000000..40b3576be4
 +#endif // QOPENHARMONYPLATFORMCLIPBOARD_H
 diff --git a/src/plugins/platforms/openharmony/qopenharmonyplatformdialoghelpers.cpp b/src/plugins/platforms/openharmony/qopenharmonyplatformdialoghelpers.cpp
 new file mode 100644
-index 0000000000..6b97372299
+index 0000000000..8bfdab5db3
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonyplatformdialoghelpers.cpp
-@@ -0,0 +1,285 @@
+@@ -0,0 +1,294 @@
 +#include "qopenharmonyplatformdialoghelpers.h"
 +#include "qopenharmonymain.h"
 +#include "qopenharmonyjsobjectloader.h"
@@ -5025,7 +5026,16 @@ index 0000000000..6b97372299
 +        addButtons(opt, static_cast<ButtonRole>(role));
 +        ++currentLayout;
 +    }
-+    m_jsDialog->call("messageBox", QVariant(qlonglong(static_cast<QObject*>(this))), htmlText(opt->windowTitle()), htmlText(opt->text()), m_buttons);
++
++    QString text = htmlText(opt->text());
++    QString str = htmlText(opt->informativeText());
++    if (!str.isEmpty())
++        text += str;
++    str = htmlText(opt->detailedText());
++    if (!str.isEmpty())
++        text += str;
++
++    m_jsDialog->call("messageBox", QVariant(qlonglong(static_cast<QObject*>(this))), htmlText(opt->windowTitle()), text, m_buttons);
 +    m_shown = true;
 +    return true;
 +}
