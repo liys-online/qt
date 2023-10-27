@@ -13,7 +13,7 @@ index 3b55a63f49..e0518dd242 100644
  } else:wasm {
 diff --git a/mkspecs/common/oh-base-head.conf b/mkspecs/common/oh-base-head.conf
 new file mode 100644
-index 0000000000..08dfc0b7de
+index 0000000000..d7be212137
 --- /dev/null
 +++ b/mkspecs/common/oh-base-head.conf
 @@ -0,0 +1,24 @@
@@ -30,8 +30,8 @@ index 0000000000..08dfc0b7de
 +
 +QMAKE_CFLAGS = -D__MUSL__
 +QMAKE_CXXFLAGS = -D__MUSL__
-+QMAKE_CFLAGS += -D_OPENHARMONY
-+QMAKE_CXXFLAGS += -D_OPENHARMONY
++QMAKE_CFLAGS += -DOPENHARMONY
++QMAKE_CXXFLAGS += -DOPENHARMONY
 +
 +CROSS_COMPILE = $$shell_path($$SDK_ROOT/native/llvm/bin/)
 +
@@ -465,14 +465,14 @@ index 3c82097cfe..f85b2baa19 100644
  #endif
  
 diff --git a/src/corelib/global/qsystemdetection.h b/src/corelib/global/qsystemdetection.h
-index d87e181e5c..998be34739 100644
+index d87e181e5c..22227d672a 100644
 --- a/src/corelib/global/qsystemdetection.h
 +++ b/src/corelib/global/qsystemdetection.h
 @@ -111,6 +111,9 @@
  #elif defined(__ANDROID__) || defined(ANDROID)
  #  define Q_OS_ANDROID
  #  define Q_OS_LINUX
-+#elif defined(_OPENHARMONY)
++#elif defined(__OHOS__) || defined(OPENHARMONY)
 +#  define Q_OS_OPENHARMONY
 +#  define Q_OS_LINUX
  #elif defined(__CYGWIN__)
@@ -3008,6 +3008,27 @@ index 0000000000..1c9156fde0
 +INSTALLS += templates
 +
 +OTHER_FILES += $$templates.files
+diff --git a/src/openharmony/pages/Index.ets b/src/openharmony/pages/Index.ets
+new file mode 100644
+index 0000000000..76df62efeb
+--- /dev/null
++++ b/src/openharmony/pages/Index.ets
+@@ -0,0 +1,15 @@
++@Entry
++@Component
++struct Index {
++  private xcomponentController: XComponentController = new XComponentController();
++  private idName = globalThis.createWindowName
++  private surfaceId: string = ''
++
++  build() {
++      Row() {
++        XComponent({id: this.idName, type: 'surface', libraryname: 'plugins_platforms_qopenharmony' }).width("100%").height("100%")
++          .onLoad(()=>{
++          })
++    }
++  }
++}
 diff --git a/src/openharmony/pages/components/EditBoxDialog.ets b/src/openharmony/pages/components/EditBoxDialog.ets
 new file mode 100644
 index 0000000000..f1a5378845
@@ -3049,46 +3070,6 @@ index 0000000000..f1a5378845
 +  }
 +}
 \ No newline at end of file
-diff --git a/src/openharmony/pages/template.ets b/src/openharmony/pages/template.ets
-new file mode 100644
-index 0000000000..edecd46f92
---- /dev/null
-+++ b/src/openharmony/pages/template.ets
-@@ -0,0 +1,34 @@
-+//@Entry
-+//@Component
-+//struct template {
-+//  build() {
-+//    Flex({ direction: FlexDirection.Column, alignItems: ItemAlign.Center, justifyContent: FlexAlign.Center }) {
-+//      XComponent({ id: globalThis.createWindowName, type: 'texture', libraryname: 'plugins_platforms_qopenharmony'})
-+//        .onLoad((context) => {
-+//          console.log("cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc");
-+//        })
-+//        .onDestroy(() => {
-+//        })
-+//    }
-+//    .width('100%')
-+//    .height('100%')
-+//  }
-+//}
-+
-+@Entry
-+@Component
-+struct template {
-+  build() {
-+    Row() {
-+      XComponent({ id: globalThis.createWindowName, type: 'texture', libraryname: 'plugins_platforms_qopenharmony'})
-+        .onLoad((context) => {
-+          console.log("cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc");
-+        })
-+        .onDestroy(() => {
-+        })
-+    }
-+    .width('100%')
-+    .height('100%')
-+  }
-+}
-+
 diff --git a/src/platformsupport/input/evdevkeyboard/qevdevkeyboardhandler.cpp b/src/platformsupport/input/evdevkeyboard/qevdevkeyboardhandler.cpp
 index ad134a825f..dcbefde499 100644
 --- a/src/platformsupport/input/evdevkeyboard/qevdevkeyboardhandler.cpp
