@@ -6,8 +6,8 @@ BLUE='\E[1;34m'
 PINK='\E[1;35m'     
 RES='\E[0m'         
 
-export V3SDK=http://download.ci.openharmony.cn/version/Master_Version/OpenHarmony_3.2.10.9/20230225_073754/version-Master_Version-OpenHarmony_3.2.10.9-20230225_073754-ohos-sdk-full.tar.gz
-export V4SDK=http://download.ci.openharmony.cn/version/Master_Version/OpenHarmony_4.0.10.5/20230824_120941/version-Master_Version-OpenHarmony_4.0.10.5-20230824_120941-ohos-sdk-full_monthly.tar.gz
+API9_SDK=http://download.ci.openharmony.cn/version/Master_Version/OpenHarmony_3.2.10.9/20230225_073754/version-Master_Version-OpenHarmony_3.2.10.9-20230225_073754-ohos-sdk-full.tar.gz
+API10_SDK=http://download.ci.openharmony.cn/version/Master_Version/OpenHarmony_4.0.9.6/20230801_140933/version-Master_Version-OpenHarmony_4.0.9.6-20230801_140933-ohos-sdk-full_4.0-beta2.tar.gz
 
 function downloadQtSrc(){
 	#  Download qt5 source code
@@ -162,29 +162,26 @@ function buildQtSrc() {
 
 	chmod +x $ROOT_DIR/qt5 -R
 	cd $BUILD_DIR
-	$ROOT_DIR/qt5/configure -xplatform oh-clang -device-option OHOS_ARCH=$OHOS_ARCH -opensource -confirm-license -nomake tests -nomake examples -v \
-	-prefix $QT_INSTALL_DIR -skip qtvirtualkeyboard -skip qtnetworkauth -skip webengine -skip location -skip qtwebchannel -skip qtgamepad -skip qtscript \
+	$ROOT_DIR/qt5/configure -xplatform oh-clang -device-option OHOS_ARCH=$OHOS_ARCH -opensource -confirm-license -nomake tests -make examples -v \
+	-prefix $QT_INSTALL_DIR -skip qtvirtualkeyboard -skip qtnetworkauth -skip qtwebengine -skip qtlocation -skip qtwebchannel -skip qtgamepad -skip qtscript \
 	-opengl es2 -opengles3 -no-dbus -recheck-all
 				
 	make -j16
 	make install
 }
 
-usage="$(basename "$0") [-h] [-p platform] [-v all]-- build Qt For OpenHarmony
+usage="$(basename "$0") [-h] [-p platform] [-v 10]-- build Qt For OpenHarmony
 
 where:
 	-h 		show help information	
-	-v		openharmony sdk version
-			v3 for openharmony
-			v4 for openharmony
-			all v3 and v4 for openharmony(default)
-	-platform 	set target platform(default arm64-v8a)
+	-v		openharmony sdk version, support 9 and 10(default 10)
+	-p 		set target platform(default arm64-v8a)
 			arm64-v8a - platform for arm64-v8a
 			armeabi-v7a - platform for armeabi-v7a
 			x86_64 - platform for x86_64"
 
 export OHOS_ARCH=arm64-v8a
-export OHOS_SDK_V=all
+export OHOS_SDK_V=9
 while getopts 'hp:v:' option; do
     case "$option" in
     h)
@@ -201,7 +198,7 @@ while getopts 'hp:v:' option; do
         ;;
 	v)
 		export OHOS_SDK_V=$OPTARG
-		if [ "$OHOS_SDK_V" != "v3" ] && [ "$OHOS_SDK_V" != "v4" ] && [ "$OHOS_SDK_V" != "all" ]; then
+		if [ "$OHOS_SDK_V" != "9" ] && [ "$OHOS_SDK_V" != "10" ]; then
             echo "no valid platform value set."
             echo "$usage"
             exit 1
@@ -228,23 +225,11 @@ echo "ROOT_DIR=${ROOT_DIR}"
 
 downloadQtSrc
 downloadQtSrcPatch
+TARGET_VERSION=API${OHOS_SDK_V}_SDK
+eval TARGET_VERSION=$(echo \$$TARGET_VERSION)
 
-if [ "$OHOS_SDK_V" == "all" ]
-then
-	downloadOHSDK $V3SDK
-	buildQtSrc $V3SDK
-	
-	downloadOHSDK $V4SDK
-	buildQtSrc $V4SDK
-elif [ "$OHOS_SDK_V" == "v3" ]
-then
-	downloadOHSDK $V3SDK
-	buildQtSrc $V3SDK
-elif [ "$OHOS_SDK_V" == "v4" 
-then
-	downloadOHSDK $V4SDK
-	buildQtSrc $V4SDK
-fi
+downloadOHSDK $TARGET_VERSION
+buildQtSrc $TARGET_VERSION
 
 echo -e "${GREEN}Press any key to continue...... ${RES}"
 read -n 1

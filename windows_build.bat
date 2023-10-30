@@ -2,12 +2,12 @@
 set "e=|| exit /b 1"
 set ROOT_DIR=%cd%
 set PATH=%PATH%;%cd%;
-set V3SDK=http://download.ci.openharmony.cn/version/Master_Version/OpenHarmony_3.2.10.9/20230225_073754/version-Master_Version-OpenHarmony_3.2.10.9-20230225_073754-ohos-sdk-full.tar.gz
-set V4SDK=http://download.ci.openharmony.cn/version/Master_Version/OpenHarmony_4.0.10.5/20230824_120941/version-Master_Version-OpenHarmony_4.0.10.5-20230824_120941-ohos-sdk-full_monthly.tar.gz
+set API9_SDK=http://download.ci.openharmony.cn/version/Master_Version/OpenHarmony_3.2.10.9/20230225_073754/version-Master_Version-OpenHarmony_3.2.10.9-20230225_073754-ohos-sdk-full.tar.gz
+set API10_SDK=http://download.ci.openharmony.cn/version/Master_Version/OpenHarmony_4.0.9.6/20230801_140933/version-Master_Version-OpenHarmony_4.0.9.6-20230801_140933-ohos-sdk-full_4.0-beta2.tar.gz
 
 set ARGS=%*
 set OHOS_ARCH=arm64-v8a
-
+set TARGET_API=%API10_SDK%
 goto :doargs %ARGS%
 REM goto doneargs
 
@@ -16,26 +16,14 @@ REM goto doneargs
 call :acquireUnzip
 call :acquireQtSrc
 call :acquirePatch
+echo %TARGET_API%
 
-if not "%V3SDK%" == "" (
-	if not "%V4SDK%" == "" (		
-		call :acquireOHSDK %V3SDK% 		
-		call :buildQt
-		
-		call :acquireOHSDK %V4SDK%
-		call :buildQt
-	) else (
-		call :acquireOHSDK %V3SDK% 
-		call :buildQt
-	)
+if not "%TARGET_API%" == "" (
+	call :acquireOHSDK %TARGET_API% 
+	call :buildQt
 ) else (
-	if not "%V4SDK%" == "" (					
-		call :acquireOHSDK %V4SDK%
-		call :buildQt
-	) else (
-		echo "need to configure sdk"
-		exit /b
-	)
+	echo "need to configure sdk"
+	exit /b
 )
 
 pause&exit /b
@@ -48,8 +36,7 @@ pause&exit /b
     if /i "%~1" == "/help" goto help
     if /i "%~1" == "-help" goto help
     if /i "%~1" == "--help" goto help
-	if /i "%~1" == "-v3" set V4SDK=""
-	if /i "%~1" == "-v4" set V3SDK=""
+	if /i "%~1" == "-api" goto apiset
 	
     if /i "%~1" == "-platform" goto platform
     if /i "%~1" == "--platform" goto platform
@@ -60,19 +47,23 @@ pause&exit /b
 
 :help
     echo 	-h show help information
-	echo 	-v3 build v3 openharmony-qt only
-	echo 	-v4 build v3 openharmony-qt only
-	echo 	-a build v3 and v4 for openharmony-qt(default)
+	echo 	-api build qt with openharmony api, support 9 and 10(default 10)
     echo 	-platform set target platform(default arm64-v8a)
-    echo    arm64-v8a - platform for arm64-v8a
-    echo    armeabi-v7a - platform for armeabi-v7a
-    echo    x86_64 - platform for x86_64
+    echo    	arm64-v8a - platform for arm64-v8a
+    echo    	armeabi-v7a - platform for armeabi-v7a
+    echo    	x86_64 - platform for x86_64
     exit /b 1
 
 :platform
     shift
     set PLATFORM=%~1
     goto nextarg
+
+:apiset
+	shift
+	set API_VERSION=%~1
+	call set TARGET_API=%%API%API_VERSION%_SDK%%  
+	goto nextarg
 
 :acquireQtSrc
 REM <------------------------------download qt5 source------------------------------>
@@ -259,8 +250,8 @@ if not exist "%BUILD_DIR%" (
 )
 
 cd %BUILD_DIR%
-call %ROOT_DIR%\qt5\configure.bat -platform win32-g++ -xplatform oh-clang -device-option OHOS_ARCH=%OHOS_ARCH% -opensource -confirm-license -nomake tests -nomake examples -v ^
--prefix %QT_INSTALL_DIR% -skip doc -skip qtvirtualkeyboard -skip qtnetworkauth -skip webengine -skip location -skip qtwebchannel -skip qtgamepad -skip qtscript -opengl es2 -opengles3 -no-dbus -recheck-all
+call %ROOT_DIR%\qt5\configure.bat -platform win32-g++ -xplatform oh-clang -device-option OHOS_ARCH=%OHOS_ARCH% -opensource -confirm-license -nomake tests -make examples -v ^
+-prefix %QT_INSTALL_DIR% -skip doc -skip qtvirtualkeyboard -skip qtnetworkauth -skip qtwebengine -skip qtlocation -skip qtwebchannel -skip qtgamepad -skip qtscript -opengl es2 -opengles3 -no-dbus -recheck-all
 
 mingw32-make -j16
 mingw32-make install
