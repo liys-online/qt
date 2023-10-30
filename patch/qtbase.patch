@@ -2278,10 +2278,10 @@ index 0000000000..a27807a01f
 +};
 diff --git a/src/openharmony/native/QtApplication.ts b/src/openharmony/native/QtApplication.ts
 new file mode 100644
-index 0000000000..719f6d48ef
+index 0000000000..eb0207dbeb
 --- /dev/null
 +++ b/src/openharmony/native/QtApplication.ts
-@@ -0,0 +1,167 @@
+@@ -0,0 +1,166 @@
 +import window from '@ohos.window';
 +import display from '@ohos.display';
 +import fs from '@ohos.file.fs';
@@ -2303,6 +2303,7 @@ index 0000000000..719f6d48ef
 +  private windowStage: window.WindowStage;
 +  private dirs = null;
 +  private elementName: bundleManager.ElementName = null;
++  private resourceManager : resourceManager.ResourceManager;
 +
 +  public static getInstance(): QtApplication {
 +    if (!QtApplication.instance) {
@@ -2325,6 +2326,7 @@ index 0000000000..719f6d48ef
 +      "distributedFilesDir": appContext.distributedFilesDir,
 +      "qmlDir": appContext.cacheDir + "/Qt/qml"
 +    };
++    this.resourceManager = context.resourceManager;
 +  }
 +
 +  setElementName(en: bundleManager.ElementName) {
@@ -2366,7 +2368,7 @@ index 0000000000..719f6d48ef
 +      console.log("window stage changed", state);
 +    });
 +    await this.extractFilesToCache();
-+    this.loadQtApplication()
++    this.loadQtApplication();
 +  }
 +
 +  quit() {
@@ -2376,12 +2378,9 @@ index 0000000000..719f6d48ef
 +  loadQtApplication() {
 +    globalThis.qtobjectloader = new QtObjectLoader();
 +    globalThis.qpa = qpa;
-+    // qpa.startQtApplication(this.dirs, "liblowenergyscanner.so")
-+    qpa.startQtApplication(this.dirs, "libentry.so");
-+    // qpa.startQtApplication(this.dirs, "libdigitalclock.so");
-+    // qpa.startQtApplication(this.dirs, "libQtForHarmony.so");
-+    // qpa.startQtApplication(this.dirs, "libplanets-qml.so");
-+    // qpa.startQtApplication(this.dirs, "libQmlTest.so");
++    qpa.setResourceManager(this.resourceManager);
++    let result : boolean = qpa.startQtApplication(this.dirs, "libentry.so");
++    console.log("load qt application result: ", result);
 +  }
 +
 +  private saveFileToCache(file: resourceManager.RawFileDescriptor, des: string) {
@@ -3119,13 +3118,13 @@ index 0000000000..886625295c
 +}
 diff --git a/src/plugins/platforms/openharmony/openharmony.pro b/src/plugins/platforms/openharmony/openharmony.pro
 new file mode 100644
-index 0000000000..6b564fe021
+index 0000000000..b0fe98d729
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/openharmony.pro
 @@ -0,0 +1,69 @@
 +TARGET = qopenharmony
 +
-+LIBS += -lEGL -lace_napi.z -lace_ndk.z
++LIBS += -lEGL -lace_napi.z -lace_ndk.z -lrawfile.z
 +
 +QT += \
 +    core-private gui-private egl_support-private \
@@ -3948,19 +3947,231 @@ index 0000000000..51fe72e96e
 +#endif // QOPENHARMONYEVENTDISPATCHER_H
 diff --git a/src/plugins/platforms/openharmony/qopenharmonyfileenginehandler.cpp b/src/plugins/platforms/openharmony/qopenharmonyfileenginehandler.cpp
 new file mode 100644
-index 0000000000..ec587d45a8
+index 0000000000..f62729153f
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonyfileenginehandler.cpp
-@@ -0,0 +1,225 @@
+@@ -0,0 +1,470 @@
 +#include "qopenharmonyfileenginehandler.h"
++#include "qopenharmonymain.h"
 +
 +#include <QSharedPointer>
 +#include <QOpenHarmonyJsObjectLoader>
 +#include <QOpenHarmonyJsObject>
 +#include <QString>
 +#include <QDebug>
++#include <rawfile/raw_file.h>
++#include <rawfile/raw_dir.h>
++#include <rawfile/raw_file_manager.h>
 +
 +QT_BEGIN_NAMESPACE
++
++typedef QVector<QString> FilesList;
++
++struct OpenHarmonyRawDir
++{
++    OpenHarmonyRawDir(RawDir* rd)
++    {
++        if (rd) {
++            const char *fileName;
++            int count = OH_ResourceManager_GetRawFileCount(rd);
++            for (int i = 0; i < count; ++i) {
++                const char *fileName = OH_ResourceManager_GetRawFileName(rd, i);
++                m_items.push_back(QString::fromUtf8(fileName));
++            }
++            OH_ResourceManager_CloseRawDir(rd);
++        }
++    }
++    FilesList m_items;
++};
++
++
++class OpenHarmonyAbstractFileEngineIterator: public QAbstractFileEngineIterator
++{
++public:
++    OpenHarmonyAbstractFileEngineIterator(QDir::Filters filters,
++                                      const QStringList &nameFilters,
++                                      QSharedPointer<OpenHarmonyRawDir> rd,
++                                      const QString &path)
++        : QAbstractFileEngineIterator(filters, nameFilters)
++    {
++        m_items = rd->m_items;
++        m_index = -1;
++        m_path = path;
++    }
++
++    QFileInfo currentFileInfo() const override
++    {
++        return QFileInfo(currentFilePath());
++    }
++
++    QString currentFileName() const override
++    {
++        if (m_index < 0 || m_index >= m_items.size())
++            return QString();
++        QString fileName = m_items[m_index];
++        if (fileName.endsWith(QLatin1Char('/')))
++            fileName.chop(1);
++        return fileName;
++    }
++
++    virtual QString currentFilePath() const
++    {
++        return m_path + currentFileName();
++    }
++
++    bool hasNext() const override
++    {
++        return m_items.size() && (m_index < m_items.size() - 1);
++    }
++
++    QString next() override
++    {
++        if (!hasNext())
++            return QString();
++        m_index++;
++        return currentFileName();
++    }
++
++private:
++    QString     m_path;
++    FilesList   m_items;
++    int         m_index;
++};
++
++
++class QOpenHarmonyRawfileEngine: public QAbstractFileEngine
++{
++public:
++   explicit QOpenHarmonyRawfileEngine(RawFile *file, const QString &fileName)
++        : m_file(file)
++        , m_fileName(fileName)
++    {
++
++    }
++
++    explicit QOpenHarmonyRawfileEngine(QSharedPointer<OpenHarmonyRawDir> ohrd, const QString &fileName)
++    {
++        m_file = 0;
++        m_dir = ohrd;
++        m_fileName =  fileName;
++        if (!m_fileName.endsWith(QLatin1Char('/')))
++            m_fileName += QLatin1Char('/');
++    }
++
++    bool open(QIODevice::OpenMode openMode) override
++    {
++        return m_file != 0 && (openMode & QIODevice::WriteOnly) == 0;
++    }
++
++    bool close() override
++    {
++        if (m_file) {
++            OH_ResourceManager_CloseRawFile(m_file);
++            m_file = 0;
++            return true;
++        }
++        return false;
++    }
++
++    qint64 size() const override
++    {
++        if (m_file)
++            return OH_ResourceManager_GetRawFileSize(m_file);
++        return -1;
++    }
++
++    qint64 pos() const override
++    {
++        if (m_file)
++            return OH_ResourceManager_GetRawFileOffset(m_file);
++        return -1;
++    }
++
++    bool seek(qint64 pos) override
++    {
++        if (m_file)
++            return pos == OH_ResourceManager_SeekRawFile(m_file, pos, 0);
++        return false;
++    }
++
++    qint64 read(char *data, qint64 maxlen) override
++    {
++        if (m_file)
++            return OH_ResourceManager_ReadRawFile(m_file, data, maxlen);
++        return -1;
++    }
++
++    bool isSequential() const override
++    {
++        return false;
++    }
++
++    bool caseSensitive() const override
++    {
++        return true;
++    }
++
++    bool isRelativePath() const override
++    {
++        return false;
++    }
++
++    FileFlags fileFlags(FileFlags type = FileInfoAll) const override
++    {
++        FileFlags flags(ReadOwnerPerm|ReadUserPerm|ReadGroupPerm|ReadOtherPerm|ExistsFlag);
++        if (m_file)
++            flags |= FileType;
++        if (!m_dir.isNull())
++            flags |= DirectoryType;
++
++        return type & flags;
++    }
++
++    QString fileName(FileName file = DefaultName) const override
++    {
++        int pos;
++        switch (file) {
++        case DefaultName:
++        case AbsoluteName:
++        case CanonicalName:
++                return m_fileName;
++        case BaseName:
++            if ((pos = m_fileName.lastIndexOf(QChar(QLatin1Char('/')))) != -1)
++                return m_fileName.mid(pos);
++            else
++                return m_fileName;
++        case PathName:
++        case AbsolutePathName:
++        case CanonicalPathName:
++            if ((pos = m_fileName.lastIndexOf(QChar(QLatin1Char('/')))) != -1)
++                return m_fileName.left(pos);
++            else
++                return m_fileName;
++        default:
++            return QString();
++        }
++    }
++
++    void setFileName(const QString &file) override
++    {
++        if (file == m_fileName)
++            return;
++
++        m_fileName = file;
++        close();
++    }
++
++    Iterator *beginEntryList(QDir::Filters filters, const QStringList &filterNames) override
++    {
++        if (!m_dir.isNull())
++            return new OpenHarmonyAbstractFileEngineIterator(filters, filterNames, m_dir, m_fileName);
++        return 0;
++    }
++private:
++    RawFile *m_file;
++    QString m_fileName;
++    QSharedPointer<OpenHarmonyRawDir> m_dir;
++};
 +
 +
 +class QOpenHarmonyFileEngine: public QAbstractFileEngine
@@ -4140,13 +4351,6 @@ index 0000000000..ec587d45a8
 +        close();
 +    }
 +
-+//    Iterator *beginEntryList(QDir::Filters filters, const QStringList &filterNames) override
-+//    {
-+//        if (!m_assetDir.isNull())
-+//            return new QOpenHarmonyFileEngineIterator(filters, filterNames, m_assetDir, m_fileName);
-+//        return 0;
-+//    }
-+
 +    qint64 write(const char *data, qint64 len) override
 +    {
 +        if (!checkJsFile())
@@ -4160,9 +4364,16 @@ index 0000000000..ec587d45a8
 +    QString m_fileName;
 +    QString m_fileHandler;
 +    QOpenHarmonyJsObject *m_jsFile;
-+
 +};
 +
++
++QOpenHarmonyFileEngineHandler::QOpenHarmonyFileEngineHandler()
++    : m_rawDirCache(5)
++    , m_hasPrepopulatedCache(false)
++    , m_hasTriedPrepopulatingCache(false)
++{
++
++}
 +
 +QAbstractFileEngine *QOpenHarmonyFileEngineHandler::create(const QString &fileName) const
 +{
@@ -4170,32 +4381,75 @@ index 0000000000..ec587d45a8
 +        return 0;
 +
 +    static QLatin1String datasharePrefix("datashare:");
-+    if (!fileName.startsWith(datasharePrefix))
++    static QLatin1String rawfilePrefix("rawfile://");
++
++    if (!fileName.startsWith(datasharePrefix) && !fileName.startsWith(rawfilePrefix))
 +        return 0;
 +
-+    return new QOpenHarmonyFileEngine(fileName);
++    if (fileName.startsWith(datasharePrefix))
++        return new QOpenHarmonyFileEngine(fileName);
++
++    if (fileName.startsWith(rawfilePrefix)) {
++        QString _fileName = fileName;
++        _fileName.replace("rawfile://", "");
++        QByteArray byteArray = _fileName.toLatin1();
++        RawFile *file = OH_ResourceManager_OpenRawFile(QtOpenHarmony::resourceManager(), byteArray.constData());
++        if (file != nullptr) {
++            return new QOpenHarmonyRawfileEngine(file, fileName);
++        }
++
++        m_rawfileCacheMutext.lock();
++        QSharedPointer<OpenHarmonyRawDir> *ohrd = m_rawDirCache.object(_fileName.toLatin1());
++        m_rawfileCacheMutext.unlock();
++
++        if (!ohrd) {
++            if (!m_hasPrepopulatedCache) {
++                RawDir *rd = OH_ResourceManager_OpenRawDir(QtOpenHarmony::resourceManager(), byteArray.constData());
++                if (rd) {
++                    ohrd = new QSharedPointer<OpenHarmonyRawDir>(new OpenHarmonyRawDir(rd));
++                    m_rawfileCacheMutext.lock();
++                    m_rawDirCache.insert(_fileName.toLatin1(), ohrd);
++                    m_rawfileCacheMutext.unlock();
++                    return new QOpenHarmonyRawfileEngine(*ohrd, fileName);
++                }
++            }
++        } else {
++            return new QOpenHarmonyRawfileEngine(*ohrd, fileName);
++        }
++    }
++
 +}
 +
 +QT_END_NAMESPACE
 diff --git a/src/plugins/platforms/openharmony/qopenharmonyfileenginehandler.h b/src/plugins/platforms/openharmony/qopenharmonyfileenginehandler.h
 new file mode 100644
-index 0000000000..9d8523c4b7
+index 0000000000..b81d93de63
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonyfileenginehandler.h
-@@ -0,0 +1,18 @@
+@@ -0,0 +1,28 @@
 +#ifndef QOPENHARMONYFILEENGINEHANDLER_H
 +#define QOPENHARMONYFILEENGINEHANDLER_H
 +
 +#include <QtCore/private/qabstractfileengine_p.h>
 +#include <QString>
-+
++#include <QCache>
++#include <QMutex>
++#include <QSharedPointer>
 +
 +QT_BEGIN_NAMESPACE
++struct OpenHarmonyRawDir;
 +
 +class Q_CORE_EXPORT QOpenHarmonyFileEngineHandler : public QAbstractFileEngineHandler
 +{
 +public:
++    QOpenHarmonyFileEngineHandler();
 +    virtual QAbstractFileEngine *create(const QString &fileName) const override;
++private:
++
++    mutable QCache<QByteArray, QSharedPointer<OpenHarmonyRawDir>> m_rawDirCache;
++    mutable QMutex m_rawfileCacheMutext;
++    mutable bool m_hasPrepopulatedCache;
++    mutable bool m_hasTriedPrepopulatingCache;
 +};
 +
 +QT_END_NAMESPACE
@@ -4315,15 +4569,16 @@ index 0000000000..1a88d88b24
 +#endif // QOPENHARMONYDEFINES_H
 diff --git a/src/plugins/platforms/openharmony/qopenharmonymain.cpp b/src/plugins/platforms/openharmony/qopenharmonymain.cpp
 new file mode 100644
-index 0000000000..749cae5ece
+index 0000000000..5efb659962
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonymain.cpp
-@@ -0,0 +1,364 @@
+@@ -0,0 +1,386 @@
 +#include <memory>
 +#include <semaphore.h>
 +#include <dlfcn.h>
 +#include <pthread.h>
 +#include <napi/native_api.h>
++#include <rawfile/raw_file_manager.h>
 +
 +#include <QDir>
 +#include <QHash>
@@ -4361,6 +4616,7 @@ index 0000000000..749cae5ece
 +static int m_desktopHeightPixels = 0;
 +static int m_screenWidthPixels  = 0;
 +static int m_screenHeightPixels = 0;
++static NativeResourceManager *m_resourceManager = nullptr;
 +static QOpenHarmonyPlatformIntegration *m_platformIntegration = nullptr;
 +static QOpenHarmonyFileEngineHandler *m_openHarmonyFileEngineHandler = nullptr;
 +
@@ -4400,14 +4656,14 @@ index 0000000000..749cae5ece
 +
 +    if (argc != 2) {
 +        napi_throw_type_error(env, NULL, "Wrong number of arguments");
-+        return nullptr;
++        return qJs::createBool(false);
 +    }
 +
 +    QString bundleStr = qJs::getObjectPropertyValue<QString>(args[0], "bundleCodeDir");
 +    QByteArray bundle = bundleStr.toLatin1();
 +    if (bundle.isEmpty()) {
 +        LOGE("args is vaild");
-+        return nullptr;
++        return qJs::createBool(false);
 +    }
 +
 +#if defined(Q_PROCESSOR_ARM_64)
@@ -4458,19 +4714,32 @@ index 0000000000..749cae5ece
 +    if (Q_UNLIKELY(!m_main)) {
 +        QString error = QString("dlsym failed: %1, Could not find main method.").arg(dlerror());
 +        qJs::throwError(error.toUtf8().constData());
-+        return nullptr;
++        return qJs::createBool(false);
 +    }
 +    if (sem_init(&m_exitSemaphore, 0, 0) == -1)
-+        return nullptr;
++        return qJs::createBool(false);
 +
 +    if (sem_init(&m_terminateSemaphore, 0, 0) == -1)
-+        return nullptr;
++        return qJs::createBool(false);
 +
 +
 +    m_openHarmonyFileEngineHandler = new QOpenHarmonyFileEngineHandler;
 +
 +    QByteArray applib = libDir + "/" + fileName;
 +    pthread_create(&m_qtAppThread, nullptr, startMainMethod, (void*)applib.data());
++    return qJs::createBool(true);
++}
++
++static napi_value setResourceManager(napi_env env, napi_callback_info info)
++{
++    size_t argc = 1;
++    napi_value args[1];
++    NAPI_CALL(env, napi_get_cb_info(env, info, &argc, args, nullptr, nullptr));
++    if (argc != 1) {
++        qJs::throwError("Wrong number of arguments");
++        return nullptr;
++    }
++    m_resourceManager = OH_ResourceManager_InitNativeResourceManager(env, args[0]);
 +    return nullptr;
 +}
 +
@@ -4588,6 +4857,7 @@ index 0000000000..749cae5ece
 +        m_openHarmonyFileEngineHandler = nullptr;
 +    }
 +    LOGI("quit qt application");
++    OH_ResourceManager_ReleaseNativeResourceManager(m_resourceManager);
 +    qApp->quit();
 +    return nullptr;
 +}
@@ -4605,6 +4875,7 @@ index 0000000000..749cae5ece
 +            DECLARE_NAPI_FUNCTION("startQtApplication", startQtApplication),
 +            DECLARE_NAPI_FUNCTION("setDisplayMetrics", setDisplayMetrics),
 +            DECLARE_NAPI_FUNCTION("updateApplicationState", updateApplicationState),
++            DECLARE_NAPI_FUNCTION("setResourceManager", setResourceManager),
 +            DECLARE_NAPI_FUNCTION("quitQtApplication", quitQtApplication),
 +        };
 +        NAPI_CALL(env, napi_define_properties(env, exports, sizeof(desc) / sizeof(desc[0]), desc));
@@ -4683,17 +4954,23 @@ index 0000000000..749cae5ece
 +        m_platformIntegration->setDesktopSize(m_desktopWidthPixels, m_desktopHeightPixels);
 +    }
 +}
++
++NativeResourceManager *QtOpenHarmony::resourceManager()
++{
++    return m_resourceManager;
++}
 diff --git a/src/plugins/platforms/openharmony/qopenharmonymain.h b/src/plugins/platforms/openharmony/qopenharmonymain.h
 new file mode 100644
-index 0000000000..0e606c8c74
+index 0000000000..ceec3db2c4
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonymain.h
-@@ -0,0 +1,21 @@
+@@ -0,0 +1,24 @@
 +#ifndef QOPENHARMONYMAIN_H
 +#define QOPENHARMONYMAIN_H
 +
 +#include <napi/native_api.h>
 +class QOpenHarmonyPlatformIntegration;
++struct NativeResourceManager;
 +
 +namespace QtOpenHarmony {
 +
@@ -4706,6 +4983,8 @@ index 0000000000..0e606c8c74
 +void updateDisplayMetrics(int w, int h);
 +
 +napi_env jsEnv();
++
++NativeResourceManager *resourceManager();
 +
 +}
 +
