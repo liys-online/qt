@@ -478,6 +478,31 @@ index d87e181e5c..22227d672a 100644
  #elif defined(__CYGWIN__)
  #  define Q_OS_CYGWIN
  #elif !defined(SAG_COM) && (!defined(WINAPI_FAMILY) || WINAPI_FAMILY==WINAPI_FAMILY_DESKTOP_APP) && (defined(WIN64) || defined(_WIN64) || defined(__WIN64__))
+diff --git a/src/corelib/io/qfileselector.cpp b/src/corelib/io/qfileselector.cpp
+index 500b475d1d..8b09cfb04d 100644
+--- a/src/corelib/io/qfileselector.cpp
++++ b/src/corelib/io/qfileselector.cpp
+@@ -199,6 +199,9 @@ static bool isLocalScheme(const QString &file)
+     bool local = file == QLatin1String("qrc");
+ #ifdef Q_OS_ANDROID
+     local |= file == QLatin1String("assets");
++#endif
++#ifdef Q_OS_OPENHARMONY
++    local |= file == QLatin1String("rawfile");
+ #endif
+     return local;
+ }
+@@ -223,6 +226,10 @@ QUrl QFileSelector::select(const QUrl &filePath) const
+         if (filePath.scheme() == QLatin1String("assets"))
+             scheme = QLatin1String("assets:");
+ #endif
++#ifdef Q_OS_OPENHARMONY
++        if (filePath.scheme() == QLatin1String("rawfile"))
++            scheme = QLatin1String("rawfile:");
++#endif
+ 
+         QString equivalentPath = scheme + filePath.path();
+         QString selectedPath = d->select(equivalentPath);
 diff --git a/src/corelib/io/qurl.cpp b/src/corelib/io/qurl.cpp
 index 6d82981fd6..5896fcbdb5 100644
 --- a/src/corelib/io/qurl.cpp
@@ -2113,6 +2138,72 @@ index bd409c124f..29bb587b12 100644
      m_drag_icon_window->updateGeometry(pos);
      m_drag_icon_window->setVisible(true);
  }
+diff --git a/src/network/access/qnetworkaccessfilebackend.cpp b/src/network/access/qnetworkaccessfilebackend.cpp
+index 60353cb03e..b8b7290cbf 100644
+--- a/src/network/access/qnetworkaccessfilebackend.cpp
++++ b/src/network/access/qnetworkaccessfilebackend.cpp
+@@ -57,6 +57,9 @@ QStringList QNetworkAccessFileBackendFactory::supportedSchemes() const
+             << QStringLiteral("qrc");
+ #if defined(Q_OS_ANDROID)
+     schemes << QStringLiteral("assets");
++#endif
++#if defined(Q_OS_OPENHARMONY)
++    schemes << QStringLiteral("rawfile");
+ #endif
+     return schemes;
+ }
+@@ -80,6 +83,9 @@ QNetworkAccessFileBackendFactory::create(QNetworkAccessManager::Operation op,
+     if (url.scheme().compare(QLatin1String("qrc"), Qt::CaseInsensitive) == 0
+ #if defined(Q_OS_ANDROID)
+             || url.scheme().compare(QLatin1String("assets"), Qt::CaseInsensitive) == 0
++#endif
++#if defined(Q_OS_OPENHARMONY)
++            || url.scheme().compare(QLatin1String("rawfile"), Qt::CaseInsensitive) == 0
+ #endif
+             || url.isLocalFile()) {
+         return new QNetworkAccessFileBackend;
+@@ -136,6 +142,11 @@ void QNetworkAccessFileBackend::open()
+             if (url.scheme() == QLatin1String("assets"))
+                 fileName = QLatin1String("assets:") + url.path();
+             else
++#endif
++#if defined(Q_OS_OPENHARMONY)
++            if (url.scheme() == QLatin1String("rawfile"))
++                fileName = QLatin1String("rawfile:") + url.path();
++            else
+ #endif
+                 fileName = url.toString(QUrl::RemoveAuthority | QUrl::RemoveFragment | QUrl::RemoveQuery);
+         }
+diff --git a/src/network/access/qnetworkaccessmanager.cpp b/src/network/access/qnetworkaccessmanager.cpp
+index 31b1dbf2a5..c42d41d696 100644
+--- a/src/network/access/qnetworkaccessmanager.cpp
++++ b/src/network/access/qnetworkaccessmanager.cpp
+@@ -1378,6 +1378,9 @@ QNetworkReply *QNetworkAccessManager::createRequest(QNetworkAccessManager::Opera
+         if (isLocalFile
+ #ifdef Q_OS_ANDROID
+             || scheme == QLatin1String("assets")
++#endif
++#ifdef Q_OS_OPENHARMONY
++            || scheme == QLatin1String("rawfile")
+ #endif
+             || scheme == QLatin1String("qrc")) {
+             return new QNetworkReplyFileImpl(this, req, op);
+diff --git a/src/network/access/qnetworkreplyfileimpl.cpp b/src/network/access/qnetworkreplyfileimpl.cpp
+index ef319ebf0d..7f531f5b47 100644
+--- a/src/network/access/qnetworkreplyfileimpl.cpp
++++ b/src/network/access/qnetworkreplyfileimpl.cpp
+@@ -109,6 +109,11 @@ QNetworkReplyFileImpl::QNetworkReplyFileImpl(QNetworkAccessManager *manager, con
+             if (scheme == QLatin1String("assets"))
+                 fileName = QLatin1String("assets:") + url.path();
+             else
++#endif
++#if defined(Q_OS_OPENHARMONY)
++            if (scheme == QLatin1String("rawfile"))
++                fileName = QLatin1String("rawfile:") + url.path();
++            else
+ #endif
+                 fileName = url.toString(QUrl::RemoveAuthority | QUrl::RemoveFragment | QUrl::RemoveQuery);
+         }
 diff --git a/src/network/socket/qabstractsocketengine.cpp b/src/network/socket/qabstractsocketengine.cpp
 index 3fffff6d5a..f461b555dc 100644
 --- a/src/network/socket/qabstractsocketengine.cpp
@@ -3947,10 +4038,10 @@ index 0000000000..51fe72e96e
 +#endif // QOPENHARMONYEVENTDISPATCHER_H
 diff --git a/src/plugins/platforms/openharmony/qopenharmonyfileenginehandler.cpp b/src/plugins/platforms/openharmony/qopenharmonyfileenginehandler.cpp
 new file mode 100644
-index 0000000000..f62729153f
+index 0000000000..79ed2e9406
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonyfileenginehandler.cpp
-@@ -0,0 +1,470 @@
+@@ -0,0 +1,475 @@
 +#include "qopenharmonyfileenginehandler.h"
 +#include "qopenharmonymain.h"
 +
@@ -4381,7 +4472,7 @@ index 0000000000..f62729153f
 +        return 0;
 +
 +    static QLatin1String datasharePrefix("datashare:");
-+    static QLatin1String rawfilePrefix("rawfile://");
++    static QLatin1String rawfilePrefix("rawfile:/");
 +
 +    if (!fileName.startsWith(datasharePrefix) && !fileName.startsWith(rawfilePrefix))
 +        return 0;
@@ -4391,33 +4482,38 @@ index 0000000000..f62729153f
 +
 +    if (fileName.startsWith(rawfilePrefix)) {
 +        QString _fileName = fileName;
-+        _fileName.replace("rawfile://", "");
++        _fileName.replace("rawfile:/", "");
 +        QByteArray byteArray = _fileName.toLatin1();
 +        RawFile *file = OH_ResourceManager_OpenRawFile(QtOpenHarmony::resourceManager(), byteArray.constData());
 +        if (file != nullptr) {
 +            return new QOpenHarmonyRawfileEngine(file, fileName);
 +        }
++        return 0;
 +
-+        m_rawfileCacheMutext.lock();
-+        QSharedPointer<OpenHarmonyRawDir> *ohrd = m_rawDirCache.object(_fileName.toLatin1());
-+        m_rawfileCacheMutext.unlock();
++        //Todo OH_ResourceManager_OpenRawDir传入不存在的目录返回值不为空，无法判断
 +
-+        if (!ohrd) {
-+            if (!m_hasPrepopulatedCache) {
-+                RawDir *rd = OH_ResourceManager_OpenRawDir(QtOpenHarmony::resourceManager(), byteArray.constData());
-+                if (rd) {
-+                    ohrd = new QSharedPointer<OpenHarmonyRawDir>(new OpenHarmonyRawDir(rd));
-+                    m_rawfileCacheMutext.lock();
-+                    m_rawDirCache.insert(_fileName.toLatin1(), ohrd);
-+                    m_rawfileCacheMutext.unlock();
-+                    return new QOpenHarmonyRawfileEngine(*ohrd, fileName);
-+                }
-+            }
-+        } else {
-+            return new QOpenHarmonyRawfileEngine(*ohrd, fileName);
-+        }
++//        m_rawfileCacheMutext.lock();
++//        QSharedPointer<OpenHarmonyRawDir> *ohrd = m_rawDirCache.object(_fileName.toLatin1());
++//        m_rawfileCacheMutext.unlock();
++
++//        if (!ohrd) {
++//            if (!m_hasPrepopulatedCache) {
++//                RawDir *rd = OH_ResourceManager_OpenRawDir(QtOpenHarmony::resourceManager(), byteArray.constData());
++//                if (rd) {
++//                    ohrd = new QSharedPointer<OpenHarmonyRawDir>(new OpenHarmonyRawDir(rd));
++//                    m_rawfileCacheMutext.lock();
++//                    m_rawDirCache.insert(_fileName.toLatin1(), ohrd);
++//                    m_rawfileCacheMutext.unlock();
++//                    return 0;
++//                    return new QOpenHarmonyRawfileEngine(*ohrd, fileName);
++//                }
++//                return 0;
++//            }
++//        } else {
++//            return new QOpenHarmonyRawfileEngine(*ohrd, fileName);
++//        }
 +    }
-+
++    return 0;
 +}
 +
 +QT_END_NAMESPACE
@@ -8747,6 +8843,32 @@ index eb3479b3e0..39cd4c95c8 100644
  }
  
  /*!
+diff --git a/src/widgets/widgets/qtextbrowser.cpp b/src/widgets/widgets/qtextbrowser.cpp
+index 09541bb53b..a8dda888a4 100644
+--- a/src/widgets/widgets/qtextbrowser.cpp
++++ b/src/widgets/widgets/qtextbrowser.cpp
+@@ -161,6 +161,11 @@ QString QTextBrowserPrivate::findFile(const QUrl &name) const
+         if (name.scheme() == QLatin1String("assets"))
+             fileName = QLatin1String("assets:") + name.path();
+         else
++#endif
++#if defined(Q_OS_OPENHARMONY)
++        if (name.scheme() == QLatin1String("rawfile"))
++            fileName = QLatin1String("rawfile:") + name.path();
++        else
+ #endif
+             fileName = name.toLocalFile();
+     }
+@@ -231,6 +236,9 @@ void QTextBrowserPrivate::_q_activateAnchor(const QString &href)
+             url.scheme() == QLatin1String("file")
+ #if defined(Q_OS_ANDROID)
+             || url.scheme() == QLatin1String("assets")
++#endif
++#if defined(Q_OS_OPENHARMONY)
++            || url.scheme() == QLatin1String("rawfile")
+ #endif
+             || url.scheme() == QLatin1String("qrc");
+     if ((openExternalLinks && !isFileScheme && !url.isRelative())
 diff --git a/tests/auto/corelib/kernel/qmetatype/tst_qmetatype.cpp b/tests/auto/corelib/kernel/qmetatype/tst_qmetatype.cpp
 index e6fac74ccc..ca6e8f3c45 100644
 --- a/tests/auto/corelib/kernel/qmetatype/tst_qmetatype.cpp

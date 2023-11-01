@@ -1,0 +1,149 @@
+diff --git a/src/qml/qml/qqmlfile.cpp b/src/qml/qml/qqmlfile.cpp
+index 99031e1e74..dcfc473da2 100644
+--- a/src/qml/qml/qqmlfile.cpp
++++ b/src/qml/qml/qqmlfile.cpp
+@@ -65,6 +65,9 @@ static char file_string[] = "file";
+ #if defined(Q_OS_ANDROID)
+ static char assets_string[] = "assets";
+ #endif
++#if defined(Q_OS_OPENHARMONY)
++static char rawfile_string[] = "rawfile";
++#endif
+ 
+ class QQmlFilePrivate;
+ 
+@@ -453,6 +456,10 @@ bool QQmlFile::isSynchronous(const QUrl &url)
+     } else if (scheme.length() == 6 && 0 == scheme.compare(QLatin1String(assets_string), Qt::CaseInsensitive)) {
+         return true;
+ #endif
++#if defined(Q_OS_OPENHARMONY)
++    } else if (scheme.length() == 7 && 0 == scheme.compare(QLatin1String(rawfile_string), Qt::CaseInsensitive)) {
++        return true;
++#endif
+ 
+     } else {
+         return false;
+@@ -495,6 +502,14 @@ bool QQmlFile::isSynchronous(const QString &url)
+ 
+     }
+ #endif
++#if defined(Q_OS_OPENHARMONY)
++    else if (f == QLatin1Char('r') || f == QLatin1Char('R')) {
++        return url.length() >= 9 /* rawfile:/ */ &&
++               url.startsWith(QLatin1String(rawfile_string), Qt::CaseInsensitive) &&
++               url[7] == QLatin1Char(':') && url[8] == QLatin1Char('/');
++
++    }
++#endif
+ 
+     return false;
+ }
+@@ -518,6 +533,10 @@ bool QQmlFile::isLocalFile(const QUrl &url)
+     } else if (scheme.length() == 6 && 0 == scheme.compare(QLatin1String(assets_string), Qt::CaseInsensitive)) {
+         return true;
+ #endif
++#if defined(Q_OS_OPENHARMONY)
++    } else if (scheme.length() == 7 && 0 == scheme.compare(QLatin1String(rawfile_string), Qt::CaseInsensitive)) {
++        return true;
++#endif
+ 
+     } else {
+         return false;
+@@ -559,6 +578,14 @@ bool QQmlFile::isLocalFile(const QString &url)
+ 
+     }
+ #endif
++#if defined(Q_OS_OPENHARMONY)
++    else if (f == QLatin1Char('r') || f == QLatin1Char('R')) {
++        return url.length() >= 9 /* assets:/ */ &&
++               url.startsWith(QLatin1String(rawfile_string), Qt::CaseInsensitive) &&
++               url[7] == QLatin1Char(':') && url[8] == QLatin1Char('/');
++
++    }
++#endif
+ 
+     return false;
+ }
+@@ -582,6 +609,13 @@ QString QQmlFile::urlToLocalFileOrQrc(const QUrl& url)
+         return QString();
+     }
+ #endif
++#if defined(Q_OS_OPENHARMONY)
++    else if (url.scheme().compare(QLatin1String("rawfile"), Qt::CaseInsensitive) == 0) {
++        if (url.authority().isEmpty())
++            return url.toString();
++        return QString();
++    }
++#endif
+ 
+     return url.toLocalFile();
+ }
+@@ -620,6 +654,11 @@ QString QQmlFile::urlToLocalFileOrQrc(const QString& url)
+         return url;
+     }
+ #endif
++#if defined(Q_OS_OPENHARMONY)
++    else if (url.startsWith(QLatin1String("rawfile:"), Qt::CaseInsensitive)) {
++        return url;
++    }
++#endif
+ 
+     return toLocalFile(url);
+ }
+diff --git a/src/qml/qml/qqmlplatform.cpp b/src/qml/qml/qqmlplatform.cpp
+index 0acf20bbb4..27f22c19a3 100644
+--- a/src/qml/qml/qqmlplatform.cpp
++++ b/src/qml/qml/qqmlplatform.cpp
+@@ -60,6 +60,8 @@ QString QQmlPlatform::os()
+ {
+ #if defined(Q_OS_ANDROID)
+     return QStringLiteral("android");
++#elif defined(Q_OS_OPENHARMONY)
++    return QStringLiteral("openharmony");
+ #elif defined(Q_OS_IOS)
+     return QStringLiteral("ios");
+ #elif defined(Q_OS_TVOS)
+diff --git a/src/qml/qml/qqmltypeloader.cpp b/src/qml/qml/qqmltypeloader.cpp
+index 9e5bc0b021..e12c80a777 100644
+--- a/src/qml/qml/qqmltypeloader.cpp
++++ b/src/qml/qml/qqmltypeloader.cpp
+@@ -1827,6 +1827,14 @@ QString QQmlTypeLoader::absoluteFilePath(const QString &path)
+         return fileInfo.isFile() ? fileInfo.absoluteFilePath() : QString();
+     }
+ #endif
++#if defined(Q_OS_OPENHARMONY)
++    else if (path.count() > 8 && path.at(7) == QLatin1Char(':') && path.at(8) == QLatin1Char('/') &&
++           path.startsWith(QLatin1String("rawfile"), Qt::CaseInsensitive)) {
++        // assets resource url
++        QFileInfo fileInfo(QQmlFile::urlToLocalFileOrQrc(path));
++        return fileInfo.isFile() ? fileInfo.absoluteFilePath() : QString();
++    }
++#endif
+ 
+     int lastSlash = path.lastIndexOf(QLatin1Char('/'));
+     QString dirPath(path.left(lastSlash));
+@@ -1884,6 +1892,14 @@ bool QQmlTypeLoader::fileExists(const QString &path, const QString &file)
+         return fileInfo.isFile();
+     }
+ #endif
++#if defined(Q_OS_OPENHARMONY)
++    else if (path.count() > 8 && path.at(7) == QLatin1Char(':') && path.at(8) == QLatin1Char('/') &&
++           path.startsWith(QLatin1String("rawfile"), Qt::CaseInsensitive)) {
++        // assets resource url
++        QFileInfo fileInfo(QQmlFile::urlToLocalFileOrQrc(path + file));
++        return fileInfo.isFile();
++    }
++#endif
+ 
+     LockHolder<QQmlTypeLoader> holder(this);
+     if (!m_importDirCache.contains(path)) {
+@@ -1921,6 +1937,9 @@ bool QQmlTypeLoader::directoryExists(const QString &path)
+ #if defined(Q_OS_ANDROID)
+     isResource = isResource || path.startsWith(QLatin1String("assets:/"));
+ #endif
++#if defined(Q_OS_OPENHARMONY)
++    isResource = isResource || path.startsWith(QLatin1String("rawfile:/"));
++#endif
+ 
+     if (isResource) {
+         // qrc resource
