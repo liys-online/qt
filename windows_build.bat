@@ -6,6 +6,7 @@ set API9_SDK=http://download.ci.openharmony.cn/version/Master_Version/OpenHarmon
 set API10_SDK=http://download.ci.openharmony.cn/version/Master_Version/OpenHarmony_4.0.9.6/20230801_140933/version-Master_Version-OpenHarmony_4.0.9.6-20230801_140933-ohos-sdk-full_4.0-beta2.tar.gz
 
 set ARGS=%*
+set QT_VERSION=v5.12.12
 set OHOS_ARCH=arm64-v8a
 set TARGET_API=%API10_SDK%
 goto :doargs %ARGS%
@@ -36,6 +37,7 @@ pause&exit /b
     if /i "%~1" == "/help" goto help
     if /i "%~1" == "-help" goto help
     if /i "%~1" == "--help" goto help
+	if /i "%~1" == "-qt" goto qtset
 	if /i "%~1" == "-api" goto apiset
 	
     if /i "%~1" == "-platform" goto platform
@@ -47,6 +49,7 @@ pause&exit /b
 
 :help
     echo 	-h show help information
+	echo    -qt specifying the qt version,support v5.15.11 and v5.12.12(default)
 	echo 	-api build qt with openharmony api, support 9 and 10(default 10)
     echo 	-platform set target platform(default arm64-v8a)
     echo    	arm64-v8a - platform for arm64-v8a
@@ -58,7 +61,11 @@ pause&exit /b
     shift
     set PLATFORM=%~1
     goto nextarg
-
+:qtset
+	shift
+	set QT_VERSION=%~1
+	goto nextarg
+	
 :apiset
 	shift
 	set API_VERSION=%~1
@@ -70,10 +77,10 @@ REM <------------------------------download qt5 source--------------------------
 echo %ROOT_DIR% 
 if not exist "%ROOT_DIR%\qt5" (
   echo "Download qt5 source code ....."
-  git clone https://gitee.com/CplusCplus/qt5.git -b v5.12.12 --recursive
+  git clone https://gitee.com/CplusCplus/qt5.git -b %QT_VERSION% --recursive
   REM cd qt5
   REM git submodule update --init --recursive
-  REM git checkout origin v5.12.12
+  REM git checkout origin %QT_VERSION%
   REM cd %ROOT_DIR%
 ) else (
 	echo "Update qt source code ......"
@@ -83,12 +90,12 @@ if not exist "%ROOT_DIR%\qt5" (
 	git reset --hard
 	git submodule foreach --recursive git clean -fdx
 	git submodule update --init --recursive
-	git checkout v5.12.12
+	git checkout %QT_VERSION%
 
-	git pull origin v5.12.12
+	git pull origin %QT_VERSION%
 	git submodule sync	
-	git submodule foreach --recursive git checkout v5.12.12
-	git submodule foreach --recursive git pull origin v5.12.12
+	git submodule foreach --recursive git checkout %QT_VERSION%
+	git submodule foreach --recursive git pull origin %QT_VERSION%
 	cd %ROOT_DIR%
 )
 goto :eof
@@ -184,28 +191,36 @@ echo "Apply QtBase Patch......"
 cd %ROOT_DIR%/qt5/qtbase
  git reset --hard 
  git clean -fdx
- git apply --check %PATCH_DIR%/patch/qtbase.patch 
- git apply --stat %PATCH_DIR%/patch/qtbase.patch 
- git apply %PATCH_DIR%/patch/qtbase.patch  
+ git apply --check %PATCH_DIR%/patch/%QT_VERSION%/qtbase.patch 
+ git apply --stat %PATCH_DIR%/patch/%QT_VERSION%/qtbase.patch 
+ git apply %PATCH_DIR%/patch/%QT_VERSION%/qtbase.patch  
 cd %ROOT_DIR%
 
 echo "Apply QtConnectivity Patch......"
 cd %ROOT_DIR%/qt5/qtconnectivity
  git reset --hard 
  git clean -fdx 
- git apply --check %PATCH_DIR%/patch/qtconnectivity.patch 
- git apply --stat %PATCH_DIR%/patch/qtconnectivity.patch 
- git apply %PATCH_DIR%/patch/qtconnectivity.patch 
+ git apply --check %PATCH_DIR%/patch/%QT_VERSION%/qtconnectivity.patch 
+ git apply --stat %PATCH_DIR%/patch/%QT_VERSION%/qtconnectivity.patch 
+ git apply %PATCH_DIR%/patch/%QT_VERSION%/qtconnectivity.patch 
 cd %ROOT_DIR%
 
+echo "Apply QtDeclarative Patch......"
+cd %ROOT_DIR%/qt5/qtdeclarative
+ git reset --hard 
+ git clean -fdx 
+ git apply --check %PATCH_DIR%/patch/%QT_VERSION%/qtdeclarative.patch 
+ git apply --stat %PATCH_DIR%/patch/%QT_VERSION%/qtdeclarative.patch 
+ git apply %PATCH_DIR%/patch/%QT_VERSION%/qtdeclarative.patch 
+cd %ROOT_DIR%
 
 echo "Apply QtMultimedia Patch......"
 cd %ROOT_DIR%/qt5/qtmultimedia
  git reset --hard  
  git clean -fdx 
- git apply --check %PATCH_DIR%/patch/qtmultimedia.patch 
- git apply --stat %PATCH_DIR%/patch/qtmultimedia.patch 
- git apply %PATCH_DIR%/patch/qtmultimedia.patch 
+ git apply --check %PATCH_DIR%/patch/%QT_VERSION%/qtmultimedia.patch 
+ git apply --stat %PATCH_DIR%/patch/%QT_VERSION%/qtmultimedia.patch 
+ git apply %PATCH_DIR%/patch/%QT_VERSION%/qtmultimedia.patch 
 cd %ROOT_DIR%
 
 
@@ -213,18 +228,18 @@ echo "Apply QtRemoteObjects Patch......"
 cd %ROOT_DIR%/qt5/qtremoteobjects
  git reset --hard 
  git clean -fdx 
- git apply --check %PATCH_DIR%/patch/qtremoteobjects.patch 
- git apply --stat %PATCH_DIR%/patch/qtremoteobjects.patch 
- git apply %PATCH_DIR%/patch/qtremoteobjects.patch 
+ git apply --check %PATCH_DIR%/patch/%QT_VERSION%/qtremoteobjects.patch 
+ git apply --stat %PATCH_DIR%/patch/%QT_VERSION%/qtremoteobjects.patch 
+ git apply %PATCH_DIR%/patch/%QT_VERSION%/qtremoteobjects.patch 
 cd %ROOT_DIR%
 
 echo "Apply QtSensors Patch......"
 cd %ROOT_DIR%/qt5/qtremoteobjects
  git reset --hard 
  git clean -fdx 
- git apply --check %PATCH_DIR%/patch/qtsensors.patch
- git apply --stat %PATCH_DIR%/patch/qtsensors.patch 
- git apply %PATCH_DIR%/patch/qtsensors.patch
+ git apply --check %PATCH_DIR%/patch/%QT_VERSION%/qtsensors.patch
+ git apply --stat %PATCH_DIR%/patch/%QT_VERSION%/qtsensors.patch 
+ git apply %PATCH_DIR%/patch/%QT_VERSION%/qtsensors.patch
 cd %ROOT_DIR%
 
 goto :eof
@@ -241,7 +256,7 @@ if "%OHOS_ARCH%" == "arm64-v8a" (
 )
 
 echo "Build Qt for OpenHarmony with %OHOS_ARCH%"
-set QT_INSTALL_DIR=%ROOT_DIR%\qt_oh_sdk_%OHOS_SDK_VERSION%_bin\Qt5.12.12\%OHOS_TARGET%
+set QT_INSTALL_DIR=%ROOT_DIR%\qt_oh_sdk_%OHOS_SDK_VERSION%_bin\%QT_VERSION%\%OHOS_TARGET%
 echo %QT_INSTALL_DIR%
 
 set BUILD_DIR=%ROOT_DIR%\build_qt_oh_sdk_%OHOS_SDK_VERSION%\%OHOS_TARGET%
@@ -250,8 +265,17 @@ if not exist "%BUILD_DIR%" (
 )
 
 cd %BUILD_DIR%
-call %ROOT_DIR%\qt5\configure.bat -platform win32-g++ -xplatform oh-clang -device-option OHOS_ARCH=%OHOS_ARCH% -opensource -confirm-license -nomake tests -make examples -v ^
--prefix %QT_INSTALL_DIR% -skip doc -skip qtvirtualkeyboard -skip qtnetworkauth -skip qtwebengine -skip qtlocation -skip qtwebchannel -skip qtgamepad -skip qtscript -opengl es2 -opengles3 -no-dbus -recheck-all
+REM api 9 does not support the bluetooth module
+if "%TARGET_API%" == "API10_SDK" (
+	call %ROOT_DIR%\qt5\configure.bat -platform win32-g++ -xplatform oh-clang -device-option OHOS_ARCH=%OHOS_ARCH% -opensource -confirm-license -nomake tests -make examples -v ^
+	-prefix %QT_INSTALL_DIR% -skip doc -skip qtvirtualkeyboard -skip qtnetworkauth -skip qtwebengine -skip qtlocation -skip qtwebchannel -skip qtgamepad -skip qtscript -opengl es2 ^
+	-opengles3 -no-dbus -recheck-all
+) else (
+	call %ROOT_DIR%\qt5\configure.bat -platform win32-g++ -xplatform oh-clang -device-option OHOS_ARCH=%OHOS_ARCH% -opensource -confirm-license -nomake tests -make examples -v ^
+	-prefix %QT_INSTALL_DIR% -skip doc -skip qtconnectivity -skip qtvirtualkeyboard -skip qtnetworkauth -skip qtwebengine -skip qtlocation -skip qtwebchannel -skip qtgamepad -skip qtscript -opengl es2 ^
+	-opengles3 -no-dbus -recheck-all
+)
+
 
 mingw32-make -j16
 mingw32-make install

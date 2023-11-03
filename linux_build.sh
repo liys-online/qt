@@ -14,7 +14,7 @@ function downloadQtSrc(){
 	if [ ! -d $ROOT_DIR/qt5 ]
 	then
 		echo "Download qt5 source code ......"
-		git clone https://gitee.com/CplusCplus/qt5.git -b v5.12.12 --recursive
+		git clone https://gitee.com/CplusCplus/qt5.git -b $1 --recursive
 	else
 		echo "Update qt source code ......"
 		cd $ROOT_DIR/qt5
@@ -23,12 +23,12 @@ function downloadQtSrc(){
 		git reset --hard
 		git submodule foreach --recursive git clean -fdx
 		git submodule update --init --recursive
-		git checkout v5.12.12
+		git checkout $1
 
-		git pull origin v5.12.12
+		git pull origin $1
 		git submodule sync	
-		git submodule foreach --recursive git checkout v5.12.12
-		git submodule foreach --recursive git pull origin v5.12.12
+		git submodule foreach --recursive git checkout $1
+		git submodule foreach --recursive git pull origin $1
 		cd $ROOT_DIR
 	fi
 }
@@ -93,51 +93,60 @@ function downloadQtSrcPatch() {
 	cd $ROOT_DIR/qt5/qtbase
 	git reset --hard
 	git clean -fdx
-	git apply --check $PATCH_DIR/patch/qtbase.patch
-	git apply --stat $PATCH_DIR/patch/qtbase.patch
-	git apply $PATCH_DIR/patch/qtbase.patch
+	git apply --check $PATCH_DIR/patch/$1/qtbase.patch
+	git apply --stat $PATCH_DIR/patch/$1/qtbase.patch
+	git apply $PATCH_DIR/patch/$1/qtbase.patch
 	cd $ROOT_DIR
 
 	echo "Apply QtConnectivity Patch......"
 	cd $ROOT_DIR/qt5/qtconnectivity
 	git reset --hard 
 	git clean -fdx 
-	git apply --check $PATCH_DIR/patch/qtconnectivity.patch 
-	git apply --stat $PATCH_DIR/patch/qtconnectivity.patch 
-	git apply $PATCH_DIR/patch/qtconnectivity.patch 
+	git apply --check $PATCH_DIR/patch/$1/qtconnectivity.patch 
+	git apply --stat $PATCH_DIR/patch/$1/qtconnectivity.patch 
+	git apply $PATCH_DIR/patch/$1/qtconnectivity.patch 
 	cd $ROOT_DIR
 
+	echo "Apply QtDeclarative Patch......"
+	cd $ROOT_DIR/qt5/qtdeclarative
+	git reset --hard 
+	git clean -fdx 
+	git apply --check $PATCH_DIR/patch/$1/qtdeclarative.patch 
+	git apply --stat $PATCH_DIR/patch/$1/qtdeclarative.patch 
+	git apply $PATCH_DIR/patch/$1/qtdeclarative.patch 
+	cd $ROOT_DIR
+	
 	echo "Apply QtMultimedia Patch......"
 	cd $ROOT_DIR/qt5/qtmultimedia
 	git reset --hard  
 	git clean -fdx 
-	git apply --check $PATCH_DIR/patch/qtmultimedia.patch 
-	git apply --stat $PATCH_DIR/patch/qtmultimedia.patch 
-	git apply $PATCH_DIR/patch/qtmultimedia.patch 
+	git apply --check $PATCH_DIR/patch/$1/qtmultimedia.patch 
+	git apply --stat $PATCH_DIR/patch/$1/qtmultimedia.patch 
+	git apply $PATCH_DIR/patch/$1/qtmultimedia.patch 
 	cd $ROOT_DIR
 
 	echo "Apply QtRemoteObjects Patch......"
 	cd $ROOT_DIR/qt5/qtremoteobjects
 	git reset --hard 
 	git clean -fdx
-	git apply --check $PATCH_DIR/patch/qtremoteobjects.patch
-	git apply --stat $PATCH_DIR/patch/qtremoteobjects.patch
-	git apply $PATCH_DIR/patch/qtremoteobjects.patch
+	git apply --check $PATCH_DIR/patch/$1/qtremoteobjects.patch
+	git apply --stat $PATCH_DIR/patch/$1/qtremoteobjects.patch
+	git apply $PATCH_DIR/patch/$1/qtremoteobjects.patch
 	cd $ROOT_DIR
 	
 	echo "Apply QtSensors Patch......"
 	cd $ROOT_DIR/qt5/qtsensors
 	git reset --hard 
 	git clean -fdx
-	git apply --check $PATCH_DIR/patch/qtsensors.patch
-	git apply --stat $PATCH_DIR/patch/qtsensors.patch
-	git apply $PATCH_DIR/patch/qtsensors.patch
+	git apply --check $PATCH_DIR/patch/$1/qtsensors.patch
+	git apply --stat $PATCH_DIR/patch/$1/qtsensors.patch
+	git apply $PATCH_DIR/patch/$1/qtsensors.patch
 	cd $ROOT_DIR
 }
 
 function buildQtSrc() {
 	OH_SDK_VERSION="$(echo $(echo "$1" | awk -F '/' '{print $6}') | awk -F '_' '{print $2}')"
-	BIN_DIR=$ROOT_DIR/qt_oh_sdk_${OH_SDK_VERSION}_bin/Qt5.12.12
+	BIN_DIR=$ROOT_DIR/qt_oh_sdk_${OH_SDK_VERSION}_bin/$2
 	if [ "$OHOS_ARCH" == "arm64-v8a" ]
 	then
 		QT_INSTALL_DIR=$BIN_DIR/aarch64-linux-ohos
@@ -162,9 +171,17 @@ function buildQtSrc() {
 
 	chmod +x $ROOT_DIR/qt5 -R
 	cd $BUILD_DIR
-	$ROOT_DIR/qt5/configure -xplatform oh-clang -device-option OHOS_ARCH=$OHOS_ARCH -opensource -confirm-license -nomake tests -make examples -v \
-	-prefix $QT_INSTALL_DIR -skip qtvirtualkeyboard -skip qtnetworkauth -skip qtwebengine -skip qtlocation -skip qtwebchannel -skip qtgamepad -skip qtscript \
-	-opengl es2 -opengles3 -no-dbus -recheck-all
+	if [ "$3" == "10" ];
+	then
+		$ROOT_DIR/qt5/configure -xplatform oh-clang -device-option OHOS_ARCH=$OHOS_ARCH -opensource -confirm-license -nomake tests -make examples -v \
+		-prefix $QT_INSTALL_DIR -skip doc -skip qtvirtualkeyboard -skip qtnetworkauth -skip qtwebengine -skip qtlocation -skip qtwebchannel \
+		-skip qtgamepad -skip qtscript -opengl es2 -opengles3 -no-dbus -recheck-all
+	elif if [ "$3" == "9" ] 
+	then
+		$ROOT_DIR/qt5/configure -xplatform oh-clang -device-option OHOS_ARCH=$OHOS_ARCH -opensource -confirm-license -nomake tests -make examples -v \
+		-prefix $QT_INSTALL_DIR -skip doc -skip qtconnectivity -skip qtvirtualkeyboard -skip qtnetworkauth -skip qtwebengine -skip qtlocation -skip qtwebchannel \
+		-skip qtgamepad -skip qtscript -opengl es2 -opengles3 -no-dbus -recheck-all
+	fi
 				
 	make -j16
 	make install
@@ -174,6 +191,7 @@ usage="$(basename "$0") [-h] [-p platform] [-v 10]-- build Qt For OpenHarmony
 
 where:
 	-h 		show help information	
+	-q		specifying the qt version,support v5.15.11 and v5.12.12(default)
 	-v		openharmony sdk version, support 9 and 10(default 10)
 	-p 		set target platform(default arm64-v8a)
 			arm64-v8a - platform for arm64-v8a
@@ -182,7 +200,8 @@ where:
 
 export OHOS_ARCH=arm64-v8a
 export OHOS_SDK_V=9
-while getopts 'hp:v:' option; do
+export QT_VERSION=v5.12.12
+while getopts 'hp:v:q:' option; do
     case "$option" in
     h)
         echo "$usage"
@@ -204,6 +223,14 @@ while getopts 'hp:v:' option; do
             exit 1
         fi		
 		;;
+	q)
+		export QT_VERSION=$OPTARG
+		if [ "$QT_VERSION" != "v5.12.12" ] && [ "$QT_VERSION" != "v5.15.11" ]; then
+            echo "unsupported versions."
+            echo "$usage"
+            exit 1
+        fi
+		;;
     :)
         printf "missing argument for -%s\n" "$OPTARG" >&2
         echo "$usage" >&2
@@ -223,13 +250,13 @@ echo "OHOS_SDK_V=$OHOS_SDK_V"
 ROOT_DIR=$(cd `dirname $0`;pwd)
 echo "ROOT_DIR=${ROOT_DIR}"
 
-downloadQtSrc
-downloadQtSrcPatch
+downloadQtSrc $QT_VERSION
+downloadQtSrcPatch $QT_VERSION
 TARGET_VERSION=API${OHOS_SDK_V}_SDK
 eval TARGET_VERSION=$(echo \$$TARGET_VERSION)
 
 downloadOHSDK $TARGET_VERSION
-buildQtSrc $TARGET_VERSION
+buildQtSrc $TARGET_VERSION $QT_VERSION $OHOS_SDK_V
 
 echo -e "${GREEN}Press any key to continue...... ${RES}"
 read -n 1
