@@ -3,7 +3,7 @@ set "e=|| exit /b 1"
 set ROOT_DIR=%cd%
 set PATH=%PATH%;%cd%;
 set API9_SDK=http://download.ci.openharmony.cn/version/Master_Version/OpenHarmony_3.2.10.9/20230225_073754/version-Master_Version-OpenHarmony_3.2.10.9-20230225_073754-ohos-sdk-full.tar.gz
-set API10_SDK=http://download.ci.openharmony.cn/version/Master_Version/OpenHarmony_4.0.9.6/20230801_140933/version-Master_Version-OpenHarmony_4.0.9.6-20230801_140933-ohos-sdk-full_4.0-beta2.tar.gz
+set API10_SDK=http://download.ci.openharmony.cn/version/Master_Version/OpenHarmony_4.0.10.5/20230824_120941/version-Master_Version-OpenHarmony_4.0.10.5-20230824_120941-ohos-sdk-full_monthly.tar.gz
 
 set ARGS=%*
 set QT_VERSION=v5.12.12
@@ -256,14 +256,14 @@ if "%OHOS_ARCH%" == "arm64-v8a" (
 )
 
 echo "Build Qt for OpenHarmony with %OHOS_ARCH%"
-set QT_INSTALL_DIR=%ROOT_DIR%\qt_oh_sdk_%OHOS_SDK_VERSION%_bin\%QT_VERSION%\%OHOS_TARGET%
+set QT_INSTALL_DIR=%ROOT_DIR%\qt_%QT_VERSION%_oh_sdk_%OHOS_SDK_VERSION%_bin\%QT_VERSION%\%OHOS_TARGET%
 echo %QT_INSTALL_DIR%
 
-set BUILD_DIR=%ROOT_DIR%\build_qt_oh_sdk_%OHOS_SDK_VERSION%\%OHOS_TARGET%
+set BUILD_DIR=%ROOT_DIR%\build_qt_%QT_VERSION%_oh_sdk_%OHOS_SDK_VERSION%\%OHOS_TARGET%
 if not exist "%BUILD_DIR%" (
    mkdir %BUILD_DIR%   
 )
-
+echo "BUILD_DIR:%BUILD_DIR%"
 cd %BUILD_DIR%
 REM api 9 does not support the bluetooth module
 if "%TARGET_API%" == "API10_SDK" (

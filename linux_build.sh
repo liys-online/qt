@@ -146,7 +146,7 @@ function downloadQtSrcPatch() {
 
 function buildQtSrc() {
 	OH_SDK_VERSION="$(echo $(echo "$1" | awk -F '/' '{print $6}') | awk -F '_' '{print $2}')"
-	BIN_DIR=$ROOT_DIR/qt_oh_sdk_${OH_SDK_VERSION}_bin/$2
+	BIN_DIR=$ROOT_DIR/qt_${QT_VERSION}_oh_sdk_${OH_SDK_VERSION}_bin/$2
 	if [ "$OHOS_ARCH" == "arm64-v8a" ]
 	then
 		QT_INSTALL_DIR=$BIN_DIR/aarch64-linux-ohos
@@ -163,7 +163,7 @@ function buildQtSrc() {
 	echo "openharmony sdk version:$OH_SDK_VERSION"
 	echo "INSTALL path:$QT_INSTALL_DIR"
 	
-	BUILD_DIR="$ROOT_DIR/build_qt_oh_sdk_$OH_SDK_VERSION"
+	BUILD_DIR="$ROOT_DIR/build_qt_${QT_VERSION}_oh_sdk_$OH_SDK_VERSION"
 	if [ ! -d $BUILD_DIR ]
 	then
 		mkdir -p $BUILD_DIR
