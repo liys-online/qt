@@ -109,7 +109,7 @@ index dcd7ca2d46..a03b569641 100644
      return QStringLiteral("ios");
  #elif defined(Q_OS_TVOS)
 diff --git a/src/qml/qml/qqmltypeloader.cpp b/src/qml/qml/qqmltypeloader.cpp
-index 01aba47a9a..fb1cdee394 100644
+index 01aba47a9a..c415d69f78 100644
 --- a/src/qml/qml/qqmltypeloader.cpp
 +++ b/src/qml/qml/qqmltypeloader.cpp
 @@ -945,7 +945,14 @@ QString QQmlTypeLoader::absoluteFilePath(const QString &path)
@@ -143,12 +143,10 @@ index 01aba47a9a..fb1cdee394 100644
      return addToCache(QFileInfo(path + file));
  }
  
-@@ -1052,7 +1065,10 @@ bool QQmlTypeLoader::directoryExists(const QString &path)
- #if defined(Q_OS_ANDROID)
+@@ -1053,6 +1066,9 @@ bool QQmlTypeLoader::directoryExists(const QString &path)
      isResource = isResource || path.startsWith(QLatin1String("assets:/")) || path.startsWith(QLatin1String("content:/"));
  #endif
--
-+#endif
+ 
 +#if defined(Q_OS_OPENHARMONY)
 +    isResource = isResource || path.startsWith(QLatin1String("rawfile:/"));
 +#endif
