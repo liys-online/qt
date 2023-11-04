@@ -234,7 +234,7 @@ cd %ROOT_DIR%/qt5/qtremoteobjects
 cd %ROOT_DIR%
 
 echo "Apply QtSensors Patch......"
-cd %ROOT_DIR%/qt5/qtremoteobjects
+cd %ROOT_DIR%/qt5/qtsensors
  git reset --hard 
  git clean -fdx 
  git apply --check %PATCH_DIR%/patch/%QT_VERSION%/qtsensors.patch
