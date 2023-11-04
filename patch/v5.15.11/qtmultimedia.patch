@@ -2457,7 +2457,7 @@ index 000000000..e4aa287f2
 +PLUGIN_CLASS_NAME = QOPenharmonySGVideoNodeFactoryPlugin
 +load(qt_plugin)
 diff --git a/src/plugins/opensles/qopenslesaudioinput.cpp b/src/plugins/opensles/qopenslesaudioinput.cpp
-index 54ed18ac1..d7c5af4f3 100644
+index 54ed18ac1..3ad19b694 100644
 --- a/src/plugins/opensles/qopenslesaudioinput.cpp
 +++ b/src/plugins/opensles/qopenslesaudioinput.cpp
 @@ -52,7 +52,11 @@
@@ -2472,7 +2472,7 @@ index 54ed18ac1..d7c5af4f3 100644
  #define DEFAULT_PERIOD_TIME_MS 50
  #define MINIMUM_PERIOD_TIME_MS 5
  
-@@ -84,6 +88,15 @@ static bool hasRecordingPermission()
+@@ -84,13 +88,22 @@ static bool hasRecordingPermission()
  }
  
  static void bufferQueueCallback(SLAndroidSimpleBufferQueueItf, void *context)
@@ -2487,8 +2487,27 @@ index 54ed18ac1..d7c5af4f3 100644
 +}
  #else
  static void bufferQueueCallback(SLBufferQueueItf, void *context)
- #endif
-@@ -239,14 +252,24 @@ bool QOpenSLESAudioInput::startRecording()
+-#endif
+ {
+     // Process buffer in main thread
+     QMetaObject::invokeMethod(reinterpret_cast<QOpenSLESAudioInput*>(context), "processBuffer");
+ }
++#endif
+ 
+ QOpenSLESAudioInput::QOpenSLESAudioInput(const QByteArray &device)
+     : m_device(device)
+@@ -209,8 +222,10 @@ QIODevice *QOpenSLESAudioInput::start()
+ 
+ bool QOpenSLESAudioInput::startRecording()
+ {
++#ifdef ANDROID
+     if (!hasRecordingPermission())
+         return false;
++#endif
+ 
+     m_processedBytes = 0;
+     m_clockStamp.restart();
+@@ -239,14 +254,24 @@ bool QOpenSLESAudioInput::startRecording()
  #ifdef ANDROID
      const SLInterfaceID id[2] = { SL_IID_ANDROIDSIMPLEBUFFERQUEUE, SL_IID_ANDROIDCONFIGURATION };
      const SLboolean req[2] = { SL_BOOLEAN_TRUE, SL_BOOLEAN_TRUE };
@@ -2513,7 +2532,7 @@ index 54ed18ac1..d7c5af4f3 100644
      if (result != SL_RESULT_SUCCESS) {
          m_errorState = QAudio::OpenError;
          return false;
-@@ -293,6 +316,8 @@ bool QOpenSLESAudioInput::startRecording()
+@@ -293,6 +318,8 @@ bool QOpenSLESAudioInput::startRecording()
      // get the buffer queue interface
  #ifdef ANDROID
      SLInterfaceID bufferqueueItfID = SL_IID_ANDROIDSIMPLEBUFFERQUEUE;
@@ -2522,7 +2541,7 @@ index 54ed18ac1..d7c5af4f3 100644
  #else
      SLInterfaceID bufferqueueItfID = SL_IID_BUFFERQUEUE;
  #endif
-@@ -421,6 +446,8 @@ void QOpenSLESAudioInput::processBuffer()
+@@ -421,6 +448,8 @@ void QOpenSLESAudioInput::processBuffer()
      // If the buffer queue is empty (shouldn't happen), stop recording.
  #ifdef ANDROID
      SLAndroidSimpleBufferQueueState state;

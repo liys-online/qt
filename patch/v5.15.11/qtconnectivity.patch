@@ -1,5 +1,5 @@
 diff --git a/src/bluetooth/bluetooth.pro b/src/bluetooth/bluetooth.pro
-index b7f9a198..f2b424ee 100644
+index b7f9a198..f1dd6777 100644
 --- a/src/bluetooth/bluetooth.pro
 +++ b/src/bluetooth/bluetooth.pro
 @@ -157,6 +157,21 @@ qtConfig(bluez) {
@@ -19,7 +19,7 @@ index b7f9a198..f2b424ee 100644
 +               qbluetoothdevicediscoveryagent_ohos.cpp \
 +               qbluetoothservicediscoveryagent_ohos.cpp
 +
-+    PRIVATE_HEADERS += qbluetoothsocket_ohos_p.h \
++    HEADERS += qbluetoothsocket_ohos_p.h \
 +                       qlowenergycontroller_ohos_p.h
  } else:osx {
      QT_PRIVATE = concurrent
@@ -602,11 +602,11 @@ index 00000000..049a5094
 +
 diff --git a/src/bluetooth/openharmony/openharmony.pri b/src/bluetooth/openharmony/openharmony.pri
 new file mode 100644
-index 00000000..fbc1329e
+index 00000000..df993a7e
 --- /dev/null
 +++ b/src/bluetooth/openharmony/openharmony.pri
 @@ -0,0 +1,20 @@
-+PRIVATE_HEADERS +=  \
++HEADERS +=  \
 +        $$PWD/openharmonyload_p.h \
 +        $$PWD/bluetoothdatareceiver_p.h \
 +        $$PWD/serveracceptancethread_p.h \
@@ -2097,7 +2097,7 @@ index 6bb74737..3b5a27b8 100644
  {
 diff --git a/src/bluetooth/qbluetoothserver_ohos.cpp b/src/bluetooth/qbluetoothserver_ohos.cpp
 new file mode 100644
-index 00000000..bb22a696
+index 00000000..57225821
 --- /dev/null
 +++ b/src/bluetooth/qbluetoothserver_ohos.cpp
 @@ -0,0 +1,237 @@
@@ -2118,9 +2118,9 @@ index 00000000..bb22a696
 +Q_DECLARE_LOGGING_CATEGORY(QT_BT_OPENHARMONY)
 +
 +QHash<QBluetoothServerPrivate*, int> __fakeServerPorts;
-+QBluetoothServerPrivate::QBluetoothServerPrivate(QBluetoothServiceInfo::Protocol sType)
++QBluetoothServerPrivate::QBluetoothServerPrivate(QBluetoothServiceInfo::Protocol sType,  QBluetoothServer *parent)
 +    : socket(0),maxPendingConnections(1), securityFlags(QBluetooth::NoSecurity), serverType(sType),
-+      m_lastError(QBluetoothServer::NoError)
++      m_lastError(QBluetoothServer::NoError), q_ptr(parent)
 +{
 +    thread = new ServerAcceptanceThread();
 +    thread->setMaxPendingConnections(maxPendingConnections);
@@ -4719,7 +4719,7 @@ index 1816a23f..167ca7e2 100644
  
  typedef QHash<QLowEnergyHandle, QLowEnergyServicePrivate::CharData> CharacteristicDataMap;
 diff --git a/src/nfc/nfc.pro b/src/nfc/nfc.pro
-index c6ae147d..32c51022 100644
+index c6ae147d..4a84cda1 100644
 --- a/src/nfc/nfc.pro
 +++ b/src/nfc/nfc.pro
 @@ -54,7 +54,7 @@ SOURCES += \
@@ -4741,7 +4741,7 @@ index c6ae147d..32c51022 100644
 +    DEFINES += OPENHARMONY_NFC
 +    QT_PRIVATE += core-private gui
 +
-+    PRIVATE_HEADERS += \
++    HEADERS += \
 +        qllcpserver_openharmony_p.h \
 +        qllcpsocket_openharmony_p.h \
 +        qnearfieldmanager_openharmony_p.h \
