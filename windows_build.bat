@@ -1,7 +1,7 @@
 @echo off
 set "e=|| exit /b 1"
 set ROOT_DIR=%cd%
-set PATH=%PATH%;%cd%;
+set PATH=%PATH%;%cd%
 set API9_SDK=http://download.ci.openharmony.cn/version/Master_Version/OpenHarmony_3.2.10.9/20230225_073754/version-Master_Version-OpenHarmony_3.2.10.9-20230225_073754-ohos-sdk-full.tar.gz
 set API10_SDK=http://download.ci.openharmony.cn/version/Master_Version/OpenHarmony_4.0.10.5/20230824_120941/version-Master_Version-OpenHarmony_4.0.10.5-20230824_120941-ohos-sdk-full_monthly.tar.gz
 
@@ -14,9 +14,9 @@ REM goto doneargs
 
 :doneargs
 
-call :acquireUnzip
-call :acquireQtSrc
-call :acquirePatch
+REM call :acquireUnzip
+REM call :acquireQtSrc
+REM call :acquirePatch
 echo %TARGET_API%
 
 if not "%TARGET_API%" == "" (
@@ -266,7 +266,7 @@ if not exist "%BUILD_DIR%" (
 echo "BUILD_DIR:%BUILD_DIR%"
 cd %BUILD_DIR%
 REM api 9 does not support the bluetooth module
-if "%TARGET_API%" == "API10_SDK" (
+if "%API_VERSION%" == "%API10_SDK%" (
 	call %ROOT_DIR%\qt5\configure.bat -platform win32-g++ -xplatform oh-clang -device-option OHOS_ARCH=%OHOS_ARCH% -opensource -confirm-license -nomake tests -make examples -v ^
 	-prefix %QT_INSTALL_DIR% -skip doc -skip qtvirtualkeyboard -skip qtnetworkauth -skip qtwebengine -skip qtlocation -skip qtwebchannel -skip qtgamepad -skip qtscript -opengl es2 ^
 	-opengles3 -no-dbus -recheck-all
