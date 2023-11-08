@@ -14,10 +14,20 @@
 OpenHarmony - Qt
 │
 └───patch - 源码补丁
-│   │   qtbase.patch - qtbase子模块代码补丁
-|	|	qtmultimedia.patch - qtmultimedia子模块补丁
-|	|	qtconnectivity.patch - qtconnectivity子模块补丁		
-|	|   qtremoteobjects.patch - qtremoteobjects子模块代码补丁
+|____v5.12.12
+│   	│ qtbase.patch - qtbase子模块代码补丁
+|		| qtsensors.patch - qtsensors子模块补丁
+|		| qtdeclarative.patch qtdeclarative子模块补丁
+|		| qtmultimedia.patch - qtmultimedia子模块补丁
+|		| qtconnectivity.patch - qtconnectivity子模块补丁		
+|		| qtremoteobjects.patch - qtremoteobjects子模块代码补丁
+|____v5.15.11
+│   	│ qtbase.patch - qtbase子模块代码补丁
+|		| qtsensors.patch - qtsensors子模块补丁
+|		| qtdeclarative.patch qtdeclarative子模块补丁
+|		| qtmultimedia.patch - qtmultimedia子模块补丁
+|		| qtconnectivity.patch - qtconnectivity子模块补丁		
+|		| qtremoteobjects.patch - qtremoteobjects子模块代码补丁
 └───windows_build.bat - windows环境下的交叉编译脚本
 └───linux_build.sh - Linux环境下的交叉编译脚本
 └───LICENSE.FDL - GNU Free Documentation License

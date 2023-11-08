@@ -14,8 +14,20 @@ Use the "git diff" command to generate a code patch, and submit the patch to the
 OpenHarmony - Qt
 │
 └───patch - Source patch folder
-│   │   qtbase.patch - qtbase submodule patch
-|	|   qtremoteobjects.patch - qtremoteobjects submodule patch
+|____v5.12.12
+│   	│ qtbase.patch - qtbase submodule patch
+|		| qtsensors.patch - qtsensors submodule patch
+|		| qtdeclarative.patch qtdeclarative submodule patch
+|		| qtmultimedia.patch - qtmultimedia submodule patch
+|		| qtconnectivity.patch - qtconnectivity submodule patch		
+|		| qtremoteobjects.patch - qtremoteobjects submodule patch
+|____v5.15.11
+│   	│ qtbase.patch - qtbase子模块代码补丁
+|		| qtsensors.patch - qtsensors子模块补丁
+|		| qtdeclarative.patch qtdeclarative子模块补丁
+|		| qtmultimedia.patch - qtmultimedia子模块补丁
+|		| qtconnectivity.patch - qtconnectivity子模块补丁		
+|		| qtremoteobjects.patch - qtremoteobjects子模块代码补丁
 └───windows_build.bat - windows cross compile script
 └───linux_build.sh - Linux cross compile script
 └───LICENSE.FDL - GNU Free Documentation License
