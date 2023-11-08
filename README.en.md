@@ -22,12 +22,12 @@ OpenHarmony - Qt
 |		| qtconnectivity.patch - qtconnectivity submodule patch		
 |		| qtremoteobjects.patch - qtremoteobjects submodule patch
 |____v5.15.11
-│   	│ qtbase.patch - qtbase子模块代码补丁
-|		| qtsensors.patch - qtsensors子模块补丁
-|		| qtdeclarative.patch qtdeclarative子模块补丁
-|		| qtmultimedia.patch - qtmultimedia子模块补丁
-|		| qtconnectivity.patch - qtconnectivity子模块补丁		
-|		| qtremoteobjects.patch - qtremoteobjects子模块代码补丁
+│   	│ qtbase.patch - qtbase submodule patch
+|		| qtsensors.patch - qtsensors submodule patch
+|		| qtdeclarative.patch qtdeclarative submodule patch
+|		| qtmultimedia.patch - qtmultimedia submodule patch
+|		| qtconnectivity.patch - qtconnectivity submodule patch		
+|		| qtremoteobjects.patch - qtremoteobjects submodule patch
 └───windows_build.bat - windows cross compile script
 └───linux_build.sh - Linux cross compile script
 └───LICENSE.FDL - GNU Free Documentation License
@@ -49,16 +49,16 @@ OpenHarmony - Qt
 3. Install Curl tools (sudo apt-get install curl)
 
 ### Compilation Steps
-1. Execute the linux_build.sh script to complete the qt5 source code, OpenHarmony NDK and code patch application, compilation and installation
+1. Execute the linux_build.sh script to complete the qt5 source code, and code patch application, compilation and installation
 2. After the script is executed, the installation directory is generated as the bin directory of the current folder
 
 ## Windows
 ### Precondition
 1.  Install git, if installed skip, download link: https://gitforwindows.org/
 2. Install Perl, if installed skip, download link: https://strawberryperl.com/
-3. Install mingw, if installed skip, download link: https://sourceforge.net/projects/mingw/
+3. Install MinGW-w64, if installed skip, download link: https://sourceforge.net/projects/mingw/
 3. Set the running Path of the above installed program to the Path of the system environment. For example, set the path of ming32-make.exe to the path of the system environment
 
 ### Compilation Steps
-1. Execute the windows_build.bat script to complete the qt5 source code, OpenHarmony NDK and code patch application, compilation and installation
+1. Execute the windows_build.bat script to complete the qt5 source code, and code patch application, compilation and installation
 2. After the script is executed, the installation directory is generated as the bin directory of the current folder
