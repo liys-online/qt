@@ -452,6 +452,31 @@ index ad5d30d544..72a026b182 100644
  #elif defined(__CYGWIN__)
  #  define Q_OS_CYGWIN
  #elif !defined(SAG_COM) && (!defined(WINAPI_FAMILY) || WINAPI_FAMILY==WINAPI_FAMILY_DESKTOP_APP) && (defined(WIN64) || defined(_WIN64) || defined(__WIN64__))
+diff --git a/src/corelib/io/qfileselector.cpp b/src/corelib/io/qfileselector.cpp
+index ee378f6434..1798a905c6 100644
+--- a/src/corelib/io/qfileselector.cpp
++++ b/src/corelib/io/qfileselector.cpp
+@@ -199,6 +199,9 @@ static bool isLocalScheme(const QString &file)
+     bool local = file == QLatin1String("qrc");
+ #ifdef Q_OS_ANDROID
+     local |= file == QLatin1String("assets");
++#endif
++#ifdef Q_OS_OPENHARMONY
++    local |= file == QLatin1String("rawfile");
+ #endif
+     return local;
+ }
+@@ -223,6 +226,10 @@ QUrl QFileSelector::select(const QUrl &filePath) const
+         if (filePath.scheme() == QLatin1String("assets"))
+             scheme = QLatin1String("assets:");
+ #endif
++#ifdef Q_OS_OPENHARMONY
++        if (filePath.scheme() == QLatin1String("rawfile"))
++            scheme = QLatin1String("rawfile:");
++#endif
+ 
+         QString equivalentPath = scheme + filePath.path();
+         QString selectedPath = d->select(equivalentPath);
 diff --git a/src/corelib/io/qurl.cpp b/src/corelib/io/qurl.cpp
 index 50512a4a73..3d6226cd2c 100644
 --- a/src/corelib/io/qurl.cpp
@@ -1957,19 +1982,23 @@ index 0000000000..c89b2ba5b9
 +    napi_module_register(&openharmonyQtCoreModule);
 +}
 diff --git a/src/corelib/plugin/qfactoryloader.cpp b/src/corelib/plugin/qfactoryloader.cpp
-index 582f48e93e..f894e99767 100644
+index 582f48e93e..d9032f61ed 100644
 --- a/src/corelib/plugin/qfactoryloader.cpp
 +++ b/src/corelib/plugin/qfactoryloader.cpp
-@@ -196,7 +196,7 @@ void QFactoryLoader::update()
+@@ -196,10 +196,10 @@ void QFactoryLoader::update()
              continue;
          d->loadedPaths << pluginDir;
  
 -#ifdef Q_OS_ANDROID
-+#ifdef defined(Q_OS_ANDROID) || defined(Q_OS_OPENHARMONY)
++#if defined(Q_OS_ANDROID) || defined(Q_OS_OPENHARMONY)
          QString path = pluginDir;
  #else
-         QString path = pluginDir + d->suffix;
-@@ -211,7 +211,7 @@ void QFactoryLoader::update()
+-        QString path = pluginDir + d->suffix;
++        QString path = pluginDir + d->suffix;        
+ #endif
+ 
+         if (qt_debug_component())
+@@ -211,10 +211,10 @@ void QFactoryLoader::update()
          QStringList plugins = QDir(path).entryList(
  #if defined(Q_OS_WIN)
                      QStringList(QStringLiteral("*.dll")),
@@ -1977,16 +2006,23 @@ index 582f48e93e..f894e99767 100644
 +#elif defined(Q_OS_ANDROID) || defined(Q_OS_OPENHARMONY)
                      QStringList(QLatin1String("libplugins_%1_*.so").arg(d->suffix)),
  #endif
-                     QDir::Files);
-@@ -349,7 +349,7 @@ QFactoryLoader::QFactoryLoader(const char *iid,
+-                    QDir::Files);
++                    QDir::Files);        
+         QLibraryPrivate *library = nullptr;
+ 
+         for (int j = 0; j < plugins.count(); ++j) {
+@@ -349,9 +349,9 @@ QFactoryLoader::QFactoryLoader(const char *iid,
  #if QT_CONFIG(library)
      d->cs = cs;
      d->suffix = suffix;
 -# ifdef Q_OS_ANDROID
-+# ifdef defined(Q_OS_ANDROID) || defined(Q_OS_OPENHARMONY)
++#if defined(Q_OS_ANDROID) || defined(Q_OS_OPENHARMONY)
      if (!d->suffix.isEmpty() && d->suffix.at(0) == QLatin1Char('/'))
-         d->suffix.remove(0, 1);
+-        d->suffix.remove(0, 1);
++        d->suffix.remove(0, 1);    
  # endif
+ 
+     QMutexLocker locker(qt_factoryloader_mutex());
 diff --git a/src/corelib/thread/qthread_unix.cpp b/src/corelib/thread/qthread_unix.cpp
 index a27782d37c..f900b4eb5c 100644
 --- a/src/corelib/thread/qthread_unix.cpp
@@ -2061,6 +2097,32 @@ index 490ef0df28..537fd3ff69 100644
      else: name = xcb
  
      $${1}.value = $$name
+diff --git a/src/gui/kernel/qguiapplication.cpp b/src/gui/kernel/qguiapplication.cpp
+index c7ff2a6dac..bccadc3084 100644
+--- a/src/gui/kernel/qguiapplication.cpp
++++ b/src/gui/kernel/qguiapplication.cpp
+@@ -1220,7 +1220,7 @@ static void init_platform(const QString &pluginNamesWithArguments, const QString
+         arguments.append(QLibraryInfo::platformPluginArguments(argumentsKey));
+ 
+         // Create the platform integration.
+-        QGuiApplicationPrivate::platform_integration = QPlatformIntegrationFactory::create(name, arguments, argc, argv, platformPluginPath);
++        QGuiApplicationPrivate::platform_integration = QPlatformIntegrationFactory::create(name, arguments, argc, argv, platformPluginPath);        
+         if (Q_UNLIKELY(!QGuiApplicationPrivate::platform_integration)) {
+             if (availablePlugins.contains(name)) {
+                 qCInfo(lcQpaPluginLoading).nospace().noquote()
+diff --git a/src/gui/kernel/qplatformintegrationfactory.cpp b/src/gui/kernel/qplatformintegrationfactory.cpp
+index 3fcf9014a7..f478f0178c 100644
+--- a/src/gui/kernel/qplatformintegrationfactory.cpp
++++ b/src/gui/kernel/qplatformintegrationfactory.cpp
+@@ -67,7 +67,7 @@ QPlatformIntegration *QPlatformIntegrationFactory::create(const QString &platfor
+     }
+ #else
+     Q_UNUSED(platformPluginPath);
+-#endif
++#endif    
+     return qLoadPlugin<QPlatformIntegration, QPlatformIntegrationPlugin>(loader(), platform, paramList, argc, argv);
+ }
+ 
 diff --git a/src/gui/kernel/qscreen.cpp b/src/gui/kernel/qscreen.cpp
 index 990272b0c2..b1b539bfb3 100644
 --- a/src/gui/kernel/qscreen.cpp
@@ -2077,6 +2139,72 @@ index 990272b0c2..b1b539bfb3 100644
  }
  
  /*!
+diff --git a/src/network/access/qnetworkaccessfilebackend.cpp b/src/network/access/qnetworkaccessfilebackend.cpp
+index 507417f86c..a29678555e 100644
+--- a/src/network/access/qnetworkaccessfilebackend.cpp
++++ b/src/network/access/qnetworkaccessfilebackend.cpp
+@@ -57,6 +57,9 @@ QStringList QNetworkAccessFileBackendFactory::supportedSchemes() const
+             << QStringLiteral("qrc");
+ #if defined(Q_OS_ANDROID)
+     schemes << QStringLiteral("assets");
++#endif
++#if defined(Q_OS_OPENHARMONY)
++    schemes << QStringLiteral("rawfile");
+ #endif
+     return schemes;
+ }
+@@ -80,6 +83,9 @@ QNetworkAccessFileBackendFactory::create(QNetworkAccessManager::Operation op,
+     if (url.scheme().compare(QLatin1String("qrc"), Qt::CaseInsensitive) == 0
+ #if defined(Q_OS_ANDROID)
+             || url.scheme().compare(QLatin1String("assets"), Qt::CaseInsensitive) == 0
++#endif
++#if defined(Q_OS_OPENHARMONY)
++            || url.scheme().compare(QLatin1String("rawfile"), Qt::CaseInsensitive) == 0
+ #endif
+             || url.isLocalFile()) {
+         return new QNetworkAccessFileBackend;
+@@ -136,6 +142,11 @@ void QNetworkAccessFileBackend::open()
+             if (url.scheme() == QLatin1String("assets"))
+                 fileName = QLatin1String("assets:") + url.path();
+             else
++#endif
++#if defined(Q_OS_OPENHARMONY)
++            if (url.scheme() == QLatin1String("rawfile"))
++                fileName = QLatin1String("rawfile:") + url.path();
++            else
+ #endif
+                 fileName = url.toString(QUrl::RemoveAuthority | QUrl::RemoveFragment | QUrl::RemoveQuery);
+         }
+diff --git a/src/network/access/qnetworkaccessmanager.cpp b/src/network/access/qnetworkaccessmanager.cpp
+index a10fe9e3fe..7c363279a2 100644
+--- a/src/network/access/qnetworkaccessmanager.cpp
++++ b/src/network/access/qnetworkaccessmanager.cpp
+@@ -1419,6 +1419,9 @@ QNetworkReply *QNetworkAccessManager::createRequest(QNetworkAccessManager::Opera
+         if (isLocalFile
+ #ifdef Q_OS_ANDROID
+             || scheme == QLatin1String("assets")
++#endif
++#ifdef Q_OS_OPENHARMONY
++            || scheme == QLatin1String("rawfile")
+ #endif
+             || scheme == QLatin1String("qrc")) {
+             return new QNetworkReplyFileImpl(this, req, op);
+diff --git a/src/network/access/qnetworkreplyfileimpl.cpp b/src/network/access/qnetworkreplyfileimpl.cpp
+index 6e69b4c4d3..ff8ff19361 100644
+--- a/src/network/access/qnetworkreplyfileimpl.cpp
++++ b/src/network/access/qnetworkreplyfileimpl.cpp
+@@ -110,6 +110,11 @@ QNetworkReplyFileImpl::QNetworkReplyFileImpl(QNetworkAccessManager *manager, con
+             if (scheme == QLatin1String("assets"))
+                 fileName = QLatin1String("assets:") + url.path();
+             else
++#endif
++#if defined(Q_OS_OPENHARMONY)
++                if (scheme == QLatin1String("rawfile"))
++                    fileName = QLatin1String("rawfile:") + url.path();
++                else
+ #endif
+                 fileName = url.toString(QUrl::RemoveAuthority | QUrl::RemoveFragment | QUrl::RemoveQuery);
+         }
 diff --git a/src/openharmony/entryability/EntryAbility.ts b/src/openharmony/entryability/EntryAbility.ts
 new file mode 100644
 index 0000000000..a27807a01f
@@ -4434,10 +4562,10 @@ index 0000000000..1a88d88b24
 +#endif // QOPENHARMONYDEFINES_H
 diff --git a/src/plugins/platforms/openharmony/qopenharmonymain.cpp b/src/plugins/platforms/openharmony/qopenharmonymain.cpp
 new file mode 100644
-index 0000000000..5efb659962
+index 0000000000..99888b0272
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonymain.cpp
-@@ -0,0 +1,386 @@
+@@ -0,0 +1,385 @@
 +#include <memory>
 +#include <semaphore.h>
 +#include <dlfcn.h>
@@ -4541,7 +4669,6 @@ index 0000000000..5efb659962
 +    QString cacheQmlStr = qJs::getObjectPropertyValue<QString>(args[0], "qmlDir");
 +    if (!cacheQmlStr.isEmpty())
 +        qmls << cacheQmlStr.toLatin1();
-+
 +
 +    if (::setenv("QT_QPA_PLATFORM_PLUGIN_PATH", libDir.constData(), 1) != 0) {
 +        LOGE("Can't set environment for QT_PLUGIN_PATH");
@@ -4732,7 +4859,7 @@ index 0000000000..5efb659962
 + */
 +EXTERN_C_START
 +static napi_value Init(napi_env env, napi_value exports)
-+{
++{    
 +    static bool inited = false;
 +    QOpenHarmonyXComponentManager::init(env, exports);
 +    if (!inited) {
@@ -4775,7 +4902,7 @@ index 0000000000..5efb659962
 + * Module register function
 + */
 +extern "C" __attribute__((constructor)) void RegisterModule(void)
-+{
++{    
 +    napi_module_register(&openharmonyPluginModule);
 +}
 +
@@ -6967,7 +7094,7 @@ index 0000000000..410a01326e
 +#endif // QOPENHARMONYPLATFORMOPENGLWINDOW_H
 diff --git a/src/plugins/platforms/openharmony/qopenharmonyplatformplugin.cpp b/src/plugins/platforms/openharmony/qopenharmonyplatformplugin.cpp
 new file mode 100644
-index 0000000000..c4cb6257c3
+index 0000000000..bace0df107
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonyplatformplugin.cpp
 @@ -0,0 +1,26 @@
@@ -6988,7 +7115,7 @@ index 0000000000..c4cb6257c3
 +
 +QPlatformIntegration *QOpenHarmonyPlatformIntegrationPlugin::create(const QString &key, const QStringList &paramList)
 +{
-+    Q_UNUSED(paramList);
++    Q_UNUSED(paramList);    
 +    if (!key.compare(QLatin1String("openharmony"), Qt::CaseInsensitive))
 +        return new QOpenHarmonyPlatformIntegration(paramList);
 +    return 0;
@@ -8536,6 +8663,31 @@ index 8990109743..ffa3ca0dcc 100644
  qtConfig(private_tests) {
       qtConfig(network):qtConfig(gui) {
          src_network_doc_snippets.subdir = network/doc/snippets
+diff --git a/src/testlib/qplaintestlogger.cpp b/src/testlib/qplaintestlogger.cpp
+index 851a284678..2154f97ba7 100644
+--- a/src/testlib/qplaintestlogger.cpp
++++ b/src/testlib/qplaintestlogger.cpp
+@@ -66,6 +66,10 @@
+ #  include <android/log.h>
+ #endif
+ 
++#ifdef Q_OS_OPENHARMONY
++#include <QDebug>
++#endif
++
+ #ifdef Q_OS_WIN
+ #  include <qt_windows.h>
+ #endif
+@@ -221,6 +225,9 @@ void QPlainTestLogger::outputMessage(const char *str)
+     }
+ #elif defined(Q_OS_ANDROID)
+     __android_log_write(ANDROID_LOG_INFO, "QTestLib", str);
++#elif defined(Q_OS_OPENHARMONY)
++        /* wanghao TODO */
++        qInfo() << str;
+ #endif
+     outputString(str);
+ }
 diff --git a/src/testlib/qtestlog.cpp b/src/testlib/qtestlog.cpp
 index 8917f0dc0e..7042f00f2d 100644
 --- a/src/testlib/qtestlog.cpp
@@ -8594,3 +8746,55 @@ index 711effefe2..03ced89c4c 100644
  }
  
  /*!
+diff --git a/src/widgets/widgets/qtextbrowser.cpp b/src/widgets/widgets/qtextbrowser.cpp
+index 122a8529e8..138a6a5b4e 100644
+--- a/src/widgets/widgets/qtextbrowser.cpp
++++ b/src/widgets/widgets/qtextbrowser.cpp
+@@ -177,6 +177,11 @@ QString QTextBrowserPrivate::findFile(const QUrl &name) const
+         if (name.scheme() == QLatin1String("assets"))
+             fileName = QLatin1String("assets:") + name.path();
+         else
++#endif
++#if defined(Q_OS_OPENHARMONY)
++            if (name.scheme() == QLatin1String("rawfile"))
++                fileName = QLatin1String("rawfile:") + name.path();
++            else
+ #endif
+             fileName = name.toLocalFile();
+     }
+@@ -247,6 +252,9 @@ void QTextBrowserPrivate::_q_activateAnchor(const QString &href)
+             url.scheme() == QLatin1String("file")
+ #if defined(Q_OS_ANDROID)
+             || url.scheme() == QLatin1String("assets")
++#endif
++#if defined(Q_OS_OPENHARMONY)
++            || url.scheme() == QLatin1String("rawfile")
+ #endif
+             || url.scheme() == QLatin1String("qrc");
+     if ((openExternalLinks && !isFileScheme && !url.isRelative())
+diff --git a/tests/auto/corelib/kernel/qmetatype/tst_qmetatype.cpp b/tests/auto/corelib/kernel/qmetatype/tst_qmetatype.cpp
+index 2e2209ac5d..b6b872fc24 100644
+--- a/tests/auto/corelib/kernel/qmetatype/tst_qmetatype.cpp
++++ b/tests/auto/corelib/kernel/qmetatype/tst_qmetatype.cpp
+@@ -368,7 +368,7 @@ protected:
+             const QByteArray name = "Bar" + QByteArray::number(i) + postFix;
+             const char *nm = name.constData();
+             int tp = qRegisterMetaType<Bar>(nm);
+-#if defined(Q_OS_LINUX) && !defined(Q_OS_ANDROID)
++#if defined(Q_OS_LINUX) && !defined(Q_OS_ANDROID) && !defined(Q_OS_OPENHARMONY)
+             sched_yield();
+ #endif
+             QMetaType info(tp);
+diff --git a/tests/auto/corelib/text/qlocale/tst_qlocale.cpp b/tests/auto/corelib/text/qlocale/tst_qlocale.cpp
+index 84901f8f75..282150e327 100644
+--- a/tests/auto/corelib/text/qlocale/tst_qlocale.cpp
++++ b/tests/auto/corelib/text/qlocale/tst_qlocale.cpp
+@@ -46,7 +46,7 @@
+ #include <private/qlocale_tools_p.h>
+ #include <qnumeric.h>
+ 
+-#if defined(Q_OS_LINUX) && !defined(__UCLIBC__)
++#if defined(Q_OS_LINUX) && !defined(__UCLIBC__) && !defined(Q_OS_OPENHARMONY)
+ #    define QT_USE_FENV
+ #endif
+ 
