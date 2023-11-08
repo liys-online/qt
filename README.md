@@ -56,7 +56,7 @@ OpenHarmony - Qt
 ### 前置条件
 1. 安装git, 如果已安装则跳过，下载链接：https://gitforwindows.org/
 2. 安装Perl，如果已安装则跳过，下载链接：https://strawberryperl.com/
-3. 安装编译工具, 如果已安装则跳过，下载链接：https://sourceforge.net/projects/mingw/
+3. 安装MinGW工具, 如果已安装则跳过
 4. 将以上安装的程序运行路径设置到系统环境Path中，例：把ming32-make.exe的所在路径设置到系统环境Path中
 
 ### 编译步骤
