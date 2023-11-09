@@ -56,7 +56,7 @@ OpenHarmony - Qt
 ### Precondition
 1.  Install git, if installed skip, download link: https://gitforwindows.org/
 2. Install Perl, if installed skip, download link: https://strawberryperl.com/
-3. Install MinGW if installed skip, download link
+3. Install compilation tool if installed skip, reference linking:https://blog.csdn.net/orangebench11/article/details/126111356
 3. Set the running Path of the above installed program to the Path of the system environment. For example, set the path of ming32-make.exe to the path of the system environment
 
 ### Compilation Steps
