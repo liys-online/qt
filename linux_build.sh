@@ -11,7 +11,6 @@ API10_SDK=http://download.ci.openharmony.cn/version/Master_Version/OpenHarmony_4
 
 function downloadQtSrc(){
 	#  Download qt5 source code
-	export QT_SRC_DIR=$ROOT_DIR/${1}_SRC
 	if [ ! -d $ROOT_DIR/QT_SRC_DIR ]
 	then
 		echo "Download qt5 source code ......"
@@ -91,7 +90,7 @@ function downloadQtSrcPatch() {
 	fi
 
 	echo "Apply QtBase Patch......"
-	cd $ROOT_DIR/qt5/qtbase
+	cd $QT_SRC_DIR/qtbase
 	git reset --hard
 	git clean -fdx
 	git apply --check $PATCH_DIR/patch/$1/qtbase.patch
@@ -100,7 +99,7 @@ function downloadQtSrcPatch() {
 	cd $ROOT_DIR
 
 	echo "Apply QtConnectivity Patch......"
-	cd $ROOT_DIR/qt5/qtconnectivity
+	cd $QT_SRC_DIR/qtconnectivity
 	git reset --hard 
 	git clean -fdx 
 	git apply --check $PATCH_DIR/patch/$1/qtconnectivity.patch 
@@ -109,7 +108,7 @@ function downloadQtSrcPatch() {
 	cd $ROOT_DIR
 
 	echo "Apply QtDeclarative Patch......"
-	cd $ROOT_DIR/qt5/qtdeclarative
+	cd $QT_SRC_DIR/qtdeclarative
 	git reset --hard 
 	git clean -fdx 
 	git apply --check $PATCH_DIR/patch/$1/qtdeclarative.patch 
@@ -118,7 +117,7 @@ function downloadQtSrcPatch() {
 	cd $ROOT_DIR
 	
 	echo "Apply QtMultimedia Patch......"
-	cd $ROOT_DIR/qt5/qtmultimedia
+	cd $QT_SRC_DIR/qtmultimedia
 	git reset --hard  
 	git clean -fdx 
 	git apply --check $PATCH_DIR/patch/$1/qtmultimedia.patch 
@@ -127,7 +126,7 @@ function downloadQtSrcPatch() {
 	cd $ROOT_DIR
 
 	echo "Apply QtRemoteObjects Patch......"
-	cd $ROOT_DIR/qt5/qtremoteobjects
+	cd $QT_SRC_DIR/qtremoteobjects
 	git reset --hard 
 	git clean -fdx
 	git apply --check $PATCH_DIR/patch/$1/qtremoteobjects.patch
@@ -136,7 +135,7 @@ function downloadQtSrcPatch() {
 	cd $ROOT_DIR
 	
 	echo "Apply QtSensors Patch......"
-	cd $ROOT_DIR/qt5/qtsensors
+	cd $QT_SRC_DIR/qtsensors
 	git reset --hard 
 	git clean -fdx
 	git apply --check $PATCH_DIR/patch/$1/qtsensors.patch
@@ -250,7 +249,7 @@ echo "OHOS_SDK_V=$OHOS_SDK_V"
 
 ROOT_DIR=$(cd `dirname $0`;pwd)
 echo "ROOT_DIR=${ROOT_DIR}"
-
+export QT_SRC_DIR=$ROOT_DIR/${QT_VERSION}_SRC
 downloadQtSrc $QT_VERSION
 downloadQtSrcPatch $QT_VERSION
 TARGET_VERSION=API${OHOS_SDK_V}_SDK

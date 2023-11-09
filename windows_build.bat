@@ -189,7 +189,7 @@ if not exist "%PATCH_DIR%" (
 
 REM <------------------------------apply git patch to the qt5 source------------------------------>
 echo "Apply QtBase Patch......"
-cd %ROOT_DIR%/qt5/qtbase
+cd %QT_SRC_DIR%/qtbase
  git reset --hard 
  git clean -fdx
  git apply --check %PATCH_DIR%/patch/%QT_VERSION%/qtbase.patch 
@@ -198,7 +198,7 @@ cd %ROOT_DIR%/qt5/qtbase
 cd %ROOT_DIR%
 
 echo "Apply QtConnectivity Patch......"
-cd %ROOT_DIR%/qt5/qtconnectivity
+cd %QT_SRC_DIR%/qtconnectivity
  git reset --hard 
  git clean -fdx 
  git apply --check %PATCH_DIR%/patch/%QT_VERSION%/qtconnectivity.patch 
@@ -207,7 +207,7 @@ cd %ROOT_DIR%/qt5/qtconnectivity
 cd %ROOT_DIR%
 
 echo "Apply QtDeclarative Patch......"
-cd %ROOT_DIR%/qt5/qtdeclarative
+cd %QT_SRC_DIR%/qtdeclarative
  git reset --hard 
  git clean -fdx 
  git apply --check %PATCH_DIR%/patch/%QT_VERSION%/qtdeclarative.patch 
@@ -216,7 +216,7 @@ cd %ROOT_DIR%/qt5/qtdeclarative
 cd %ROOT_DIR%
 
 echo "Apply QtMultimedia Patch......"
-cd %ROOT_DIR%/qt5/qtmultimedia
+cd %QT_SRC_DIR%/qtmultimedia
  git reset --hard  
  git clean -fdx 
  git apply --check %PATCH_DIR%/patch/%QT_VERSION%/qtmultimedia.patch 
@@ -226,7 +226,7 @@ cd %ROOT_DIR%
 
 
 echo "Apply QtRemoteObjects Patch......"
-cd %ROOT_DIR%/qt5/qtremoteobjects
+cd %QT_SRC_DIR%/qtremoteobjects
  git reset --hard 
  git clean -fdx 
  git apply --check %PATCH_DIR%/patch/%QT_VERSION%/qtremoteobjects.patch 
@@ -235,7 +235,7 @@ cd %ROOT_DIR%/qt5/qtremoteobjects
 cd %ROOT_DIR%
 
 echo "Apply QtSensors Patch......"
-cd %ROOT_DIR%/qt5/qtsensors
+cd %QT_SRC_DIR%/qtsensors
  git reset --hard 
  git clean -fdx 
  git apply --check %PATCH_DIR%/patch/%QT_VERSION%/qtsensors.patch
