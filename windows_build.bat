@@ -1,7 +1,7 @@
 @echo off
 set "e=|| exit /b 1"
 set ROOT_DIR=%cd%
-set PATH=%PATH%;%cd%
+set PATH=%PATH%;%cd%;
 set API9_SDK=http://download.ci.openharmony.cn/version/Master_Version/OpenHarmony_3.2.10.9/20230225_073754/version-Master_Version-OpenHarmony_3.2.10.9-20230225_073754-ohos-sdk-full.tar.gz
 set API10_SDK=http://download.ci.openharmony.cn/version/Master_Version/OpenHarmony_4.0.10.5/20230824_120941/version-Master_Version-OpenHarmony_4.0.10.5-20230824_120941-ohos-sdk-full_monthly.tar.gz
 
@@ -14,9 +14,9 @@ REM goto doneargs
 
 :doneargs
 
-REM call :acquireUnzip
-REM call :acquireQtSrc
-REM call :acquirePatch
+call :acquireUnzip
+call :acquireQtSrc
+call :acquirePatch
 echo %TARGET_API%
 
 if not "%TARGET_API%" == "" (
@@ -74,17 +74,18 @@ pause&exit /b
 
 :acquireQtSrc
 REM <------------------------------download qt5 source------------------------------>
-echo %ROOT_DIR% 
-if not exist "%ROOT_DIR%\qt5" (
-  echo "Download qt5 source code ....."
-  git clone https://gitee.com/CplusCplus/qt5.git -b %QT_VERSION% --recursive
-  REM cd qt5
+set QT_SRC_DIR=%ROOT_DIR%\%QT_VERSION%_SRC
+echo %QT_SRC_DIR% 
+if not exist "%QT_SRC_DIR%" (
+  echo "Download %QT_VERSION%  source code ....."
+  git clone https://gitee.com/CplusCplus/qt5.git -b %QT_VERSION% --recursive %QT_SRC_DIR%
+  REM cd %QT_SRC_DIR%
   REM git submodule update --init --recursive
   REM git checkout origin %QT_VERSION%
   REM cd %ROOT_DIR%
 ) else (
 	echo "Update qt source code ......"
-	cd qt5
+	cd %QT_SRC_DIR%
 
 	git clean -fdx
 	git reset --hard
@@ -266,12 +267,12 @@ if not exist "%BUILD_DIR%" (
 echo "BUILD_DIR:%BUILD_DIR%"
 cd %BUILD_DIR%
 REM api 9 does not support the bluetooth module
-if "%API_VERSION%" == "%API10_SDK%" (
-	call %ROOT_DIR%\qt5\configure.bat -platform win32-g++ -xplatform oh-clang -device-option OHOS_ARCH=%OHOS_ARCH% -opensource -confirm-license -nomake tests -make examples -v ^
+if "%TARGET_API%" == "%API10_SDK%" (
+	call %ROOT_DIR%\%QT_SRC_DIR%\configure.bat -platform win32-g++ -xplatform oh-clang -device-option OHOS_ARCH=%OHOS_ARCH% -opensource -confirm-license -nomake tests -make examples -v ^
 	-prefix %QT_INSTALL_DIR% -skip doc -skip qtvirtualkeyboard -skip qtnetworkauth -skip qtwebengine -skip qtlocation -skip qtwebchannel -skip qtgamepad -skip qtscript -opengl es2 ^
 	-opengles3 -no-dbus -recheck-all
 ) else (
-	call %ROOT_DIR%\qt5\configure.bat -platform win32-g++ -xplatform oh-clang -device-option OHOS_ARCH=%OHOS_ARCH% -opensource -confirm-license -nomake tests -make examples -v ^
+	call %ROOT_DIR%\%QT_SRC_DIR%\configure.bat -platform win32-g++ -xplatform oh-clang -device-option OHOS_ARCH=%OHOS_ARCH% -opensource -confirm-license -nomake tests -make examples -v ^
 	-prefix %QT_INSTALL_DIR% -skip doc -skip qtconnectivity -skip qtvirtualkeyboard -skip qtnetworkauth -skip qtwebengine -skip qtlocation -skip qtwebchannel -skip qtgamepad -skip qtscript -opengl es2 ^
 	-opengles3 -no-dbus -recheck-all
 )
