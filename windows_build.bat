@@ -8,7 +8,9 @@ set API10_SDK=http://download.ci.openharmony.cn/version/Master_Version/OpenHarmo
 set ARGS=%*
 set QT_VERSION=v5.12.12
 set OHOS_ARCH=arm64-v8a
+set API_VERSION=10
 set TARGET_API=%API10_SDK%
+set QT_SRC_DIR=%ROOT_DIR%\%QT_VERSION%_SRC
 goto :doargs %ARGS%
 REM goto doneargs
 
