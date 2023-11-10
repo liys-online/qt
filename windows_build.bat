@@ -265,13 +265,14 @@ if not exist "%BUILD_DIR%" (
    mkdir %BUILD_DIR%   
 )
 echo "BUILD_DIR:%BUILD_DIR%"
+echo "API_VERSION:%API_VERSION%"
 cd %BUILD_DIR%
 REM api 9 does not support the bluetooth module
-if "%TARGET_API%" == "%API10_SDK%" (
+if "%API_VERSION%" == "10" (	
 	call %QT_SRC_DIR%\configure.bat -platform win32-g++ -xplatform oh-clang -device-option OHOS_ARCH=%OHOS_ARCH% -opensource -confirm-license -nomake tests -make examples -v ^
 	-prefix %QT_INSTALL_DIR% -skip doc -skip qtvirtualkeyboard -skip qtnetworkauth -skip qtwebengine -skip qtlocation -skip qtwebchannel -skip qtgamepad -skip qtscript -opengl es2 ^
 	-opengles3 -no-dbus -recheck-all
-) else (
+) else (	
 	call %QT_SRC_DIR%\configure.bat -platform win32-g++ -xplatform oh-clang -device-option OHOS_ARCH=%OHOS_ARCH% -opensource -confirm-license -nomake tests -make examples -v ^
 	-prefix %QT_INSTALL_DIR% -skip doc -skip qtconnectivity -skip qtvirtualkeyboard -skip qtnetworkauth -skip qtwebengine -skip qtlocation -skip qtwebchannel -skip qtgamepad -skip qtscript -opengl es2 ^
 	-opengles3 -no-dbus -recheck-all
