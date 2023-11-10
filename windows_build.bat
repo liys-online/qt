@@ -64,17 +64,17 @@ pause&exit /b
 :qtset
 	shift
 	set QT_VERSION=%~1
+	set QT_SRC_DIR=%ROOT_DIR%\%QT_VERSION%_SRC
 	goto nextarg
 	
 :apiset
 	shift
-	set API_VERSION=%~1
+	set API_VERSION=%~1	
 	call set TARGET_API=%%API%API_VERSION%_SDK%%  
 	goto nextarg
 
 :acquireQtSrc
 REM <------------------------------download qt5 source------------------------------>
-set QT_SRC_DIR=%ROOT_DIR%\%QT_VERSION%_SRC
 echo %QT_SRC_DIR% 
 if not exist "%QT_SRC_DIR%" (
   echo "Download %QT_VERSION%  source code ....."
