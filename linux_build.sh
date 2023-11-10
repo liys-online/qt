@@ -11,13 +11,13 @@ API10_SDK=http://download.ci.openharmony.cn/version/Master_Version/OpenHarmony_4
 
 function downloadQtSrc(){
 	#  Download qt5 source code
-	if [ ! -d $ROOT_DIR/qt5 ]
+	if [ ! -d $ROOT_DIR/QT_SRC_DIR ]
 	then
 		echo "Download qt5 source code ......"
-		git clone https://gitee.com/CplusCplus/qt5.git -b $1 --recursive
+		git clone https://gitee.com/CplusCplus/qt5.git -b $1 --recursive $QT_SRC_DIR
 	else
 		echo "Update qt source code ......"
-		cd $ROOT_DIR/qt5
+		cd $QT_SRC_DIR
 
 		git clean -fdx
 		git reset --hard
@@ -90,7 +90,7 @@ function downloadQtSrcPatch() {
 	fi
 
 	echo "Apply QtBase Patch......"
-	cd $ROOT_DIR/qt5/qtbase
+	cd $QT_SRC_DIR/qtbase
 	git reset --hard
 	git clean -fdx
 	git apply --check $PATCH_DIR/patch/$1/qtbase.patch
@@ -99,7 +99,7 @@ function downloadQtSrcPatch() {
 	cd $ROOT_DIR
 
 	echo "Apply QtConnectivity Patch......"
-	cd $ROOT_DIR/qt5/qtconnectivity
+	cd $QT_SRC_DIR/qtconnectivity
 	git reset --hard 
 	git clean -fdx 
 	git apply --check $PATCH_DIR/patch/$1/qtconnectivity.patch 
@@ -108,7 +108,7 @@ function downloadQtSrcPatch() {
 	cd $ROOT_DIR
 
 	echo "Apply QtDeclarative Patch......"
-	cd $ROOT_DIR/qt5/qtdeclarative
+	cd $QT_SRC_DIR/qtdeclarative
 	git reset --hard 
 	git clean -fdx 
 	git apply --check $PATCH_DIR/patch/$1/qtdeclarative.patch 
@@ -117,7 +117,7 @@ function downloadQtSrcPatch() {
 	cd $ROOT_DIR
 	
 	echo "Apply QtMultimedia Patch......"
-	cd $ROOT_DIR/qt5/qtmultimedia
+	cd $QT_SRC_DIR/qtmultimedia
 	git reset --hard  
 	git clean -fdx 
 	git apply --check $PATCH_DIR/patch/$1/qtmultimedia.patch 
@@ -126,7 +126,7 @@ function downloadQtSrcPatch() {
 	cd $ROOT_DIR
 
 	echo "Apply QtRemoteObjects Patch......"
-	cd $ROOT_DIR/qt5/qtremoteobjects
+	cd $QT_SRC_DIR/qtremoteobjects
 	git reset --hard 
 	git clean -fdx
 	git apply --check $PATCH_DIR/patch/$1/qtremoteobjects.patch
@@ -135,7 +135,7 @@ function downloadQtSrcPatch() {
 	cd $ROOT_DIR
 	
 	echo "Apply QtSensors Patch......"
-	cd $ROOT_DIR/qt5/qtsensors
+	cd $QT_SRC_DIR/qtsensors
 	git reset --hard 
 	git clean -fdx
 	git apply --check $PATCH_DIR/patch/$1/qtsensors.patch
@@ -146,7 +146,7 @@ function downloadQtSrcPatch() {
 
 function buildQtSrc() {
 	OH_SDK_VERSION="$(echo $(echo "$1" | awk -F '/' '{print $6}') | awk -F '_' '{print $2}')"
-	BIN_DIR=$ROOT_DIR/qt_${QT_VERSION}_oh_sdk_${OH_SDK_VERSION}_bin/$2
+	BIN_DIR=$ROOT_DIR/qt_${2}_oh_sdk_${OH_SDK_VERSION}_bin/$2
 	if [ "$OHOS_ARCH" == "arm64-v8a" ]
 	then
 		QT_INSTALL_DIR=$BIN_DIR/aarch64-linux-ohos
@@ -169,16 +169,16 @@ function buildQtSrc() {
 		mkdir -p $BUILD_DIR
 	fi
 
-	chmod +x $ROOT_DIR/qt5 -R
+	chmod +x $QT_SRC_DIR -R
 	cd $BUILD_DIR
 	if [ "$3" == "10" ];
 	then
-		$ROOT_DIR/qt5/configure -xplatform oh-clang -device-option OHOS_ARCH=$OHOS_ARCH -opensource -confirm-license -nomake tests -make examples -v \
+		$QT_SRC_DIR/configure -xplatform oh-clang -device-option OHOS_ARCH=$OHOS_ARCH -opensource -confirm-license -nomake tests -make examples -v \
 		-prefix $QT_INSTALL_DIR -skip doc -skip qtvirtualkeyboard -skip qtnetworkauth -skip qtwebengine -skip qtlocation -skip qtwebchannel \
 		-skip qtgamepad -skip qtscript -opengl es2 -opengles3 -no-dbus -recheck-all
 	elif if [ "$3" == "9" ] 
 	then
-		$ROOT_DIR/qt5/configure -xplatform oh-clang -device-option OHOS_ARCH=$OHOS_ARCH -opensource -confirm-license -nomake tests -make examples -v \
+		$QT_SRC_DIR/configure -xplatform oh-clang -device-option OHOS_ARCH=$OHOS_ARCH -opensource -confirm-license -nomake tests -make examples -v \
 		-prefix $QT_INSTALL_DIR -skip doc -skip qtconnectivity -skip qtvirtualkeyboard -skip qtnetworkauth -skip qtwebengine -skip qtlocation -skip qtwebchannel \
 		-skip qtgamepad -skip qtscript -opengl es2 -opengles3 -no-dbus -recheck-all
 	fi
@@ -249,7 +249,7 @@ echo "OHOS_SDK_V=$OHOS_SDK_V"
 
 ROOT_DIR=$(cd `dirname $0`;pwd)
 echo "ROOT_DIR=${ROOT_DIR}"
-
+export QT_SRC_DIR=$ROOT_DIR/${QT_VERSION}_SRC
 downloadQtSrc $QT_VERSION
 downloadQtSrcPatch $QT_VERSION
 TARGET_VERSION=API${OHOS_SDK_V}_SDK

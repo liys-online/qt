@@ -14,10 +14,20 @@
 OpenHarmony - Qt
 │
 └───patch - 源码补丁
-│   │   qtbase.patch - qtbase子模块代码补丁
-|	|	qtmultimedia.patch - qtmultimedia子模块补丁
-|	|	qtconnectivity.patch - qtconnectivity子模块补丁		
-|	|   qtremoteobjects.patch - qtremoteobjects子模块代码补丁
+|____v5.12.12
+│   	│ qtbase.patch - qtbase子模块代码补丁
+|		| qtsensors.patch - qtsensors子模块补丁
+|		| qtdeclarative.patch qtdeclarative子模块补丁
+|		| qtmultimedia.patch - qtmultimedia子模块补丁
+|		| qtconnectivity.patch - qtconnectivity子模块补丁		
+|		| qtremoteobjects.patch - qtremoteobjects子模块代码补丁
+|____v5.15.11
+│   	│ qtbase.patch - qtbase子模块代码补丁
+|		| qtsensors.patch - qtsensors子模块补丁
+|		| qtdeclarative.patch qtdeclarative子模块补丁
+|		| qtmultimedia.patch - qtmultimedia子模块补丁
+|		| qtconnectivity.patch - qtconnectivity子模块补丁		
+|		| qtremoteobjects.patch - qtremoteobjects子模块代码补丁
 └───windows_build.bat - windows环境下的交叉编译脚本
 └───linux_build.sh - Linux环境下的交叉编译脚本
 └───LICENSE.FDL - GNU Free Documentation License
@@ -39,18 +49,18 @@ OpenHarmony - Qt
 3. 安装Curl工具（sudo apt-get install curl）
 
 ### 编译步骤
-1. 执行linux_build.sh脚本，完成qt5源码、OpenHarmony NDK及代码补丁应用和编译安装
+1. 执行linux_build.sh脚本，完成qt5源码、代码补丁应用和编译安装
 2. 脚本执行完成后，生成安装目录为当前文件夹的bin目录
 
 ## Windows环境下
 ### 前置条件
 1. 安装git, 如果已安装则跳过，下载链接：https://gitforwindows.org/
 2. 安装Perl，如果已安装则跳过，下载链接：https://strawberryperl.com/
-3. 安装mingw, 如果已安装则跳过，下载链接：https://sourceforge.net/projects/mingw/
+3. 安装编译工具, 如果已安装则跳过，参考链接：https://blog.csdn.net/orangebench11/article/details/126111356
 4. 将以上安装的程序运行路径设置到系统环境Path中，例：把ming32-make.exe的所在路径设置到系统环境Path中
 
 ### 编译步骤
-1. 执行windows_build.bat脚本，完成qt5源码、OpenHarmony NDK及代码补丁应用和编译安装
+1. 执行windows_build.bat脚本，完成qt5源码、代码补丁应用和编译安装
 2. 脚本执行完成后，生成安装目录为当前文件夹的bin目录
 
 # Qt For OpenHarmony使用
