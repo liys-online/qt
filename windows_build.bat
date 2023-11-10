@@ -13,7 +13,6 @@ goto :doargs %ARGS%
 REM goto doneargs
 
 :doneargs
-
 call :acquireUnzip
 call :acquireQtSrc
 call :acquirePatch
@@ -69,8 +68,8 @@ pause&exit /b
 	
 :apiset
 	shift
-	set API_VERSION=%~1	
-	call set TARGET_API=%%API%API_VERSION%_SDK%%  
+	set API_VERSION=%~1
+	call set TARGET_API=%%API%API_VERSION%_SDK%%	
 	goto nextarg
 
 :acquireQtSrc
