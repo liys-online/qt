@@ -8,12 +8,13 @@ set API10_SDK=http://download.ci.openharmony.cn/version/Master_Version/OpenHarmo
 set ARGS=%*
 set QT_VERSION=v5.12.12
 set OHOS_ARCH=arm64-v8a
+set API_VERSION=10
 set TARGET_API=%API10_SDK%
+set QT_SRC_DIR=%ROOT_DIR%\%QT_VERSION%_SRC
 goto :doargs %ARGS%
 REM goto doneargs
 
 :doneargs
-
 call :acquireUnzip
 call :acquireQtSrc
 call :acquirePatch
@@ -64,17 +65,17 @@ pause&exit /b
 :qtset
 	shift
 	set QT_VERSION=%~1
+	set QT_SRC_DIR=%ROOT_DIR%\%QT_VERSION%_SRC
 	goto nextarg
 	
 :apiset
 	shift
 	set API_VERSION=%~1
-	call set TARGET_API=%%API%API_VERSION%_SDK%%  
+	call set TARGET_API=%%API%API_VERSION%_SDK%%	
 	goto nextarg
 
 :acquireQtSrc
 REM <------------------------------download qt5 source------------------------------>
-set QT_SRC_DIR=%ROOT_DIR%\%QT_VERSION%_SRC
 echo %QT_SRC_DIR% 
 if not exist "%QT_SRC_DIR%" (
   echo "Download %QT_VERSION%  source code ....."
