@@ -40,25 +40,6 @@ OpenHarmony - Qt
 └───README.en.md - English readme
 ```
 
-# Compile Configuration Instructions
+# Using Qt For OpenHarmony
 
-## Linux
-### Precondition
-1. Complete cross-compilation based on Ubuntu20.04 amd64 version, download link: https://releases.ubuntu.com/focal/ubuntu-20.04.5-desktop-amd64.iso
-2. Install Git tools (sudo apt-get install git)
-3. Install Curl tools (sudo apt-get install curl)
-
-### Compilation Steps
-1. Execute the linux_build.sh script to complete the qt5 source code, and code patch application, compilation and installation
-2. After the script is executed, the installation directory is generated as the bin directory of the current folder
-
-## Windows
-### Precondition
-1.  Install git, if installed skip, download link: https://gitforwindows.org/
-2. Install Perl, if installed skip, download link: https://strawberryperl.com/
-3. Install compilation tool if installed skip, reference linking:https://blog.csdn.net/orangebench11/article/details/126111356
-3. Set the running Path of the above installed program to the Path of the system environment. For example, set the path of ming32-make.exe to the path of the system environment
-
-### Compilation Steps
-1. Execute the windows_build.bat script to complete the qt5 source code, and code patch application, compilation and installation
-2. After the script is executed, the installation directory is generated as the bin directory of the current folder
+See the repository wiki for instructions:https://gitee.com/openharmony-sig/qt/wikis

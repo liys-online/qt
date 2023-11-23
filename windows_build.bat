@@ -60,7 +60,7 @@ pause&exit /b
 
 :platform
     shift
-    set PLATFORM=%~1
+    set OHOS_ARCH=%~1
     goto nextarg
 :qtset
 	shift

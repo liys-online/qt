@@ -176,7 +176,7 @@ function buildQtSrc() {
 		$QT_SRC_DIR/configure -xplatform oh-clang -device-option OHOS_ARCH=$OHOS_ARCH -opensource -confirm-license -nomake tests -make examples -v \
 		-prefix $QT_INSTALL_DIR -skip doc -skip qtvirtualkeyboard -skip qtnetworkauth -skip qtwebengine -skip qtlocation -skip qtwebchannel \
 		-skip qtgamepad -skip qtscript -opengl es2 -opengles3 -no-dbus -recheck-all
-	elif if [ "$3" == "9" ] 
+	elif [ "$3" == "9" ] 
 	then
 		$QT_SRC_DIR/configure -xplatform oh-clang -device-option OHOS_ARCH=$OHOS_ARCH -opensource -confirm-license -nomake tests -make examples -v \
 		-prefix $QT_INSTALL_DIR -skip doc -skip qtconnectivity -skip qtvirtualkeyboard -skip qtnetworkauth -skip qtwebengine -skip qtlocation -skip qtwebchannel \
