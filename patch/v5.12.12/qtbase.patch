@@ -7230,13 +7230,13 @@ index 0000000000..c4cb6257c3
 +
 diff --git a/src/plugins/platforms/openharmony/qopenharmonyplatformscreen.cpp b/src/plugins/platforms/openharmony/qopenharmonyplatformscreen.cpp
 new file mode 100644
-index 0000000000..a8fe4b25a5
+index 0000000000..1653d3dc3d
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonyplatformscreen.cpp
-@@ -0,0 +1,308 @@
+@@ -0,0 +1,320 @@
 +#include <QDebug>
 +#include <QTime>
-+
++#include <QStaticText>
 +#include <qpa/qwindowsysteminterface.h>
 +
 +#include "qopenharmonymain.h"
@@ -7507,6 +7507,18 @@ index 0000000000..a8fe4b25a5
 +
 +    for (const QRect &rect : visibleRegion)
 +        compositePainter.fillRect(rect, QColor(Qt::transparent));
++
++    compositePainter.save();
++    QString ct("managed by isoftstone");
++    QStaticText sct(ct);
++    QFontMetrics fm(compositePainter.font());
++    int height = fm.height();
++    int width = fm.horizontalAdvance(ct);
++    QPoint tp = screenImage.rect().bottomRight();
++    tp.rx() -= (width + 2);
++    tp.ry() -= (height + 2);
++    compositePainter.drawStaticText(tp, sct);
++    compositePainter.restore();
 +
 +    m_component->paint(screenImage);
 +    m_dirtyRect = QRect();
