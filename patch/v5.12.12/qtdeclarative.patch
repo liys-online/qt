@@ -148,14 +148,15 @@ index 9e5bc0b021..e12c80a777 100644
      if (isResource) {
          // qrc resource
 diff --git a/src/quick/items/qquickwindow.cpp b/src/quick/items/qquickwindow.cpp
-index 3c97475e86..8ee3092026 100644
+index 3c97475e86..307ae5fd5c 100644
 --- a/src/quick/items/qquickwindow.cpp
 +++ b/src/quick/items/qquickwindow.cpp
-@@ -45,6 +45,11 @@
+@@ -45,6 +45,12 @@
  #include "qquickitem_p.h"
  #include "qquickevents_p_p.h"
  
 +#ifdef USE_MASK
++#include <limits>
 +#include "qquicktext_p.h"
 +#include <private/qquicktext_p_p.h>
 +#endif
@@ -163,7 +164,7 @@ index 3c97475e86..8ee3092026 100644
  #include <private/qquickdrag_p.h>
  #include <private/qquickhoverhandler_p.h>
  #include <private/qquickpointerhandler_p.h>
-@@ -627,6 +632,15 @@ void QQuickWindowPrivate::init(QQuickWindow *c, QQuickRenderControl *control)
+@@ -627,6 +633,16 @@ void QQuickWindowPrivate::init(QQuickWindow *c, QQuickRenderControl *control)
      contentItemPrivate->flags |= QQuickItem::ItemIsFocusScope;
      contentItem->setSize(q->size());
  
@@ -171,9 +172,10 @@ index 3c97475e86..8ee3092026 100644
 +    QQuickText *mask = new QQuickText(contentItem);
 +    mask->setColor(QColor(Qt::red));
 +    mask->setText("managed by isoftstone");
++    mask->setZ(std::numeric_limits<qreal>::max());
 +    QQuickTextPrivate *maskPrivate = QQuickTextPrivate::get(mask);
 +    maskPrivate->anchors()->setRight(contentItemPrivate->right());
-+    maskPrivate->anchors()->setBottom(contentItemPrivate->bottom());
++    maskPrivate->anchors()->setBottom(contentItemPrivate->bottom());    
 +#endif
 +
      customRenderMode = qgetenv("QSG_VISUALIZE");
