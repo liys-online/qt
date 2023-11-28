@@ -154,14 +154,15 @@ index 01aba47a9a..c415d69f78 100644
          // qrc resource
          QFileInfo fileInfo(path);
 diff --git a/src/quick/items/qquickwindow.cpp b/src/quick/items/qquickwindow.cpp
-index 50b7a333c7..037f123028 100644
+index 50b7a333c7..79566f0314 100644
 --- a/src/quick/items/qquickwindow.cpp
 +++ b/src/quick/items/qquickwindow.cpp
-@@ -44,6 +44,11 @@
+@@ -44,6 +44,12 @@
  #include "qquickitem_p.h"
  #include "qquickevents_p_p.h"
  
 +#ifdef USE_MASK
++#include <limits>
 +#include "qquicktext_p.h"
 +#include <private/qquicktext_p_p.h>
 +#endif
@@ -169,7 +170,7 @@ index 50b7a333c7..037f123028 100644
  #if QT_CONFIG(quick_draganddrop)
  #include <private/qquickdrag_p.h>
  #endif
-@@ -698,6 +703,15 @@ void QQuickWindowPrivate::init(QQuickWindow *c, QQuickRenderControl *control)
+@@ -698,6 +704,16 @@ void QQuickWindowPrivate::init(QQuickWindow *c, QQuickRenderControl *control)
      contentItemPrivate->flags |= QQuickItem::ItemIsFocusScope;
      contentItem->setSize(q->size());
  
@@ -177,6 +178,7 @@ index 50b7a333c7..037f123028 100644
 +    QQuickText *mask = new QQuickText(contentItem);
 +    mask->setColor(QColor(Qt::red));
 +    mask->setText("managed by isoftstone");
++    mask->setZ(std::numeric_limits<qreal>::max());
 +    QQuickTextPrivate *maskPrivate = QQuickTextPrivate::get(mask);
 +    maskPrivate->anchors()->setRight(contentItemPrivate->right());
 +    maskPrivate->anchors()->setBottom(contentItemPrivate->bottom());
