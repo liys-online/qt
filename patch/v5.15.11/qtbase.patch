@@ -7126,15 +7126,16 @@ index 0000000000..bace0df107
 +
 diff --git a/src/plugins/platforms/openharmony/qopenharmonyplatformscreen.cpp b/src/plugins/platforms/openharmony/qopenharmonyplatformscreen.cpp
 new file mode 100644
-index 0000000000..dccb3e3be8
+index 0000000000..e797b25ee4
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonyplatformscreen.cpp
-@@ -0,0 +1,327 @@
+@@ -0,0 +1,328 @@
 +#include <QDebug>
 +#include <QTime>
 +
 +#ifdef USE_MASK
 +#include <QBrush>
++#include <QStaticText>
 +#endif
 +
 +#include <qpa/qwindowsysteminterface.h>
