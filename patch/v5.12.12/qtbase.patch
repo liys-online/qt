@@ -2109,6 +2109,21 @@ index 1b95449a10..b409140a2d 100644
      else: name = xcb
  
      $${1}.value = $$name
+diff --git a/src/gui/gui.pro b/src/gui/gui.pro
+index 06c9cd3939..91603d3b42 100644
+--- a/src/gui/gui.pro
++++ b/src/gui/gui.pro
+@@ -70,7 +70,9 @@ qtConfig(angle) {
+     CMAKE_QT_OPENGL_IMPLEMENTATION = GLESv2
+ } else {
+     qtConfig(egl) {
+-        CMAKE_EGL_LIBS = $$cmakeProcessLibs($$QMAKE_LIBS_EGL)
++        #FIXME wanghao changed QMAKE_LIBS_EGL is absolute path
++        CMAKE_EGL_LIBS = EGL
++        #CMAKE_EGL_LIBS = $$cmakeProcessLibs($$QMAKE_LIBS_EGL)
+         !isEmpty(QMAKE_LIBDIR_EGL): CMAKE_EGL_LIBDIR += $$cmakeTargetPath($$QMAKE_LIBDIR_EGL)
+     }
+ 
 diff --git a/src/gui/kernel/qscreen.cpp b/src/gui/kernel/qscreen.cpp
 index f208eb02be..9033d0730c 100644
 --- a/src/gui/kernel/qscreen.cpp
@@ -2369,7 +2384,7 @@ index 0000000000..a27807a01f
 +};
 diff --git a/src/openharmony/native/QtApplication.ts b/src/openharmony/native/QtApplication.ts
 new file mode 100644
-index 0000000000..eb0207dbeb
+index 0000000000..80078d5778
 --- /dev/null
 +++ b/src/openharmony/native/QtApplication.ts
 @@ -0,0 +1,166 @@
@@ -2542,7 +2557,7 @@ index 0000000000..eb0207dbeb
 \ No newline at end of file
 diff --git a/src/openharmony/native/QtCore/QtDialog.ts b/src/openharmony/native/QtCore/QtDialog.ts
 new file mode 100644
-index 0000000000..4fe4992840
+index 0000000000..02e081bd68
 --- /dev/null
 +++ b/src/openharmony/native/QtCore/QtDialog.ts
 @@ -0,0 +1,177 @@
@@ -2726,7 +2741,7 @@ index 0000000000..4fe4992840
 \ No newline at end of file
 diff --git a/src/openharmony/native/QtCore/QtFile.ts b/src/openharmony/native/QtCore/QtFile.ts
 new file mode 100644
-index 0000000000..61168000a5
+index 0000000000..d3ac75abe0
 --- /dev/null
 +++ b/src/openharmony/native/QtCore/QtFile.ts
 @@ -0,0 +1,91 @@
@@ -2824,7 +2839,7 @@ index 0000000000..61168000a5
 \ No newline at end of file
 diff --git a/src/openharmony/native/QtCore/QtFileManager.ts b/src/openharmony/native/QtCore/QtFileManager.ts
 new file mode 100644
-index 0000000000..28ac854645
+index 0000000000..ade0e9f618
 --- /dev/null
 +++ b/src/openharmony/native/QtCore/QtFileManager.ts
 @@ -0,0 +1,17 @@
@@ -2911,7 +2926,7 @@ index 0000000000..6444b5d261
 +}
 diff --git a/src/openharmony/native/QtCore/QtPasteBoard.ts b/src/openharmony/native/QtCore/QtPasteBoard.ts
 new file mode 100644
-index 0000000000..c6fb19f4ae
+index 0000000000..7a3156704b
 --- /dev/null
 +++ b/src/openharmony/native/QtCore/QtPasteBoard.ts
 @@ -0,0 +1,32 @@
@@ -2950,7 +2965,7 @@ index 0000000000..c6fb19f4ae
 \ No newline at end of file
 diff --git a/src/openharmony/native/QtCore/QtWindowManager.ts b/src/openharmony/native/QtCore/QtWindowManager.ts
 new file mode 100644
-index 0000000000..67b0103032
+index 0000000000..9ff2bf5abe
 --- /dev/null
 +++ b/src/openharmony/native/QtCore/QtWindowManager.ts
 @@ -0,0 +1,90 @@
@@ -3121,7 +3136,7 @@ index 0000000000..76df62efeb
 +}
 diff --git a/src/openharmony/pages/components/EditBoxDialog.ets b/src/openharmony/pages/components/EditBoxDialog.ets
 new file mode 100644
-index 0000000000..f1a5378845
+index 0000000000..b930efcaed
 --- /dev/null
 +++ b/src/openharmony/pages/components/EditBoxDialog.ets
 @@ -0,0 +1,34 @@
@@ -7230,17 +7245,15 @@ index 0000000000..c4cb6257c3
 +
 diff --git a/src/plugins/platforms/openharmony/qopenharmonyplatformscreen.cpp b/src/plugins/platforms/openharmony/qopenharmonyplatformscreen.cpp
 new file mode 100644
-index 0000000000..24d8564621
+index 0000000000..aeb0873fb5
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonyplatformscreen.cpp
-@@ -0,0 +1,328 @@
+@@ -0,0 +1,326 @@
 +#include <QDebug>
 +#include <QTime>
-+
 +#ifdef USE_MASK
 +#include <QBrush>
 +#endif
-+
 +#include <QStaticText>
 +#include <qpa/qwindowsysteminterface.h>
 +
@@ -7515,7 +7528,7 @@ index 0000000000..24d8564621
 +
 +#ifdef USE_MASK
 +    compositePainter.save();
-+    compositePainter.setBrush(QBrush(Qt::red)));
++    compositePainter.setBrush(QBrush(Qt::red));
 +    QString ct("managed by isoftstone");
 +    QStaticText sct(ct);
 +    QFontMetrics fm(compositePainter.font());
@@ -8903,13 +8916,82 @@ index e6fac74ccc..ca6e8f3c45 100644
  #endif
              QMetaType info(tp);
 diff --git a/tests/auto/corelib/plugin/qpluginloader/almostplugin/almostplugin.cpp b/tests/auto/corelib/plugin/qpluginloader/almostplugin/almostplugin.cpp
-index 75806dd285..0d3da67f95 100644
+index 75806dd285..b4904109ec 100644
 --- a/tests/auto/corelib/plugin/qpluginloader/almostplugin/almostplugin.cpp
 +++ b/tests/auto/corelib/plugin/qpluginloader/almostplugin/almostplugin.cpp
-@@ -34,3 +34,8 @@ QString AlmostPlugin::pluginName() const
-     unresolvedSymbol();
-     return QLatin1String("Plugin ok");
- }
+@@ -1,36 +1,41 @@
+-/****************************************************************************
+-**
+-** Copyright (C) 2016 The Qt Company Ltd.
+-** Contact: https://www.qt.io/licensing/
+-**
+-** This file is part of the test suite of the Qt Toolkit.
+-**
+-** $QT_BEGIN_LICENSE:GPL-EXCEPT$
+-** Commercial License Usage
+-** Licensees holding valid commercial Qt licenses may use this file in
+-** accordance with the commercial license agreement provided with the
+-** Software or, alternatively, in accordance with the terms contained in
+-** a written agreement between you and The Qt Company. For licensing terms
+-** and conditions see https://www.qt.io/terms-conditions. For further
+-** information use the contact form at https://www.qt.io/contact-us.
+-**
+-** GNU General Public License Usage
+-** Alternatively, this file may be used under the terms of the GNU
+-** General Public License version 3 as published by the Free Software
+-** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+-** included in the packaging of this file. Please review the following
+-** information to ensure the GNU General Public License requirements will
+-** be met: https://www.gnu.org/licenses/gpl-3.0.html.
+-**
+-** $QT_END_LICENSE$
+-**
+-****************************************************************************/
+-#include <QtCore/QString>
+-#include "almostplugin.h"
+-#include <QtCore/qplugin.h>
+-
+-QString AlmostPlugin::pluginName() const
+-{
+-    unresolvedSymbol();
+-    return QLatin1String("Plugin ok");
+-}
++/****************************************************************************
++**
++** Copyright (C) 2016 The Qt Company Ltd.
++** Contact: https://www.qt.io/licensing/
++**
++** This file is part of the test suite of the Qt Toolkit.
++**
++** $QT_BEGIN_LICENSE:GPL-EXCEPT$
++** Commercial License Usage
++** Licensees holding valid commercial Qt licenses may use this file in
++** accordance with the commercial license agreement provided with the
++** Software or, alternatively, in accordance with the terms contained in
++** a written agreement between you and The Qt Company. For licensing terms
++** and conditions see https://www.qt.io/terms-conditions. For further
++** information use the contact form at https://www.qt.io/contact-us.
++**
++** GNU General Public License Usage
++** Alternatively, this file may be used under the terms of the GNU
++** General Public License version 3 as published by the Free Software
++** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
++** included in the packaging of this file. Please review the following
++** information to ensure the GNU General Public License requirements will
++** be met: https://www.gnu.org/licenses/gpl-3.0.html.
++**
++** $QT_END_LICENSE$
++**
++****************************************************************************/
++#include <QtCore/QString>
++#include "almostplugin.h"
++#include <QtCore/qplugin.h>
++
++QString AlmostPlugin::pluginName() const
++{
++    unresolvedSymbol();
++    return QLatin1String("Plugin ok");
++}
 +
 +void AlmostPlugin::unresolvedSymbol() const
 +{
@@ -9101,39 +9183,264 @@ index 230ae4d8aa..33ebc80f00 100644
  
  void tst_QLocale::toDateTime_data()
 diff --git a/tests/auto/corelib/tools/tools.pro b/tests/auto/corelib/tools/tools.pro
-index f28cf21b8b..b9b499909e 100644
+index f28cf21b8b..1c12619544 100644
 --- a/tests/auto/corelib/tools/tools.pro
 +++ b/tests/auto/corelib/tools/tools.pro
-@@ -68,4 +68,4 @@ SUBDIRS=\
-     qvector_strictiterators \
-     qversionnumber
- 
+@@ -1,71 +1,71 @@
+-TEMPLATE=subdirs
+-SUBDIRS=\
+-    collections \
+-    containerapisymmetry \
+-    qalgorithms \
+-    qarraydata \
+-    qarraydata_strictiterators \
+-    qbitarray \
+-    qbytearray \
+-    qbytearraylist \
+-    qbytearraymatcher \
+-    qbytedatabuffer \
+-    qcache \
+-    qchar \
+-    qcollator \
+-    qcommandlineparser \
+-    qcontiguouscache \
+-    qcryptographichash \
+-    qdate \
+-    qdatetime \
+-    qeasingcurve \
+-    qexplicitlyshareddatapointer \
+-    qfreelist \
+-    qhash \
+-    qhash_strictiterators \
+-    qhashfunctions \
+-    qlatin1string \
+-    qline \
+-    qlinkedlist \
+-    qlist \
+-    qlist_strictiterators \
+-    qlocale \
+-    qmakearray \
+-    qmap \
+-    qmap_strictiterators \
+-    qmargins \
+-    qmessageauthenticationcode \
+-    qpair \
+-    qpoint \
+-    qpointf \
+-    qqueue \
+-    qrect \
+-    qregexp \
+-    qregularexpression \
+-    qringbuffer \
+-    qscopedpointer \
+-    qscopedvaluerollback \
+-    qset \
+-    qsharedpointer \
+-    qsize \
+-    qsizef \
+-    qstl \
+-    qstring \
+-    qstring_no_cast_from_bytearray \
+-    qstringapisymmetry \
+-    qstringbuilder \
+-    qstringiterator \
+-    qstringlist \
+-    qstringmatcher \
+-    qstringref \
+-    qstringview \
+-    qtextboundaryfinder \
+-    qtime \
+-    qtimezone \
+-    qtimeline \
+-    qvarlengtharray \
+-    qvector \
+-    qvector_strictiterators \
+-    qversionnumber
+-
 -darwin: SUBDIRS += qmacautoreleasepool
++TEMPLATE=subdirs
++SUBDIRS=\
++    collections \
++    containerapisymmetry \
++    qalgorithms \
++    qarraydata \
++    qarraydata_strictiterators \
++    qbitarray \
++    qbytearray \
++    qbytearraylist \
++    qbytearraymatcher \
++    qbytedatabuffer \
++    qcache \
++    qchar \
++    qcollator \
++    qcommandlineparser \
++    qcontiguouscache \
++    qcryptographichash \
++    qdate \
++    qdatetime \
++    qeasingcurve \
++    qexplicitlyshareddatapointer \
++    qfreelist \
++    qhash \
++    qhash_strictiterators \
++    qhashfunctions \
++    qlatin1string \
++    qline \
++    qlinkedlist \
++    qlist \
++    qlist_strictiterators \
++    qlocale \
++    qmakearray \
++    qmap \
++    qmap_strictiterators \
++    qmargins \
++    qmessageauthenticationcode \
++    qpair \
++    qpoint \
++    qpointf \
++    qqueue \
++    qrect \
++    qregexp \
++    qregularexpression \
++    qringbuffer \
++    qscopedpointer \
++    qscopedvaluerollback \
++    qset \
++    qsharedpointer \
++    qsize \
++    qsizef \
++    qstl \
++    qstring \
++    qstring_no_cast_from_bytearray \
++    qstringapisymmetry \
++    qstringbuilder \
++    qstringiterator \
++    qstringlist \
++    qstringmatcher \
++    qstringref \
++    qstringview \
++    qtextboundaryfinder \
++    qtime \
++    qtimezone \
++    qtimeline \
++    qvarlengtharray \
++    qvector \
++    qvector_strictiterators \
++    qversionnumber
++
 +darwin: SUBDIRS += qmacautoreleasepool
 \ No newline at end of file
 diff --git a/tests/auto/network/access/access.pro b/tests/auto/network/access/access.pro
-index b140b5e9f2..ecf4de171e 100644
+index b140b5e9f2..a0abd994b0 100644
 --- a/tests/auto/network/access/access.pro
 +++ b/tests/auto/network/access/access.pro
-@@ -23,3 +23,7 @@ SUBDIRS=\
-           hpack \
-           http2 \
-           hsts
+@@ -1,25 +1,29 @@
+-TEMPLATE=subdirs
+-SUBDIRS=\
+-   qnetworkdiskcache \
+-   qnetworkcookiejar \
+-   qnetworkaccessmanager \
+-   qnetworkcookie \
+-   qnetworkrequest \
+-   qhttpnetworkconnection \
+-   qnetworkreply \
+-   spdy \
+-   qnetworkcachemetadata \
+-   qftp \
+-   qhttpnetworkreply \
+-   qabstractnetworkcache \
+-   hpack \
+-   http2 \
+-   hsts
+-
+-!qtConfig(private_tests): SUBDIRS -= \
+-          qhttpnetworkconnection \
+-          qhttpnetworkreply \
+-          qftp \
+-          hpack \
+-          http2 \
+-          hsts
++TEMPLATE=subdirs
++SUBDIRS=\
++   qnetworkdiskcache \
++   qnetworkcookiejar \
++   qnetworkaccessmanager \
++   qnetworkcookie \
++   qnetworkrequest \
++   qhttpnetworkconnection \
++   qnetworkreply \
++   spdy \
++   qnetworkcachemetadata \
++   qftp \
++   qhttpnetworkreply \
++   qabstractnetworkcache \
++   hpack \
++   http2 \
++   hsts
++
++!qtConfig(private_tests): SUBDIRS -= \
++          qhttpnetworkconnection \
++          qhttpnetworkreply \
++          qftp \
++          hpack \
++          http2 \
++          hsts
 +
 +#TODO support http
 +SUBDIRS -= qnetworkreply \
 +           spdy
 \ No newline at end of file
 diff --git a/tests/auto/network/kernel/kernel.pro b/tests/auto/network/kernel/kernel.pro
-index 42df80dfa1..f454e4efd9 100644
+index 42df80dfa1..c3ef0fa6c7 100644
 --- a/tests/auto/network/kernel/kernel.pro
 +++ b/tests/auto/network/kernel/kernel.pro
-@@ -20,5 +20,4 @@ osx: SUBDIRS -= \ # QTBUG-41847
- 
- !qtConfig(private_tests): SUBDIRS -= \
-     qauthenticator \
+@@ -1,24 +1,23 @@
+-TEMPLATE=subdirs
+-SUBDIRS=\
+-   qdnslookup \
+-   qdnslookup_appless \
+-   qhostinfo \
+-   qnetworkproxyfactory \
+-   qauthenticator \
+-   qnetworkproxy \
+-   qnetworkinterface \
+-   qnetworkdatagram \
+-   qnetworkaddressentry \
+-   qhostaddress \
+-
+-winrt: SUBDIRS -= \
+-   qnetworkproxy \
+-   qnetworkproxyfactory \
+-
+-osx: SUBDIRS -= \ # QTBUG-41847
 -    qhostinfo \
 -
+-!qtConfig(private_tests): SUBDIRS -= \
+-    qauthenticator \
+-    qhostinfo \
+-
++TEMPLATE=subdirs
++SUBDIRS=\
++   qdnslookup \
++   qdnslookup_appless \
++   qhostinfo \
++   qnetworkproxyfactory \
++   qauthenticator \
++   qnetworkproxy \
++   qnetworkinterface \
++   qnetworkdatagram \
++   qnetworkaddressentry \
++   qhostaddress \
++
++winrt: SUBDIRS -= \
++   qnetworkproxy \
++   qnetworkproxyfactory \
++
++osx: SUBDIRS -= \ # QTBUG-41847
++    qhostinfo \
++
++!qtConfig(private_tests): SUBDIRS -= \
++    qauthenticator \
 +    qhostinfo \
 \ No newline at end of file
 diff --git a/tests/auto/network/kernel/qhostaddress/tst_qhostaddress.cpp b/tests/auto/network/kernel/qhostaddress/tst_qhostaddress.cpp
