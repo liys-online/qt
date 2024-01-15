@@ -163,16 +163,17 @@ index 00000000..5a2d24cf
 +#endif // BLUETOOTHDATARECEIVER_P_H
 diff --git a/src/bluetooth/openharmony/lowenergynotificationhub.cpp b/src/bluetooth/openharmony/lowenergynotificationhub.cpp
 new file mode 100644
-index 00000000..8887cd88
+index 00000000..ded1be45
 --- /dev/null
 +++ b/src/bluetooth/openharmony/lowenergynotificationhub.cpp
-@@ -0,0 +1,366 @@
+@@ -0,0 +1,367 @@
 +#include "lowenergynotificationhub_p.h"
 +
 +#include <QtCore/QHash>
 +#include <QtCore/QLoggingCategory>
 +#include <QtCore/QRandomGenerator>
 +#include <QtCore/QOpenHarmonyJsObject>
++#include <QtCore/QOpenHarmonyJsObjectLoader>
 +#include <QtCore/qopenharmonydefines.h>
 +
 +QT_BEGIN_NAMESPACE
@@ -188,21 +189,21 @@ index 00000000..8887cd88
 +                                                   bool isPeripheral, QObject *parent)
 +    :   QObject(parent), jsToCtoken(0)
 +{
-+    QOpenHarmonyJsObject jsBluetoothManager("qtbluetoothmanager");
-+    if (!jsBluetoothManager.isValid())
++    QSharedPointer<QOpenHarmonyJsObject> jsBluetoothManager = qJsObjectLoader->create("JsBluetoothManager");
++    if (jsBluetoothManager.isNull() || !jsBluetoothManager->isValid())
 +        return;
 +
 +    static int index = 0;
 +    QString name = QString("QtLowEnergyNotificationHub%1").arg(index++);
 +    bool result = false;
 +    if (isPeripheral) {
-+        result = jsBluetoothManager.call<bool>("createBluetoothGattServer", name);
++        result = jsBluetoothManager->call<bool>("createBluetoothGattServer", name);
 +    } else {
-+        result = jsBluetoothManager.call<bool>("createBluetoothLE", name, remote.toString());
++        result = jsBluetoothManager->call<bool>("createBluetoothLE", name, remote.toString());
 +    }
 +    if (result) {
-+        m_jsBluetoothLe = new QOpenHarmonyJsObject(name);
-+        if (!m_jsBluetoothLe->isValid())
++        m_jsBluetoothLe = qJsObjectLoader->create(name);
++        if (m_jsBluetoothLe.isNull() || !m_jsBluetoothLe->isValid())
 +            return;
 +    }
 +
@@ -535,15 +536,16 @@ index 00000000..8887cd88
 +QT_END_NAMESPACE
 diff --git a/src/bluetooth/openharmony/lowenergynotificationhub_p.h b/src/bluetooth/openharmony/lowenergynotificationhub_p.h
 new file mode 100644
-index 00000000..049a5094
+index 00000000..ad2f5db1
 --- /dev/null
 +++ b/src/bluetooth/openharmony/lowenergynotificationhub_p.h
-@@ -0,0 +1,61 @@
+@@ -0,0 +1,62 @@
 +#ifndef LOWENERGYNOTIFICATIONHUB_H
 +#define LOWENERGYNOTIFICATIONHUB_H
 +
 +#include <napi/native_api.h>
 +#include <QtCore/QObject>
++#include <QtCore/QSharedPointer>
 +#include <QtCore/QReadWriteLock>
 +#include <QtBluetooth/QBluetoothAddress>
 +#include <QtBluetooth/QLowEnergyController>
@@ -561,7 +563,7 @@ index 00000000..049a5094
 +                                      QObject *parent = nullptr);
 +    ~LowEnergyNotificationHub();
 +
-+    QOpenHarmonyJsObject *jsObject()
++    QSharedPointer<QOpenHarmonyJsObject> jsObject() const
 +    {
 +        return m_jsBluetoothLe;
 +    }
@@ -591,7 +593,7 @@ index 00000000..049a5094
 +
 +public slots:
 +private:
-+    QOpenHarmonyJsObject *m_jsBluetoothLe;
++    QSharedPointer<QOpenHarmonyJsObject> m_jsBluetoothLe;
 +    int jsToCtoken;
 +
 +};
@@ -628,14 +630,15 @@ index 00000000..fbc1329e
 +
 diff --git a/src/bluetooth/openharmony/openharmonybluetoothdiscoveryreceiver.cpp b/src/bluetooth/openharmony/openharmonybluetoothdiscoveryreceiver.cpp
 new file mode 100644
-index 00000000..d2b81cbe
+index 00000000..fb2801fb
 --- /dev/null
 +++ b/src/bluetooth/openharmony/openharmonybluetoothdiscoveryreceiver.cpp
-@@ -0,0 +1,87 @@
+@@ -0,0 +1,88 @@
 +#include "openharmonybluetoothdiscoveryreceiver_p.h"
 +#include "qopenharmonydefines.h"
 +#include <QOpenHarmonyJsEnvironment>
 +#include <QOpenHarmonyJsObject>
++#include <QOpenHarmonyJsObjectLoader>
 +#include <QRunnable>
 +#include <QBluetoothAddress>
 +#include <QBluetoothDeviceInfo>
@@ -700,7 +703,7 @@ index 00000000..d2b81cbe
 +                target = receiver->m_targets.takeFirst();
 +        }
 +        if (!target.isEmpty()) {
-+            QScopedPointer<QOpenHarmonyJsObject> jsRemote(new QOpenHarmonyJsObject(target));
++            QSharedPointer<QOpenHarmonyJsObject> jsRemote = qJsObjectLoader->create(target);
 +            if (!jsRemote->isValid())
 +                continue;
 +            int classOfDevice = jsRemote->call<int>("getClass");
@@ -1072,7 +1075,7 @@ index 00000000..5ddd0e36
 +#endif // OPENHARMONYSERVICEDISCOVERYRECEIVER_H
 diff --git a/src/bluetooth/openharmony/serveracceptancethread.cpp b/src/bluetooth/openharmony/serveracceptancethread.cpp
 new file mode 100644
-index 00000000..79276518
+index 00000000..193f8371
 --- /dev/null
 +++ b/src/bluetooth/openharmony/serveracceptancethread.cpp
 @@ -0,0 +1,201 @@
@@ -1137,7 +1140,7 @@ index 00000000..79276518
 +      QObject(parent), maxPendingConnections(1)
 +{
 +    qRegisterMetaType<QBluetoothServer::Error>();
-+    m_btSrv = qJsObjectLoader->create("qtbluetoothserver");
++    m_btSrv = qJsObjectLoader->create("JsBluetoothServer");
 +}
 +
 +ServerAcceptanceThread::~ServerAcceptanceThread()
@@ -1216,7 +1219,7 @@ index 00000000..79276518
 +        return;
 +    }
 +
-+    jsThread.reset(new QOpenHarmonyJsObject(tmpName));
++    jsThread = qJsObjectLoader->create(tmpName);
 +    if (!jsThread->isValid())
 +        return;
 +
@@ -1348,7 +1351,7 @@ index 6eab11fb..49d27923 100644
  QT_END_NAMESPACE
 diff --git a/src/bluetooth/qbluetoothdevicediscoveryagent_ohos.cpp b/src/bluetooth/qbluetoothdevicediscoveryagent_ohos.cpp
 new file mode 100644
-index 00000000..1b29b3fa
+index 00000000..060c8aef
 --- /dev/null
 +++ b/src/bluetooth/qbluetoothdevicediscoveryagent_ohos.cpp
 @@ -0,0 +1,276 @@
@@ -1395,7 +1398,7 @@ index 00000000..1b29b3fa
 +      lowEnergySearchTimeout(25000),
 +      q_ptr(parent)
 +{
-+    m_jsBluetoothManager = qJsObjectLoader->create("qtbluetoothmanager");
++    m_jsBluetoothManager = qJsObjectLoader->create("JsBluetoothManager");
 +}
 +
 +QBluetoothDeviceDiscoveryAgentPrivate::~QBluetoothDeviceDiscoveryAgentPrivate()
@@ -1698,10 +1701,10 @@ index 9f6d1e1b..59bdd36b 100644
  
 diff --git a/src/bluetooth/qbluetoothlocaldevice_ohos.cpp b/src/bluetooth/qbluetoothlocaldevice_ohos.cpp
 new file mode 100644
-index 00000000..b42c4b4d
+index 00000000..dfe5f7b2
 --- /dev/null
 +++ b/src/bluetooth/qbluetoothlocaldevice_ohos.cpp
-@@ -0,0 +1,333 @@
+@@ -0,0 +1,332 @@
 +#include <QtCore/QLoggingCategory>
 +#include <QtBluetooth/QBluetoothLocalDevice>
 +#include <QtBluetooth/QBluetoothAddress>
@@ -1739,7 +1742,7 @@ index 00000000..b42c4b4d
 +
 +void QBluetoothLocalDevicePrivate::initialize(const QBluetoothAddress &address)
 +{
-+    m_jsBluetoothManager = qJsObjectLoader->create("qtbluetoothmanager");
++    m_jsBluetoothManager = qJsObjectLoader->create("JsBluetoothManager");
 +    if (!m_jsBluetoothManager->call<bool>("isSupport")) {
 +        qCWarning(QT_BT_OPENHARMONY) <<  "Device does not support Bluetooth";
 +        return;
@@ -1946,13 +1949,12 @@ index 00000000..b42c4b4d
 +{
 +    QList<QBluetoothHostInfo> localDevices;
 +
-+    qJsObjectLoader->create("qtbluetoothmanager");
-+    QOpenHarmonyJsObject obj("qtbluetoothmanager");
++    QSharedPointer<QOpenHarmonyJsObject> obj = qJsObjectLoader->create("JsBluetoothManager");
 +
-+    if (obj.isValid()) {
++    if (!obj.isNull() && obj->isValid()) {
 +        QBluetoothHostInfo info;
-+        info.setName(obj.call<QString>("getLocalName"));
-+        info.setAddress(QBluetoothAddress(obj.call<QString>("getAddress")));
++        info.setName(obj->call<QString>("getLocalName"));
++        info.setAddress(QBluetoothAddress(obj->call<QString>("getAddress")));
 +        localDevices.append(info);        
 +    }
 +    return localDevices;
@@ -2105,7 +2107,7 @@ index 1f99f27e..b30c6004 100644
  {
 diff --git a/src/bluetooth/qbluetoothserver_ohos.cpp b/src/bluetooth/qbluetoothserver_ohos.cpp
 new file mode 100644
-index 00000000..bb22a696
+index 00000000..90b98398
 --- /dev/null
 +++ b/src/bluetooth/qbluetoothserver_ohos.cpp
 @@ -0,0 +1,237 @@
@@ -2232,7 +2234,7 @@ index 00000000..bb22a696
 +        return false;
 +
 +    //check Bluetooth is available and online
-+    static QSharedPointer<QOpenHarmonyJsObject> btMgr = qJsObjectLoader->create("qtbluetoothmanager");
++    static QSharedPointer<QOpenHarmonyJsObject> btMgr = qJsObjectLoader->create("JsBluetoothManager");
 +    if (!btMgr->isValid()) {
 +        qCWarning(QT_BT_OPENHARMONY) << "Device does not support Bluetooth";
 +        d->m_lastError = QBluetoothServer::UnknownError;
@@ -2471,7 +2473,7 @@ index 53ce98e5..a6dfd9b0 100644
  }
 diff --git a/src/bluetooth/qbluetoothservicediscoveryagent_ohos.cpp b/src/bluetooth/qbluetoothservicediscoveryagent_ohos.cpp
 new file mode 100644
-index 00000000..d896fe77
+index 00000000..ffc400d6
 --- /dev/null
 +++ b/src/bluetooth/qbluetoothservicediscoveryagent_ohos.cpp
 @@ -0,0 +1,445 @@
@@ -2532,7 +2534,7 @@ index 00000000..d896fe77
 +      The logic below must change once there is more than one adapter.
 +    */    
 +    if (createAdapter)
-+        m_jsBtMgr = qJsObjectLoader->create("qtbluetoothmanager");
++        m_jsBtMgr = qJsObjectLoader->create("JsBluetoothManager");
 +
 +    if (!m_jsBtMgr->isValid())
 +        qCWarning(QT_BT_OPENHARMONY) << "Platform does not support Bluetooth";
@@ -2617,7 +2619,7 @@ index 00000000..d896fe77
 +            qWarning() << "<<<<<<<<------444" << address.toString();
 +            m_jsBtMgr->call<bool>("createServiceAdapter", name, QVariant(qlonglong(static_cast<QObject*>(receiver))));
 +            qWarning() << "<<<<<<<<------555" << address.toString();
-+            m_jsAdapter.reset(new QOpenHarmonyJsObject(name));
++            m_jsAdapter = qJsObjectLoader->create(name);
 +            QObject::connect(receiver, &OPenHarmonyServiceDiscoveryReceiver::uuidFetchFinished,
 +                             q, [this](const QBluetoothAddress &address, const QList<QBluetoothUuid>& uuids) {
 +                                 qWarning() << "<<<<<<<<------_q_processFetchedUuids" << address;
@@ -3124,7 +3126,7 @@ index d2535544..e4ca30e4 100644
  
 diff --git a/src/bluetooth/qbluetoothsocket_ohos.cpp b/src/bluetooth/qbluetoothsocket_ohos.cpp
 new file mode 100644
-index 00000000..fd06780e
+index 00000000..6f301fdb
 --- /dev/null
 +++ b/src/bluetooth/qbluetoothsocket_ohos.cpp
 @@ -0,0 +1,501 @@
@@ -3223,7 +3225,7 @@ index 00000000..fd06780e
 +    : m_receiver(nullptr)
 +{
 +    secFlags = QBluetooth::Secure;
-+    m_jsBluetoothManager = qJsObjectLoader->create("qtbluetoothmanager");
++    m_jsBluetoothManager = qJsObjectLoader->create("JsBluetoothManager");
 +    qRegisterMetaType<QBluetoothSocket::SocketError>();
 +    qRegisterMetaType<QBluetoothSocket::SocketState>();
 +}
@@ -3783,10 +3785,10 @@ index 6b4c17d6..0115700f 100644
          return;
 diff --git a/src/bluetooth/qlowenergycontroller_ohos.cpp b/src/bluetooth/qlowenergycontroller_ohos.cpp
 new file mode 100644
-index 00000000..2eaf32f1
+index 00000000..73fb98eb
 --- /dev/null
 +++ b/src/bluetooth/qlowenergycontroller_ohos.cpp
-@@ -0,0 +1,870 @@
+@@ -0,0 +1,871 @@
 +#include <QtCore/QLoggingCategory>
 +#include <QtBluetooth/QLowEnergyServiceData>
 +#include <QtBluetooth/QLowEnergyCharacteristicData>
@@ -3795,7 +3797,8 @@ index 00000000..2eaf32f1
 +#include <QtBluetooth/QLowEnergyAdvertisingParameters>
 +#include <QtBluetooth/QLowEnergyConnectionParameters>
 +
-+#include "QtCore/qopenharmonyjsobject.h"
++#include <QtCore/QOpenHarmonyJsObject>
++#include <QtCore/QOpenHarmonyJsObjectLoader>
 +#include "qlowenergycontroller_ohos_p.h"
 +
 +QT_BEGIN_NAMESPACE
@@ -4611,7 +4614,7 @@ index 00000000..2eaf32f1
 +    static int index = 0;
 +    QString name = QString("QLowEnergyControllerPrivateOpenHarmonyService%1").arg(index++);
 +    bool result = hub->jsObject()->call<bool>("createService", name, jsUuidfromQtUuid(service->uuid), isPrimary);
-+    QScopedPointer<QOpenHarmonyJsObject> jsService(new QOpenHarmonyJsObject(name));
++    QSharedPointer<QOpenHarmonyJsObject> jsService = qJsObjectLoader->create(name);
 +    if (result) {
 +        if (!jsService->isValid()) {
 +            qWarning(QT_BT_OPENHARMONY) << "Cannot init js gatt server ";
@@ -4854,7 +4857,7 @@ index ed88b79a..c10a7900 100644
  isEmpty(NFC_BACKEND_AVAILABLE) {
 diff --git a/src/nfc/openharmony/openharmonynfc.cpp b/src/nfc/openharmony/openharmonynfc.cpp
 new file mode 100644
-index 00000000..586b3c27
+index 00000000..5c7360fd
 --- /dev/null
 +++ b/src/nfc/openharmony/openharmonynfc.cpp
 @@ -0,0 +1,94 @@
@@ -4873,25 +4876,25 @@ index 00000000..586b3c27
 +
 +bool startDiscovery()
 +{
-+    QSharedPointer<QOpenHarmonyJsObject> jsNfc = qJsObjectLoader->create("qtnfc");
++    QSharedPointer<QOpenHarmonyJsObject> jsNfc = qJsObjectLoader->create("JsNfc");
 +    return jsNfc->call<bool>("start");
 +}
 +
 +bool isAvailable()
 +{
-+    QSharedPointer<QOpenHarmonyJsObject> jsNfc = qJsObjectLoader->create("qtnfc");
++    QSharedPointer<QOpenHarmonyJsObject> jsNfc = qJsObjectLoader->create("JsNfc");
 +    return jsNfc->call<bool>("isAvailable");
 +}
 +
 +bool isSupported()
 +{
-+    QSharedPointer<QOpenHarmonyJsObject> jsNfc = qJsObjectLoader->create("qtnfc");
++    QSharedPointer<QOpenHarmonyJsObject> jsNfc = qJsObjectLoader->create("JsNfc");
 +    return jsNfc->call<bool>("isSupported");
 +}
 +
 +bool stopDiscovery()
 +{
-+    QSharedPointer<QOpenHarmonyJsObject> jsNfc = qJsObjectLoader->create("qtnfc");
++    QSharedPointer<QOpenHarmonyJsObject> jsNfc = qJsObjectLoader->create("JsNfc");
 +    return jsNfc->call<bool>("stop");
 +}
 +
@@ -8277,64 +8280,63 @@ index 00000000..be9b65ab
 +  }
 +}
 \ No newline at end of file
-diff --git a/src/openharmony/nfc/native/QtNfc/QtNfc.ts b/src/openharmony/nfc/native/QtNfc/QtNfc.ts
+diff --git a/src/openharmony/nfc/native/QtNfc/JsNfc.ts b/src/openharmony/nfc/native/QtNfc/JsNfc.ts
 new file mode 100644
-index 00000000..9c930f45
+index 00000000..cf7558d8
 --- /dev/null
-+++ b/src/openharmony/nfc/native/QtNfc/QtNfc.ts
-@@ -0,0 +1,64 @@
++++ b/src/openharmony/nfc/native/QtNfc/JsNfc.ts
+@@ -0,0 +1,63 @@
 +import controller from '@ohos.nfc.controller';
-+import nfc from "libQt5Nfc.so";
 +import tag from '@ohos.nfc.tag';
 +import HashMap from '@ohos.util.HashMap';
-+import QtApplication from '../QtApplication'
-+import { QtNfcTag } from './QtNfcTag';
++import { JsNfcTag }  from './JsNfcTag';
 +import { BusinessError } from '@ohos.base';
++import JsDataStore from '../QtCore/JsDataStore'
++import JsLogger from '../QtCore/JsLogger'
 +
-+export class QtNfc {
++export class JsNfc {
 +    private tagsIndex: number = 0;
-+    private tags: HashMap<number, QtNfcTag> = null;
++    private tags: HashMap<number, JsNfcTag> = null;
 +
 +    constructor() {
 +        this.tags = new HashMap;
 +    }
 +
-+
 +    createTag(tagInfo: tag.TagInfo) {
 +        if (tagInfo == null || tagInfo == undefined) {
-+            console.log("no TagInfo to be created, ignore it.");
++            JsLogger.info("no TagInfo to be created, ignore it.");
 +            return;
 +        }
-+        let nfcTag = new QtNfcTag(tagInfo);
++        let nfcTag = new JsNfcTag(tagInfo);
 +        this.tagsIndex++;
 +        this.tags.set(this.tagsIndex, nfcTag);
 +        let name = "tagInfo" + this.tagsIndex;
-+        Reflect.defineProperty(globalThis, name, { value: nfcTag });
-+        nfc.nfcTargetDetected(name)
++        JsDataStore.initObject(name, nfcTag);
++        JsDataStore.getQtNativeModule("QtNfc").nfcTargetDetected(name)
 +    }
 +
 +    start() {
 +        controller.on("nfcStateChange", (data) => {
-+            console.log("controller on callback nfcState: " + data);
-+            nfc.nfcStateChanged(data);
++            JsLogger.info("controller on callback nfcState: %{public}s" + JSON.stringify(data));
++            JsDataStore.getQtNativeModule("QtNfc").nfcStateChanged(data);
 +        });
 +
 +        try {
 +            let discTech = [tag.NFC_A, tag.NFC_B];
-+            tag.registerForegroundDispatch(QtApplication.getInstance().getElementName(), discTech, (err : BusinessError, tagInfo : tag.TagInfo) =>{
-+                console.log("foreground callback: tag found tagInfo = ", JSON.stringify(tagInfo));
-+                globalThis.qtnfc.createTag(tagInfo);
++            tag.registerForegroundDispatch(JsDataStore.getElementName(), discTech, (err : BusinessError, tagInfo : tag.TagInfo) =>{
++                JsLogger.info("foreground callback: tag found tagInfo = %{public}s", JSON.stringify(tagInfo));
++                JsDataStore.getQtNativeModule("QtNfc").createTag(tagInfo);
 +            });
 +        } catch (e) {
-+            console.log("registerForegroundDispatch error: " + e.message);
++            JsLogger.error("registerForegroundDispatch error: " + e.message);
 +        }
 +    }
 +
 +    stop() {
 +        try {
-+            tag.unregisterForegroundDispatch(QtApplication.getInstance().getElementName());
++            tag.unregisterForegroundDispatch(JsDataStore.getElementName());
 +        } catch (e) {
-+            console.log("registerForegroundDispatch error: " + e.message);
++            JsLogger.info("registerForegroundDispatch error: " + e.message);
 +        }
 +        controller.off("nfcStateChange");
 +    }
@@ -8348,15 +8350,57 @@ index 00000000..9c930f45
 +    }
 +}
 \ No newline at end of file
-diff --git a/src/openharmony/nfc/native/QtNfc/QtNfcTag.ts b/src/openharmony/nfc/native/QtNfc/QtNfcTag.ts
+diff --git a/src/openharmony/nfc/native/QtNfc/JsNfcModule.ts b/src/openharmony/nfc/native/QtNfc/JsNfcModule.ts
 new file mode 100644
-index 00000000..04152bb6
+index 00000000..83474c74
 --- /dev/null
-+++ b/src/openharmony/nfc/native/QtNfc/QtNfcTag.ts
-@@ -0,0 +1,174 @@
-+import tag from '@ohos.nfc.tag';
++++ b/src/openharmony/nfc/native/QtNfc/JsNfcModule.ts
+@@ -0,0 +1,34 @@
++import { JsQtModule } from '../QtCore/JsQtModule';
++import JsDataStore from '../QtCore/JsDataStore';
++import JsLogger from '../QtCore/JsLogger';
++import { JsNfc } from './JsNfc';
++import { JsNfcTag } from './JsNfcTag';
 +
-+export class QtNfcTag {
++class JsNfcModule extends JsQtModule {
++
++  public constructor() {
++    super()
++    this.moduleJsObjects = {
++      JsNfc,
++      JsNfcTag
++    };
++    this.loadQtModule();
++  }
++
++  async loadQtModule(): Promise<void> {
++    let qtMajorVersion = JsDataStore.getQtMajorVersion();
++    let QtNfcModule: any = null;
++    if (qtMajorVersion == 5)
++      QtNfcModule = await import ("libQt5Nfc.so");
++    else if (qtMajorVersion == 6)
++      QtNfcModule = await import ("libQt6Nfc.so");
++    if (QtNfcModule == null) {
++      JsLogger.fatal("Cannot load QtNfc module");
++      return;
++    }
++    let QtNfc = QtNfcModule.default;
++    JsDataStore.addQtNativeModule("QtNfc", QtNfc);
++  }
++}
++
++export default new JsNfcModule;
+\ No newline at end of file
+diff --git a/src/openharmony/nfc/native/QtNfc/JsNfcTag.ts b/src/openharmony/nfc/native/QtNfc/JsNfcTag.ts
+new file mode 100644
+index 00000000..ed1834b7
+--- /dev/null
++++ b/src/openharmony/nfc/native/QtNfc/JsNfcTag.ts
+@@ -0,0 +1,171 @@
++import tag from '@ohos.nfc.tag';
++import JsLogger from '../QtCore/JsLogger'
++
++export class JsNfcTag {
 +  private tagInfo: tag.TagInfo = null;
 +  private target = null;
 +
@@ -8428,7 +8472,7 @@ index 00000000..04152bb6
 +      let message = ndefTag.getNdefMessage();
 +      return JSON.stringify(message);
 +    } catch (error) {
-+      console.log("tag.getNdefTag catched error: " + error);
++      JsLogger.info("tag.getNdefTag catched error: " + error);
 +      return null;
 +    }
 +  }
@@ -8449,7 +8493,7 @@ index 00000000..04152bb6
 +        this.target.connect();
 +        return true;
 +      } catch (error) {
-+        console.log("tag connect busiError: " + error);
++        JsLogger.error("tag connect busiError: " + error);
 +        return false;
 +      }
 +    }
@@ -8470,26 +8514,22 @@ index 00000000..04152bb6
 +      let arrayBuffer = new Uint8Array(result).buffer;
 +      return arrayBuffer;
 +    } catch(err) {
-+      console.log("tagSession sendData Promise err: " + err);
++      JsLogger.error("tagSession sendData Promise err: " + err);
 +      return null;
 +    }
 +  }
 +
 +  format(data) {
-+    if (this.target == null)
-+      return;
 +    let message = tag.ndef.createNdefMessage(data);
-+    this.target.format(message);
++    this.target?.format(message);
 +  }
 +
 +  writeNdefMessage(data: number[]) {
-+    if (this.target == null)
-+      return;
 +    let message: tag.NdefMessage = tag.ndef.createNdefMessage(data);
 +    try {
-+      this.target.writeNdef(message);
++      this.target?.writeNdef(message);
 +    } catch (error) {
-+      console.log("ndef writeNdef Promise catch busiError Code: ${(busiError as Businsess).code}, " +
++      JsLogger.info("ndef writeNdef Promise catch busiError Code: ${(busiError as Businsess).code}, " +
 +        "message: ${(busiError as Businsess).message}");
 +    }
 +  }
@@ -8501,7 +8541,7 @@ index 00000000..04152bb6
 +    try {
 +      return this.target.getNdefTagTypeString(type);
 +    } catch (err) {
-+      console.log("ndef getNdefTagTypeString catch busiError Code: ${(busiError as Businsess).code}, " +
++      JsLogger.error("ndef getNdefTagTypeString catch busiError Code: ${(busiError as Businsess).code}, " +
 +        "message: ${(busiError as Businsess).message}");
 +    }
 +  }
