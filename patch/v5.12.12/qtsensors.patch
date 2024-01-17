@@ -1,13 +1,13 @@
-diff --git a/src/openharmony/native/QtSensors/QtSensors.ts b/src/openharmony/native/QtSensors/QtSensors.ts
+diff --git a/src/openharmony/native/QtSensors/JsSensor.ts b/src/openharmony/native/QtSensors/JsSensor.ts
 new file mode 100644
-index 00000000..8c7ad9a0
+index 00000000..c4084769
 --- /dev/null
-+++ b/src/openharmony/native/QtSensors/QtSensors.ts
-@@ -0,0 +1,132 @@
++++ b/src/openharmony/native/QtSensors/JsSensor.ts
+@@ -0,0 +1,106 @@
 +import sensor from '@ohos.sensor';
-+import qtsensorsplugin from 'libplugins_sensors_qtsensors_openharmony.so';
++import JsDataStore from '../QtCore/JsDataStore'
 +
-+export class QtSensors {
++export default class JsSensor {
 +  private pointerId = 0;
 +
 +  public constructor(id) {
@@ -28,32 +28,6 @@ index 00000000..8c7ad9a0
 +    return hz;
 +  }
 +
-+  createSensor(name, p) {
-+    let server = new QtSensors(p);
-+    Reflect.defineProperty(globalThis, name, { value: server });
-+    return true;
-+  }
-+
-+  destroySensor(name: string) {
-+    Reflect.deleteProperty(globalThis, name);
-+    this.pointerId = 0;
-+    return true;
-+  }
-+
-+  /* 获取所有传感器类型Id */
-+  async sensorIds() {
-+    let s: Array<String> = new Array();
-+    try {
-+      let sr = await sensor.getSensorList();
-+      for (let data of sr) {
-+        s.push(String(data.sensorId));
-+      }
-+    } catch (e) {
-+      console.error(`Failed to get sensorList. Code: ${e.code}, message: ${e.message}`);
-+    }
-+    return s;
-+  }
-+
 +  stop(type: sensor.SensorId) {
 +    try {
 +      sensor.off(Number(type));
@@ -72,7 +46,7 @@ index 00000000..8c7ad9a0
 +      let iv = Math.max(Math.min(max, ns), min);
 +
 +      sensor.on(Number(type), (data) => {
-+        qtsensorsplugin.DataAcception(this.pointerId, JSON.stringify(data));
++        JsDataStore.getQtNativeModule("QtSensors").DataAcception(this.pointerId, JSON.stringify(data));
 +      }, { interval: iv });
 +    } catch (error) {
 +      console.error(`Failed to invoke on. Code: ${error.code}, message: ${error.message}`);
@@ -136,6 +110,61 @@ index 00000000..8c7ad9a0
 +    return s.minSamplePeriod;
 +  }
 +}
+diff --git a/src/openharmony/native/QtSensors/JsSensorManager.ts b/src/openharmony/native/QtSensors/JsSensorManager.ts
+new file mode 100644
+index 00000000..51919095
+--- /dev/null
++++ b/src/openharmony/native/QtSensors/JsSensorManager.ts
+@@ -0,0 +1,18 @@
++import sensor from '@ohos.sensor';
++
++export default class JsSensorManager {
++
++  /* 获取所有传感器类型Id */
++  async sensorIds() {
++    let s: Array<String> = new Array();
++    try {
++      let sr = await sensor.getSensorList();
++      for (let data of sr) {
++        s.push(String(data.sensorId));
++      }
++    } catch (e) {
++      console.error(`Failed to get sensorList. Code: ${e.code}, message: ${e.message}`);
++    }
++    return s;
++  }
++}
+\ No newline at end of file
+diff --git a/src/openharmony/native/QtSensors/JsSensorsModule.ts b/src/openharmony/native/QtSensors/JsSensorsModule.ts
+new file mode 100644
+index 00000000..1d426bcf
+--- /dev/null
++++ b/src/openharmony/native/QtSensors/JsSensorsModule.ts
+@@ -0,0 +1,24 @@
++import { JsQtModule } from '../QtCore/JsQtModule';
++import JsDataStore from '../QtCore/JsDataStore';
++import JsSensor from './JsSensor';
++import JsSensorManager from './JsSensorManager';
++
++class JsNfcModule extends JsQtModule {
++
++  public constructor() {
++    super()
++    this.moduleJsObjects = {
++      JsSensor,
++      JsSensorManager
++    };
++    this.loadQtModule();
++  }
++
++  async loadQtModule(): Promise<void> {
++    let module = await import ("libplugins_sensors_qtsensors_openharmony.so");
++    let QtSensors = module.default;
++    JsDataStore.addQtNativeModule("QtSensors", QtSensors);
++  }
++}
++
++export default new JsNfcModule;
 \ No newline at end of file
 diff --git a/src/openharmony/openharmony.pro b/src/openharmony/openharmony.pro
 new file mode 100644
@@ -1103,10 +1132,10 @@ index 00000000..aa0907df
 +#endif // SENSORBACKEND_H
 diff --git a/src/plugins/sensors/openharmony/sensormanager.cpp b/src/plugins/sensors/openharmony/sensormanager.cpp
 new file mode 100644
-index 00000000..d34294f4
+index 00000000..cfa50cb0
 --- /dev/null
 +++ b/src/plugins/sensors/openharmony/sensormanager.cpp
-@@ -0,0 +1,121 @@
+@@ -0,0 +1,114 @@
 +#include "sensormanager.h"
 +#include "QtCore/qopenharmonyjsobject.h"
 +#include "QtCore/qopenharmonyjsenvironment.h"
@@ -1195,12 +1224,12 @@ index 00000000..d34294f4
 +}
 +
 +SensorManager::SensorManager() {
-+    m_sensors = qJsObjectLoader->create("qtsensors");
 +}
 +
 +QList<int> SensorManager::sensorIds() const
 +{
-+    QStringList ids = m_sensors->call<QStringList>("sensorIds");
++    QSharedPointer<QOpenHarmonyJsObject> jsSensorManager = qJsObjectLoader->create("JsSensorManager");
++    QStringList ids = jsSensorManager->call<QStringList>("sensorIds");
 +    QList<int> ns;
 +    ns.reserve(ids.size());
 +    for (const auto &id : qAsConst(ids)) {
@@ -1218,22 +1247,15 @@ index 00000000..d34294f4
 +QSharedPointer<JsSensor> SensorManager::createJsSensor(const QString &uuid, SensorBackendBase *backend)
 +{
 +    JsSensor *s = new JsSensor(uuid);
-+    m_sensors->call<bool>("createSensor", uuid, QVariant(qlonglong(backend)));    
-+    s->m_jsSensor.reset(new QOpenHarmonyJsObject(uuid));    
++    s->m_jsSensor = qJsObjectLoader->create("JsSensor", uuid, QVariantList() << QVariant(qlonglong(backend)));
 +    return QSharedPointer<JsSensor>(s);
 +}
-+
-+void SensorManager::defineProperties(size_t property_count, const napi_property_descriptor *properties)
-+{
-+    m_sensors->defineProperties(property_count, properties);
-+}
-+
 diff --git a/src/plugins/sensors/openharmony/sensormanager.h b/src/plugins/sensors/openharmony/sensormanager.h
 new file mode 100644
-index 00000000..157baa3c
+index 00000000..47c14df7
 --- /dev/null
 +++ b/src/plugins/sensors/openharmony/sensormanager.h
-@@ -0,0 +1,69 @@
+@@ -0,0 +1,65 @@
 +#ifndef SENSORMANAGER_H
 +#define SENSORMANAGER_H
 +
@@ -1296,10 +1318,6 @@ index 00000000..157baa3c
 +    QList<int> sensorIds() const;
 +    static QSharedPointer<SensorManager> &instance();
 +    QSharedPointer<JsSensor> createJsSensor(const QString &uuid, SensorBackendBase *backend);
-+    void defineProperties(size_t property_count, const napi_property_descriptor* properties);
-+
-+private:
-+    QSharedPointer<QOpenHarmonyJsObject> m_sensors;
 +};
 +
 +#endif // SENSORMANAGER_H

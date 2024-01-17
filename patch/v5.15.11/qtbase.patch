@@ -844,16 +844,17 @@ index 0000000000..0c0bd12c64
 +#endif // QJNIHELPERS_H
 diff --git a/src/corelib/kernel/qopenharmonyjsenvironment.cpp b/src/corelib/kernel/qopenharmonyjsenvironment.cpp
 new file mode 100644
-index 0000000000..a397c9f99c
+index 0000000000..08f3e533ae
 --- /dev/null
 +++ b/src/corelib/kernel/qopenharmonyjsenvironment.cpp
-@@ -0,0 +1,401 @@
+@@ -0,0 +1,440 @@
 +#include "qopenharmonyjsenvironment.h"
 +#include "qopenharmonydefines.h"
 +#include "qopenharmonyhelpers_p.h"
 +#include "qopenharmonyjsfunction.h"
 +
-+static napi_threadsafe_function g_threadsafe_function = nullptr;
++static napi_threadsafe_function g_threadsafe_call_js_function = nullptr;
++static napi_threadsafe_function g_threadsafe_remove_object_function = nullptr;
 +napi_env QOpenHarmonyJsEnvironment::m_env = nullptr;
 +
 +
@@ -864,14 +865,11 @@ index 0000000000..a397c9f99c
 +    if (function == nullptr)
 +        return;
 +
-+    napi_value undefined = nullptr;
-+    napi_get_undefined(env, &undefined);
-+    napi_value args[1] = { qJs::createString(function->jsObject()) };
-+    napi_value jsObject = qJs::callFunction(undefined, js_cb, 1, args);
++    napi_value jsObject = function->attachedObject(js_cb);
 +    napi_valuetype type;
 +    napi_typeof(env, jsObject, &type);
 +    if (type != napi_object) {
-+        qWarning() << "get js object failed:" << function->jsObject();
++        qWarning() << "get attached js object failed:" << function->name();
 +        function->cancel();
 +    }
 +
@@ -895,8 +893,41 @@ index 0000000000..a397c9f99c
 +    napi_value name;
 +    napi_create_string_utf8(env, "JsObjectLoader", NAPI_AUTO_LENGTH, &name);
 +    napi_create_threadsafe_function(env, function, nullptr, name, 0, 1, nullptr,
-+                                                          nullptr, nullptr, callJsFunction, &g_threadsafe_function);
-+    if (g_threadsafe_function == nullptr)
++                                                          nullptr, nullptr, callJsFunction, &g_threadsafe_call_js_function);
++    if (g_threadsafe_call_js_function == nullptr)
++        return createBool(false);
++    return createBool(true);
++}
++
++
++static void callRemoveObjectFunction(napi_env env, napi_value js_cb, void* context, void* data) {
++    Q_UNUSED(env);
++    Q_UNUSED(context);
++    const char *objectName = (const char *)(data);
++
++    napi_value undefined = nullptr;
++    napi_get_undefined(qJs::env(), &undefined);
++    napi_value argv[1] = {qJs::createString(objectName)};
++    qJs::callFunction(undefined, js_cb, 1, argv);
++}
++
++napi_value QOpenHarmonyJsEnvironment::initRemoveObject(napi_env env, napi_callback_info info)
++{
++    size_t argc = 1;
++    napi_value args[1];
++    napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
++
++    if (argc != 1) {
++        return createBool(false);
++    }
++
++    napi_value function = args[0];
++
++    napi_value name;
++    napi_create_string_utf8(env, "RemoveObject", NAPI_AUTO_LENGTH, &name);
++    napi_create_threadsafe_function(env, function, nullptr, name, 0, 1, nullptr,
++                                                          nullptr, nullptr, callRemoveObjectFunction, &g_threadsafe_remove_object_function);
++    if (g_threadsafe_remove_object_function == nullptr)
 +        return createBool(false);
 +    return createBool(true);
 +}
@@ -966,8 +997,16 @@ index 0000000000..a397c9f99c
 +
 +void QOpenHarmonyJsEnvironment::callThreadSafeFunction(QOpenHarmonyJsFunction *func)
 +{
-+    napi_acquire_threadsafe_function(g_threadsafe_function);
-+    napi_call_threadsafe_function(g_threadsafe_function, func, napi_tsfn_blocking);
++    napi_acquire_threadsafe_function(g_threadsafe_call_js_function);
++    napi_call_threadsafe_function(g_threadsafe_call_js_function, func, napi_tsfn_blocking);
++}
++
++void QOpenHarmonyJsEnvironment::threadSafeRemoveObject(const QString &objectName)
++{
++    napi_acquire_threadsafe_function(g_threadsafe_remove_object_function);
++    QByteArray dataArray = objectName.toLatin1();
++    char *_data = dataArray.data();
++    napi_call_threadsafe_function(g_threadsafe_remove_object_function, (void *)_data, napi_tsfn_blocking);
 +}
 +
 +QString QOpenHarmonyJsEnvironment::getString(napi_value value)
@@ -1251,10 +1290,10 @@ index 0000000000..a397c9f99c
 +}
 diff --git a/src/corelib/kernel/qopenharmonyjsenvironment.h b/src/corelib/kernel/qopenharmonyjsenvironment.h
 new file mode 100644
-index 0000000000..c30d508273
+index 0000000000..6aa55a9ade
 --- /dev/null
 +++ b/src/corelib/kernel/qopenharmonyjsenvironment.h
-@@ -0,0 +1,117 @@
+@@ -0,0 +1,119 @@
 +#ifndef QOPENHARMONYJSENVIRONMENT_H
 +#define QOPENHARMONYJSENVIRONMENT_H
 +
@@ -1319,6 +1358,7 @@ index 0000000000..c30d508273
 +    static napi_value callFunction(napi_value object, napi_value function, int argc = 0, const napi_value *argv = nullptr);
 +
 +    static void callThreadSafeFunction(QOpenHarmonyJsFunction *func);
++    static void threadSafeRemoveObject(const QString &objectName);
 +
 +    static QString getString(napi_value value);
 +
@@ -1342,6 +1382,7 @@ index 0000000000..c30d508273
 +    static napi_value objectPropertyValue(napi_value object, const QString &propertyName);
 +
 +    static napi_value initJsObjectLoader(napi_env env, napi_callback_info info);
++    static napi_value initRemoveObject(napi_env env, napi_callback_info info);
 +private:
 +    static napi_env m_env;
 +};
@@ -1374,23 +1415,21 @@ index 0000000000..c30d508273
 +#endif // QOPENHARMONYJSENVIRONMENT_H
 diff --git a/src/corelib/kernel/qopenharmonyjsfunction.cpp b/src/corelib/kernel/qopenharmonyjsfunction.cpp
 new file mode 100644
-index 0000000000..3b00a1ed79
+index 0000000000..fef0a00e55
 --- /dev/null
 +++ b/src/corelib/kernel/qopenharmonyjsfunction.cpp
-@@ -0,0 +1,213 @@
+@@ -0,0 +1,199 @@
 +#include "qopenharmonyjsfunction.h"
 +#include "qopenharmonyjsenvironment.h"
 +#include "qopenharmonydefines.h"
 +#include "qopenharmonyhelpers_p.h"
-+#include "qopenharmonyjsobjectpool.h"
++#include "qopenharmonyjsobject.h"
 +
 +#include <QtCore/qscopedpointer.h>
 +#include <QtCore/qmetaobject.h>
 +#include <QtCore/qthread.h>
 +#include <QtCore/qelapsedtimer.h>
 +#include <QtCore/qdebug.h>
-+
-+#include <uv.h>
 +
 +QT_BEGIN_NAMESPACE
 +
@@ -1411,9 +1450,8 @@ index 0000000000..3b00a1ed79
 +    QOpenHarmonyJsFunction *q_ptr;
 +    QString m_name;
 +    QVariantList m_args;
-+    QString m_jsObject;
++    QOpenHarmonyJsObject *m_jsObject;
 +    QVariant m_result;
-+    QSharedPointer<QOpenHarmonyJsObject> m_objectResult;
 +    int m_resultType;
 +    QBasicAtomicInt m_bResultReceived; // bool
 +};
@@ -1432,7 +1470,7 @@ index 0000000000..3b00a1ed79
 +
 +QString QOpenHarmonyJsFunctionPrivate::jsObject() const
 +{
-+    return m_jsObject;
++    return m_jsObject->name();
 +}
 +
 +void QOpenHarmonyJsFunctionPrivate::wait(int timeout)
@@ -1467,25 +1505,20 @@ index 0000000000..3b00a1ed79
 +
 +void QOpenHarmonyJsFunctionPrivate::setResult(napi_value result)
 +{
-+    if (m_resultType == QOpenHarmonyJsFunction::JsObjectType) {
-+        qDebug() << QString("Get js method %1 result object from callback:").arg(m_name);
-+        m_objectResult = qJsObjectPool->find(qJs::getString(result));
++    m_result = QtHarmonyPrivate::napi_value_to_variant(result, m_resultType);
++    if (m_result.type() == QVariant::ByteArray) {
++        qDebug() << QString("Get js method %1 result from callback QByteArrary length: %2").arg(m_name).arg(m_result.toByteArray().length());
 +    } else {
-+        m_result = QtHarmonyPrivate::napi_value_to_variant(result, m_resultType);
-+        if (m_result.type() == QVariant::ByteArray) {
-+            qDebug() << QString("Get js method %1 result from callback QByteArrary length: %2").arg(m_name).arg(m_result.toByteArray().length());
-+        } else {
-+            qDebug() << QString("Get js method %1 result from callback:").arg(m_name) << m_result;
-+        }
++        qDebug() << QString("Get js method %1 result from callback:").arg(m_name) << m_result;
 +    }
 +    m_bResultReceived.storeRelease(true);
 +}
 +
-+QOpenHarmonyJsFunction::QOpenHarmonyJsFunction(const QString &jsObject, const QString &functionName)
++QOpenHarmonyJsFunction::QOpenHarmonyJsFunction(const QOpenHarmonyJsObject *jsObject, const QString &functionName)
 +{
 +    d_ptr.reset(new QOpenHarmonyJsFunctionPrivate);
 +    d_ptr->q_ptr = this;
-+    d_ptr->m_jsObject = jsObject;
++    d_ptr->m_jsObject = const_cast<QOpenHarmonyJsObject *>(jsObject);
 +    d_ptr->m_name = functionName;
 +}
 +
@@ -1534,7 +1567,6 @@ index 0000000000..3b00a1ed79
 +void QOpenHarmonyJsFunction::call(const QVariantList &args)
 +{    
 +    d_ptr->m_bResultReceived.storeRelease(false);
-+    d_ptr->m_objectResult.reset(nullptr);
 +    d_ptr->m_args = args;
 +    bool printArgs = !args.isEmpty();
 +    for (int i = 0 ;i < args.count(); ++i) {
@@ -1562,15 +1594,10 @@ index 0000000000..3b00a1ed79
 +    return d_ptr->m_result;
 +}
 +
-+QSharedPointer<QOpenHarmonyJsObject> QOpenHarmonyJsFunction::objectResult() const
-+{
-+    return d_ptr->m_objectResult;
-+}
-+
-+QString QOpenHarmonyJsFunction::jsObject() const
++napi_value QOpenHarmonyJsFunction::attachedObject(napi_value objectLoader) const
 +{
 +    Q_D(const QOpenHarmonyJsFunction);
-+    return d->m_jsObject;
++    return d->m_jsObject->jsObject(objectLoader);
 +}
 +
 +QString QOpenHarmonyJsFunction::name() const
@@ -1593,10 +1620,10 @@ index 0000000000..3b00a1ed79
 +QT_END_NAMESPACE
 diff --git a/src/corelib/kernel/qopenharmonyjsfunction.h b/src/corelib/kernel/qopenharmonyjsfunction.h
 new file mode 100644
-index 0000000000..0c8d136597
+index 0000000000..01a0e09651
 --- /dev/null
 +++ b/src/corelib/kernel/qopenharmonyjsfunction.h
-@@ -0,0 +1,93 @@
+@@ -0,0 +1,79 @@
 +#ifndef QOPENHARMONYJSFUNCTION_H
 +#define QOPENHARMONYJSFUNCTION_H
 +
@@ -1616,9 +1643,6 @@ index 0000000000..0c8d136597
 +{
 +    Q_DECLARE_PRIVATE(QOpenHarmonyJsFunction)
 +public:
-+    enum {
-+        JsObjectType = QMetaType::User + 1000
-+    };
 +    ~QOpenHarmonyJsFunction();
 +
 +    template<typename RET, typename... Args>
@@ -1626,14 +1650,6 @@ index 0000000000..0c8d136597
 +    {
 +        QVariantList params;
 +        setResultType(qMetaTypeId<RET>());
-+        call(packParams(params, std::forward<Args>(args)...));
-+    }
-+
-+    template<typename... Args>
-+    void callReturnObject(Args&&... args)
-+    {
-+        QVariantList params;
-+        setResultType(JsObjectType);
 +        call(packParams(params, std::forward<Args>(args)...));
 +    }
 +
@@ -1651,9 +1667,7 @@ index 0000000000..0c8d136597
 +
 +    QVariant jsResult() const;
 +
-+    QSharedPointer<QOpenHarmonyJsObject> objectResult() const;
-+
-+    QString jsObject() const;
++    napi_value attachedObject(napi_value objectLoader) const;
 +    QString name() const;
 +    void cancel();
 +    void call(napi_value jsObject, napi_value function);
@@ -1676,8 +1690,7 @@ index 0000000000..0c8d136597
 +    void setResultType(int t);
 +
 +    friend class QOpenHarmonyJsObject;
-+    QOpenHarmonyJsFunction(const QString &jsObject, const QString &functionName);
-+
++    QOpenHarmonyJsFunction(const QOpenHarmonyJsObject *jsObject, const QString &functionName);
 +
 +    QScopedPointer<QOpenHarmonyJsFunctionPrivate> d_ptr;
 +};
@@ -1692,16 +1705,17 @@ index 0000000000..0c8d136597
 +#endif // QOPENHARMONYJSFUNCTION_H
 diff --git a/src/corelib/kernel/qopenharmonyjsobject.cpp b/src/corelib/kernel/qopenharmonyjsobject.cpp
 new file mode 100644
-index 0000000000..7c79eef918
+index 0000000000..9bebe7af3d
 --- /dev/null
 +++ b/src/corelib/kernel/qopenharmonyjsobject.cpp
-@@ -0,0 +1,65 @@
+@@ -0,0 +1,101 @@
 +#include "qopenharmonyjsobject.h"
 +#include "qopenharmonydefines.h"
 +#include "qopenharmonyjsfunction.h"
 +#include "qopenharmonyjsobjectpool.h"
++#include "qopenharmonyhelpers_p.h"
++#include "qopenharmonyjsenvironment.h"
 +
-+#include <QTimer>
 +#include <QDebug>
 +
 +QT_BEGIN_NAMESPACE
@@ -1711,16 +1725,18 @@ index 0000000000..7c79eef918
 +    QOpenHarmonyJsObject *q_ptr;
 +    Q_DECLARE_PUBLIC(QOpenHarmonyJsObject)
 +public:
-+    QOpenHarmonyJsObjectPrivate(const QString &name);
++    QOpenHarmonyJsObjectPrivate(const QString &objectType, const QString &objectName, const QVariantList &constructArgs);
 +    virtual ~QOpenHarmonyJsObjectPrivate();
 +    QOpenHarmonyJsFunction *createJsFunction(const QString &jsFunction);
 +
-+    QString m_name;
++    QString m_objectType;
++    QString m_objectName;
++    QVariantList m_constructArgs;
 +    QHash<QString, QOpenHarmonyJsFunction *> m_functions;
 +};
 +
-+QOpenHarmonyJsObject::QOpenHarmonyJsObject(const QString &name)
-+    : d_ptr(new QOpenHarmonyJsObjectPrivate(name))
++QOpenHarmonyJsObject::QOpenHarmonyJsObject(const QString &objectType, const QString &objectName, const QVariantList &constructArgs)
++    : d_ptr(new QOpenHarmonyJsObjectPrivate(objectType, objectName, constructArgs))
 +{
 +    d_ptr->q_ptr = this;
 +}
@@ -1733,7 +1749,7 @@ index 0000000000..7c79eef918
 +bool QOpenHarmonyJsObject::isValid() const
 +{
 +    Q_D(const QOpenHarmonyJsObject);
-+    return !d->m_name.isEmpty();
++    return !d->m_objectName.isEmpty();
 +}
 +
 +QOpenHarmonyJsFunction *QOpenHarmonyJsObject::getJsFunction(const QString &name) const
@@ -1741,14 +1757,47 @@ index 0000000000..7c79eef918
 +    Q_D(const QOpenHarmonyJsObject);
 +    if (d->m_functions.contains(name))
 +        return d->m_functions.value(name);
-+    QOpenHarmonyJsFunction *function = new QOpenHarmonyJsFunction(d->m_name, name);
++    QOpenHarmonyJsFunction *function = new QOpenHarmonyJsFunction(this, name);
 +    const_cast<QOpenHarmonyJsObjectPrivate *>(d)->m_functions.insert(name, function);
 +    return function;
 +}
 +
++const QString QOpenHarmonyJsObject::name() const
++{
++    Q_D(const QOpenHarmonyJsObject);
++    return d->m_objectName;
++}
 +
-+QOpenHarmonyJsObjectPrivate::QOpenHarmonyJsObjectPrivate(const QString &name)
-+    : m_name(name)
++void QOpenHarmonyJsObject::removeSelf()
++{
++    Q_D(QOpenHarmonyJsObject);
++    qJs::threadSafeRemoveObject(d->m_objectName);
++    delete this;
++}
++
++napi_value QOpenHarmonyJsObject::jsObject(napi_value objectLoader) const
++{
++    Q_D(const QOpenHarmonyJsObject);
++    size_t argc = 1 + 1 + static_cast<size_t>(d->m_constructArgs.count());
++    QScopedArrayPointer<napi_value> argv(new napi_value[argc]);
++    argv[0] = qJs::createString(d->m_objectType);
++    argv[1] = qJs::createString(d->m_objectName);
++    if (!d->m_constructArgs.isEmpty()) {
++        for (int i = 0; i < d->m_constructArgs.count(); ++i) {
++            argv[i + 2] = nullptr;
++            argv[i + 2] = QtHarmonyPrivate::variant_to_napi_value(d->m_constructArgs.at(i));
++        }
++    }
++    napi_value undefined = nullptr;
++    napi_get_undefined(qJs::env(), &undefined);
++    return qJs::callFunction(undefined, objectLoader, argc, argv.get());
++}
++
++
++QOpenHarmonyJsObjectPrivate::QOpenHarmonyJsObjectPrivate(const QString &objectType, const QString &objectName, const QVariantList &constructArgs)
++    : m_objectType(objectType)
++    , m_objectName(objectName)
++    , m_constructArgs(constructArgs)
 +{
 +
 +}
@@ -1763,10 +1812,10 @@ index 0000000000..7c79eef918
 +
 diff --git a/src/corelib/kernel/qopenharmonyjsobject.h b/src/corelib/kernel/qopenharmonyjsobject.h
 new file mode 100644
-index 0000000000..704ea43d30
+index 0000000000..a33a46cc6b
 --- /dev/null
 +++ b/src/corelib/kernel/qopenharmonyjsobject.h
-@@ -0,0 +1,75 @@
+@@ -0,0 +1,67 @@
 +#ifndef QOPENHARMONYJSOBJECT_H
 +#define QOPENHARMONYJSOBJECT_H
 +
@@ -1785,6 +1834,7 @@ index 0000000000..704ea43d30
 +class Q_CORE_EXPORT QOpenHarmonyJsObject
 +{
 +    friend class QOpenHarmonyJsObjectPool;
++    friend class QOpenHarmonyJsFunction;
 +    friend class QSharedPointer<QOpenHarmonyJsObject>;
 +    Q_DECLARE_PRIVATE(QOpenHarmonyJsObject)
 +public:
@@ -1794,9 +1844,6 @@ index 0000000000..704ea43d30
 +
 +    template<typename RET, typename... Args>
 +    RET call(const QString &jsFunction, Args&&... args);
-+
-+    template<typename... Args>
-+    QSharedPointer<QOpenHarmonyJsObject> callReturnObject(const QString &jsFunction, Args&&... args);
 +
 +    template<typename... Args>
 +    void call(const QString &jsFunction, Args&&... args)
@@ -1809,10 +1856,15 @@ index 0000000000..704ea43d30
 +
 +    QOpenHarmonyJsFunction *getJsFunction(const QString &name) const;
 +
++    const QString name() const;
++
++    void removeSelf();
 +private:
 +    Q_DISABLE_COPY(QOpenHarmonyJsObject)
-+    QOpenHarmonyJsObject(const QString &name);
++    QOpenHarmonyJsObject(const QString &objectType, const QString &objectName = QString(), const QVariantList &constructArgs = QVariantList());
 +    void initFunctions(const QStringList &functions);
++
++    napi_value jsObject(napi_value objectLoader) const;
 +
 +    QScopedPointer<QOpenHarmonyJsObjectPrivate> d_ptr;
 +};
@@ -1828,26 +1880,15 @@ index 0000000000..704ea43d30
 +    return f->result<RET>();
 +}
 +
-+template<typename... Args>
-+QSharedPointer<QOpenHarmonyJsObject> QOpenHarmonyJsObject::callReturnObject(const QString &jsFunction, Args&&... args)
-+{
-+    QOpenHarmonyJsFunction *f = getJsFunction(jsFunction);
-+    if (f == nullptr)
-+        return nullptr;
-+
-+    f->callReturnObject(std::forward<Args>(args)...);
-+    return f->objectResult();
-+}
-+
 +QT_END_NAMESPACE
 +
 +#endif // QOPENHARMONYEGLCORE_H
 diff --git a/src/corelib/kernel/qopenharmonyjsobjectloader.cpp b/src/corelib/kernel/qopenharmonyjsobjectloader.cpp
 new file mode 100644
-index 0000000000..ee957a4550
+index 0000000000..80173b713f
 --- /dev/null
 +++ b/src/corelib/kernel/qopenharmonyjsobjectloader.cpp
-@@ -0,0 +1,50 @@
+@@ -0,0 +1,54 @@
 +#include "qopenharmonyjsobjectloader.h"
 +#include "qopenharmonyjsobject.h"
 +#include "qopenharmonyjsobjectpool.h"
@@ -1883,27 +1924,31 @@ index 0000000000..ee957a4550
 +    return loader();
 +}
 +
-+QSharedPointer<QOpenHarmonyJsObject> QOpenHarmonyJsObjectLoader::create(const QString &name)
++QSharedPointer<QOpenHarmonyJsObject> QOpenHarmonyJsObjectLoader::create(const QString &objectType, const QString &objectName, const QVariantList &params)
 +{
-+    qDebug() << "request js object: " << name;
-+    if (name.isEmpty())
++    qDebug() << "request js object: " << objectType << objectName;
++    if (objectType.isEmpty())
 +        return QSharedPointer<QOpenHarmonyJsObject>();
 +
-+    QSharedPointer<QOpenHarmonyJsObject> obj = qJsObjectPool->find(name);
-+    if (!obj.isNull())
-+        return obj;
++    QString _objectName = objectName;
++    if (_objectName.isEmpty())
++        _objectName = objectType;
++    return qJsObjectPool->findOrCreate(objectType, _objectName, params);
++}
 +
-+    return qJsObjectPool->add(name);
++void QOpenHarmonyJsObjectLoader::remove(const QString &name)
++{
++    qJsObjectPool->remove(name);
 +}
 +
 +QT_END_NAMESPACE
 +
 diff --git a/src/corelib/kernel/qopenharmonyjsobjectloader.h b/src/corelib/kernel/qopenharmonyjsobjectloader.h
 new file mode 100644
-index 0000000000..bf1b106008
+index 0000000000..98f74e4f99
 --- /dev/null
 +++ b/src/corelib/kernel/qopenharmonyjsobjectloader.h
-@@ -0,0 +1,32 @@
+@@ -0,0 +1,33 @@
 +#ifndef QOPENHARMONYJSOBJECTLOADER_H
 +#define QOPENHARMONYJSOBJECTLOADER_H
 +
@@ -1927,8 +1972,9 @@ index 0000000000..bf1b106008
 +
 +    static QOpenHarmonyJsObjectLoader *instance();
 +
-+    QSharedPointer<QOpenHarmonyJsObject> create(const QString &name);
++    QSharedPointer<QOpenHarmonyJsObject> create(const QString &objectType, const QString &objectName = QString(), const QVariantList &params = QVariantList());
 +
++    void remove(const QString &name);
 +private:
 +    QScopedPointer<QOpenHarmonyJsObjectLoaderPrivate> d_ptr;
 +};
@@ -1938,10 +1984,10 @@ index 0000000000..bf1b106008
 +#endif // QOPENHARMONYEGLCORE_H
 diff --git a/src/corelib/kernel/qopenharmonyjsobjectpool.cpp b/src/corelib/kernel/qopenharmonyjsobjectpool.cpp
 new file mode 100644
-index 0000000000..7ffc704408
+index 0000000000..233fa09a2f
 --- /dev/null
 +++ b/src/corelib/kernel/qopenharmonyjsobjectpool.cpp
-@@ -0,0 +1,58 @@
+@@ -0,0 +1,63 @@
 +#include "qopenharmonyjsobjectpool.h"
 +#include "qopenharmonydefines.h"
 +#include "qopenharmonyjsfunction.h"
@@ -1959,6 +2005,8 @@ index 0000000000..7ffc704408
 +    QOpenHarmonyJsObjectPool *q_ptr;
 +
 +    QHash<QString, QSharedPointer<QOpenHarmonyJsObject>> m_jsObjects;
++
++    QSharedPointer<QOpenHarmonyJsObject> add(const QString &objectType, const QString &objectName, const QVariantList &constructArgs);
 +};
 +
 +QOpenHarmonyJsObjectPool::QOpenHarmonyJsObjectPool()
@@ -1977,11 +2025,10 @@ index 0000000000..7ffc704408
 +    return pool();
 +}
 +
-+QSharedPointer<QOpenHarmonyJsObject> QOpenHarmonyJsObjectPool::add(const QString &name)
++QSharedPointer<QOpenHarmonyJsObject> QOpenHarmonyJsObjectPoolPrivate::add(const QString &objectType, const QString &objectName, const QVariantList &constructArgs)
 +{
-+    QSharedPointer<QOpenHarmonyJsObject> object = QSharedPointer<QOpenHarmonyJsObject>::create(name);
-+    Q_D(QOpenHarmonyJsObjectPool);
-+    d->m_jsObjects.insert(name, object);
++    QSharedPointer<QOpenHarmonyJsObject> object = QSharedPointer<QOpenHarmonyJsObject>::create(objectType, objectName, constructArgs);
++    m_jsObjects.insert(objectName, object);
 +    return object;
 +}
 +
@@ -1989,23 +2036,27 @@ index 0000000000..7ffc704408
 +{
 +    Q_D(QOpenHarmonyJsObjectPool);
 +    if (d->m_jsObjects.contains(name)) {
-+         d->m_jsObjects.remove(name);
++         QSharedPointer<QOpenHarmonyJsObject> object = d->m_jsObjects.take(name);
++         object->removeSelf();
 +    }
 +}
 +
-+QSharedPointer<QOpenHarmonyJsObject> QOpenHarmonyJsObjectPool::find(const QString &name) const
++QSharedPointer<QOpenHarmonyJsObject> QOpenHarmonyJsObjectPool::findOrCreate(const QString &objectType, const QString &objectName, const QVariantList &constructArgs)
 +{
-+    Q_D(const QOpenHarmonyJsObjectPool);
-+    return d->m_jsObjects.value(name);
++    Q_D(QOpenHarmonyJsObjectPool);
++    QSharedPointer<QOpenHarmonyJsObject> result = d->m_jsObjects.value(objectName);
++    if (result.isNull())
++        return d->add(objectType, objectType, constructArgs);
++    return result;
 +}
 +
 +QT_END_NAMESPACE
 diff --git a/src/corelib/kernel/qopenharmonyjsobjectpool.h b/src/corelib/kernel/qopenharmonyjsobjectpool.h
 new file mode 100644
-index 0000000000..b911171b6a
+index 0000000000..b11ba62617
 --- /dev/null
 +++ b/src/corelib/kernel/qopenharmonyjsobjectpool.h
-@@ -0,0 +1,39 @@
+@@ -0,0 +1,37 @@
 +#ifndef QOPENHARMONYJSOBJECTPOOL_H
 +#define QOPENHARMONYJSOBJECTPOOL_H
 +
@@ -2035,11 +2086,9 @@ index 0000000000..b911171b6a
 +
 +    static QOpenHarmonyJsObjectPool *instance();
 +
-+    QSharedPointer<QOpenHarmonyJsObject> add(const QString &name);
-+
 +    bool remove(const QString &name);
 +
-+    QSharedPointer<QOpenHarmonyJsObject> find(const QString &name) const;
++    QSharedPointer<QOpenHarmonyJsObject> findOrCreate(const QString &objectType, const QString &objectName = QString(), const QVariantList &constructArgs = QVariantList());
 +private:
 +    QScopedPointer<QOpenHarmonyJsObjectPoolPrivate> d_ptr;
 +};
@@ -2047,10 +2096,10 @@ index 0000000000..b911171b6a
 +#endif // QOPENHARMONYEGLCORE_H
 diff --git a/src/corelib/kernel/qopenharmonyload.cpp b/src/corelib/kernel/qopenharmonyload.cpp
 new file mode 100644
-index 0000000000..e5fb88a959
+index 0000000000..304bfb9923
 --- /dev/null
 +++ b/src/corelib/kernel/qopenharmonyload.cpp
-@@ -0,0 +1,49 @@
+@@ -0,0 +1,50 @@
 +#include <napi/native_api.h>
 +#include <hilog/log.h>
 +
@@ -2071,6 +2120,7 @@ index 0000000000..e5fb88a959
 +
 +    napi_property_descriptor desc[] ={
 +        DECLARE_NAPI_FUNCTION("initJsObjectLoader", QOpenHarmonyJsEnvironment::initJsObjectLoader),
++        DECLARE_NAPI_FUNCTION("initRemoveObjectFunction", QOpenHarmonyJsEnvironment::initRemoveObject),
 +    };
 +    NAPI_CALL(env, napi_define_properties(env, exports, sizeof(desc) / sizeof(desc[0]), desc));
 +
@@ -2376,16 +2426,15 @@ index 0000000000..6a4626655c
 +};
 diff --git a/src/openharmony/native/QtCore/JsApplication.ts b/src/openharmony/native/QtCore/JsApplication.ts
 new file mode 100644
-index 0000000000..079b14cd9a
+index 0000000000..acd7a78e95
 --- /dev/null
 +++ b/src/openharmony/native/QtCore/JsApplication.ts
-@@ -0,0 +1,151 @@
+@@ -0,0 +1,152 @@
 +import window from '@ohos.window';
 +import display from '@ohos.display';
 +import fs from '@ohos.file.fs';
 +import resourceManager from '@ohos.resourceManager';
 +import JsDataStore from './JsDataStore';
-+import QtJsObjectLoader from './JsObjectLoader';
 +import { QtQPA } from './JsQtPlatform';
 +import JsLogger from './JsLogger';
 +import { JsWindowManager } from './JsWindowManager';
@@ -2394,7 +2443,6 @@ index 0000000000..079b14cd9a
 +  private mainWindow: window.Window = null;
 +  private mainWindowName: string = "opemharmony_qt_mainwindow";
 +  private qpa: any = QtQPA;
-+  private jsObjectLoader: QtJsObjectLoader = new QtJsObjectLoader;
 +
 +  getMainWindow(): window.Window {
 +    return this.mainWindow;
@@ -2405,7 +2453,7 @@ index 0000000000..079b14cd9a
 +  }
 +
 +  addWindow(name: string, window: window.Window): void {
-+    let obj  = this.jsObjectLoader.createObject("JsWindowManager");
++    let obj  = JsDataStore.getJsObjectLoader().createObject("JsWindowManager", "JsWindowManager");
 +    (obj as JsWindowManager).addWindow(name, window);
 +  }
 +
@@ -2422,8 +2470,11 @@ index 0000000000..079b14cd9a
 +    }
 +    JsDataStore.setQtMajorVersion(qtMajorVersion);
 +    let QtCore = QtCoreModule.default;
-+    QtCore.initJsObjectLoader((name: string)=>{
-+      return this.jsObjectLoader.createObject(name);
++    QtCore.initJsObjectLoader((type: string, name: string, ...args: any[])=>{
++      return JsDataStore.getJsObjectLoader().createObject(type, name, ...args);
++    });
++    QtCore.initRemoveObjectFunction((name: string)=>{
++      return JsDataStore.getJsObjectLoader().deleteObject(name);
 +    });
 +    JsDataStore.addQtNativeModule("QPA", this.qpa);
 +    JsDataStore.addQtNativeModule("QtCore", QtCore);
@@ -2534,10 +2585,10 @@ index 0000000000..079b14cd9a
 \ No newline at end of file
 diff --git a/src/openharmony/native/QtCore/JsDataStore.ts b/src/openharmony/native/QtCore/JsDataStore.ts
 new file mode 100644
-index 0000000000..209ebeddc0
+index 0000000000..f29bdce8f9
 --- /dev/null
 +++ b/src/openharmony/native/QtCore/JsDataStore.ts
-@@ -0,0 +1,107 @@
+@@ -0,0 +1,113 @@
 +import common from '@ohos.app.ability.common';
 +import window from '@ohos.window';
 +import bundleManager from '@ohos.bundle.bundleManager';
@@ -2545,6 +2596,7 @@ index 0000000000..209ebeddc0
 +import HashMap from '@ohos.util.HashMap';
 +import { JsQtModule } from './JsQtModule'
 +import deviceInfo from '@ohos.deviceInfo';
++import QtJsObjectLoader from './JsObjectLoader';
 +
 +interface ApplicationDirs {
 +  tempDir: string,
@@ -2566,6 +2618,7 @@ index 0000000000..209ebeddc0
 +  private applicationDirs: ApplicationDirs;
 +  private qtMajorVersion: number = 0;
 +  private qtNativeModules: HashMap<string, any> = new HashMap();
++  private jsObjectLoader: QtJsObjectLoader = new QtJsObjectLoader;
 +
 +  constructor() {
 +  }
@@ -2621,6 +2674,10 @@ index 0000000000..209ebeddc0
 +
 +  getJsModules(): JsQtModule[] {
 +    return this.jsModules;
++  }
++
++  getJsObjectLoader(): QtJsObjectLoader {
++    return this.jsObjectLoader;
 +  }
 +
 +  getQtMajorVersion(): number {
@@ -2932,29 +2989,6 @@ index 0000000000..6fc0351383
 +    }
 +  }
 +}
-diff --git a/src/openharmony/native/QtCore/JsFileManager.ts b/src/openharmony/native/QtCore/JsFileManager.ts
-new file mode 100644
-index 0000000000..36eb550f60
---- /dev/null
-+++ b/src/openharmony/native/QtCore/JsFileManager.ts
-@@ -0,0 +1,17 @@
-+import { JsFile } from './JsFile';
-+import JSLogger from './JsLogger'
-+import JsDataStore from './JsDataStore'
-+
-+export class JsFileManager {
-+
-+  async createFile(fileHandler: string, fileName: string) : Promise<string> {
-+    let file = new JsFile(fileName);
-+    JSLogger.info("create js file object for file: %{public}s %{public}s", fileHandler, fileName)
-+    return fileHandler;
-+  }
-+
-+  async deleteFile(fileHandler: string) : Promise<boolean> {
-+    JSLogger.info("delete js file object for: %{public}s", fileHandler)
-+    return true;
-+  }
-+}
 diff --git a/src/openharmony/native/QtCore/JsInputManager.ts b/src/openharmony/native/QtCore/JsInputManager.ts
 new file mode 100644
 index 0000000000..75c49c810f
@@ -3063,10 +3097,10 @@ index 0000000000..328a60c965
 +
 diff --git a/src/openharmony/native/QtCore/JsObjectLoader.ts b/src/openharmony/native/QtCore/JsObjectLoader.ts
 new file mode 100644
-index 0000000000..303908c2a3
+index 0000000000..e175af7dc2
 --- /dev/null
 +++ b/src/openharmony/native/QtCore/JsObjectLoader.ts
-@@ -0,0 +1,27 @@
+@@ -0,0 +1,36 @@
 +import JsDataStore from './JsDataStore'
 +import { JsQtModule } from './JsQtModule'
 +
@@ -3076,11 +3110,11 @@ index 0000000000..303908c2a3
 +
 +  }
 +
-+  createObject(name: string): Object {
++  createObject(type: string, name: string, ...args: any[]): Object {
 +    let modules = JsDataStore.getJsModules();
 +    let module: JsQtModule = null;
 +    for (let i = 0; i < modules.length; ++i) {
-+      if (modules[i].hasJsObject(name)) {
++      if (modules[i].hasJsObject(type)) {
 +        module = modules[i];
 +        break;
 +      }
@@ -3090,8 +3124,17 @@ index 0000000000..303908c2a3
 +      return null;
 +    }
 +
-+    let obj = module.createJsObject(name);
++    let obj = module.createJsObject(type, name, ...args);
 +    return obj;
++  }
++
++  deleteObject(name: string): void {
++    let modules = JsDataStore.getJsModules();
++    for (let i = 0; i < modules.length; ++i) {
++      if (modules[i].deleteJsObject(name)) {
++        break;
++      }
++    }
 +  }
 +}
 \ No newline at end of file
@@ -3137,10 +3180,10 @@ index 0000000000..6d1dd690fd
 +}
 diff --git a/src/openharmony/native/QtCore/JsQtModule.ts b/src/openharmony/native/QtCore/JsQtModule.ts
 new file mode 100644
-index 0000000000..aa9ffbf396
+index 0000000000..c681a270ba
 --- /dev/null
 +++ b/src/openharmony/native/QtCore/JsQtModule.ts
-@@ -0,0 +1,40 @@
+@@ -0,0 +1,47 @@
 +import HashMap from '@ohos.util.HashMap';
 +import JsDataStore  from './JsDataStore'
 +
@@ -3154,46 +3197,53 @@ index 0000000000..aa9ffbf396
 +    JsDataStore.addJsModule(this);
 +  }
 +
-+  hasJsObject(name: string): boolean {
++  hasJsObject(type: string): boolean {
 +    if (this.moduleJsObjects == null)
 +      return false;
-+    const constructor = this.moduleJsObjects[name];
++    const constructor = this.moduleJsObjects[type];
 +    return constructor != null;
 +  }
 +
-+  createJsObjectImpl(name: string): Object {
++  createJsObjectImpl(type: string, ...args: any[]): Object {
 +    if (this.moduleJsObjects == null)
 +      return null;
-+    const constructor = this.moduleJsObjects[name];
++    const constructor = this.moduleJsObjects[type];
 +    if (constructor) {
-+      return new constructor();
++      return new constructor(...args);
 +    }
 +    return null;
 +  }
 +
-+  createJsObject(name: string): Object {
++  createJsObject(type: string, name: string, ...args: any[]): Object {
 +    if (this.jsObjects.hasKey(name))
 +      return this.jsObjects.get(name);
-+    let obj = this.createJsObjectImpl(name);
++    let obj = this.createJsObjectImpl(type, ...args);
 +    if (obj == null)
 +      return null;
 +    this.jsObjects.set(name, obj);
 +    return obj;
 +  }
++
++  deleteJsObject(name: string): boolean {
++    if (!this.jsObjects.hasKey(name))
++      return false;
++    this.jsObjects.remove(name);
++    return true;
++  }
 +}
 \ No newline at end of file
 diff --git a/src/openharmony/native/QtCore/JsQtPlatform.ts b/src/openharmony/native/QtCore/JsQtPlatform.ts
 new file mode 100644
-index 0000000000..5d964f9859
+index 0000000000..f039ac66d8
 --- /dev/null
 +++ b/src/openharmony/native/QtCore/JsQtPlatform.ts
 @@ -0,0 +1,23 @@
 +import { JsQtModule } from './JsQtModule'
 +import { JsDialog } from './JsDialog'
 +import { JsPasteBoard } from './JsPasteBoard'
-+import { JsFileManager } from './JsFileManager'
 +import { JsInputManager } from './JsInputManager'
 +import { JsWindowManager } from './JsWindowManager'
++import { JsFile } from './JsFile'
 +import qpa from 'libplugins_platforms_qopenharmony.so'
 +
 +class JsQtPlatform extends JsQtModule {
@@ -3203,9 +3253,9 @@ index 0000000000..5d964f9859
 +    this.moduleJsObjects = {
 +      JsDialog,
 +      JsPasteBoard,
-+      JsFileManager,
 +      JsInputManager,
-+      JsWindowManager
++      JsWindowManager,
++      JsFile
 +    };
 +  }
 +}
@@ -4253,10 +4303,10 @@ index 0000000000..51fe72e96e
 +#endif // QOPENHARMONYEVENTDISPATCHER_H
 diff --git a/src/plugins/platforms/openharmony/qopenharmonyfileenginehandler.cpp b/src/plugins/platforms/openharmony/qopenharmonyfileenginehandler.cpp
 new file mode 100644
-index 0000000000..26df975e15
+index 0000000000..b3e4fd2f07
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonyfileenginehandler.cpp
-@@ -0,0 +1,471 @@
+@@ -0,0 +1,466 @@
 +#include "qopenharmonyfileenginehandler.h"
 +#include "qopenharmonymain.h"
 +
@@ -4488,19 +4538,14 @@ index 0000000000..26df975e15
 +        m_fileName = fileName;
 +        static int index = 0;
 +        m_fileHandler = QString("fileHandler%1").arg(index++);
-+        QSharedPointer<QOpenHarmonyJsObject> jsFileManager = qJsObjectLoader->create("JsFileManager");
-+        m_jsFile = jsFileManager->callReturnObject("createFile", m_fileHandler, m_fileName);
++        m_jsFile = qJsObjectLoader->create("JsFile", m_fileHandler, QVariantList() << m_fileName);
 +    }
 +
 +    ~QOpenHarmonyFileEngine()
 +    {
 +        close();
 +        if (!m_jsFile.isNull()) {
-+            QSharedPointer<QOpenHarmonyJsObject> jsFileManager = qJsObjectLoader->create("JsFileManager");
-+            bool result = jsFileManager->call<bool>("deleteFile", m_fileHandler);
-+            if (!result) {
-+                qWarning() << "delete js file failed";
-+            }
++            qJsObjectLoader->remove(m_fileHandler);
 +        }
 +    }
 +
@@ -7236,10 +7281,10 @@ index 0000000000..c885aa5fec
 +#endif // QOPENHARMONYPLATFORMOPENGLCONTEXT_H
 diff --git a/src/plugins/platforms/openharmony/qopenharmonyplatformopenglwindow.cpp b/src/plugins/platforms/openharmony/qopenharmonyplatformopenglwindow.cpp
 new file mode 100644
-index 0000000000..0ba7269619
+index 0000000000..63c35e210a
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonyplatformopenglwindow.cpp
-@@ -0,0 +1,217 @@
+@@ -0,0 +1,218 @@
 +#include "qopenharmonyplatformopenglwindow.h"
 +#include "qopenharmonyxcomponent.h"
 +#include "qopenharmonyplatformscreen.h"
@@ -7250,6 +7295,7 @@ index 0000000000..0ba7269619
 +#include "qopenharmonyxcomponentmanager.h"
 +#include "qopenharmonymain.h"
 +
++#include <QStaticText>
 +#include <QSurfaceFormat>
 +#include <QtGui/private/qwindow_p.h>
 +#include <QtGui/qguiapplication.h>
