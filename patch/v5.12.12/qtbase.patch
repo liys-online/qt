@@ -5044,10 +5044,10 @@ index 0000000000..1a88d88b24
 +#endif // QOPENHARMONYDEFINES_H
 diff --git a/src/plugins/platforms/openharmony/qopenharmonymain.cpp b/src/plugins/platforms/openharmony/qopenharmonymain.cpp
 new file mode 100644
-index 0000000000..81e88a39d3
+index 0000000000..36724413b8
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonymain.cpp
-@@ -0,0 +1,414 @@
+@@ -0,0 +1,419 @@
 +#include <memory>
 +#include <semaphore.h>
 +#include <dlfcn.h>
@@ -5462,12 +5462,17 @@ index 0000000000..81e88a39d3
 +    return m_deviceType == "default";
 +}
 +
++
++QOpenHarmonyPlatformIntegration *QtOpenHarmony::openharmonyPlatformIntegration()
++{
++    return m_platformIntegration;
++}
 diff --git a/src/plugins/platforms/openharmony/qopenharmonymain.h b/src/plugins/platforms/openharmony/qopenharmonymain.h
 new file mode 100644
-index 0000000000..2dc9b9fb71
+index 0000000000..7aa0d6d662
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonymain.h
-@@ -0,0 +1,24 @@
+@@ -0,0 +1,22 @@
 +#ifndef QOPENHARMONYMAIN_H
 +#define QOPENHARMONYMAIN_H
 +
@@ -5484,11 +5489,9 @@ index 0000000000..2dc9b9fb71
 +double pixelDensity();
 +
 +void updateDisplayMetrics(int w, int h);
-+
 +bool isPhone();
-+
 +NativeResourceManager *resourceManager();
-+
++QOpenHarmonyPlatformIntegration *openharmonyPlatformIntegration();
 +}
 +
 +#endif //QOPENHARMONYMAIN_H
@@ -6267,14 +6270,15 @@ index 0000000000..e792d1a019
 +#endif // QOPENHARMONYPLATFORMFOREIGNWINDOW_H
 diff --git a/src/plugins/platforms/openharmony/qopenharmonyplatforminputcontext.cpp b/src/plugins/platforms/openharmony/qopenharmonyplatforminputcontext.cpp
 new file mode 100644
-index 0000000000..f8f9876204
+index 0000000000..b73ae5a569
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonyplatforminputcontext.cpp
-@@ -0,0 +1,460 @@
-+#include "qopenharmonyplatforminputcontext.h"
+@@ -0,0 +1,481 @@
++#include "qopenharmonymain.h"
++#include "qopenharmonyjsobjectloader.h"
 +#include "qopenharmonyplatformscreen.h"
 +#include "qopenharmonyplatformintegration.h"
-+#include "qopenharmonyjsobjectloader.h"
++#include "qopenharmonyplatforminputcontext.h"
 +
 +#include <QOpenHarmonyJsObject>
 +#include <QOpenHarmonyJsEnvironment>
@@ -6298,19 +6302,82 @@ index 0000000000..f8f9876204
 +
 +static QOpenHarmonyPlatformInputContext *m_openHarmonyInputContext = 0;
 +
-+static napi_value callQtCommit(napi_env env, napi_callback_info info)
++static napi_value insertText(napi_env env, napi_callback_info info)
 +{
-+    if (m_openHarmonyInputContext)
-+    {
-+        size_t argc = 1;
-+        napi_value args[1];
-+        napi_get_cb_info(env, info, &argc, args , nullptr, nullptr);
-+        QString text = qJs::getString(args[0]);
-+        m_openHarmonyInputContext->setComposingText(text);
-+        m_openHarmonyInputContext->commit();
++    size_t argc = 2;
++    napi_value args[2];
++    NAPI_CALL(env, napi_get_cb_info(env, info, &argc, args, nullptr, nullptr));
++    if (argc != 2) {
++        napi_throw_type_error(env, NULL, "Wrong number of arguments");
++        return nullptr;
 +    }
-+    return nullptr;
++
++    int64_t value0 = qJs::getInt64(args[0]);
++    QString value1 = qJs::getString(args[1]);
++    QObject *object = reinterpret_cast<QObject *>(value0);
++
++    QMetaObject::invokeMethod(object, "commitText", Qt::QueuedConnection, Q_ARG(QString, value1));
++    return Q_NULLPTR;
 +}
++
++static napi_value deleteLeft(napi_env env, napi_callback_info info)
++{
++    size_t argc = 2;
++    napi_value args[2];
++    NAPI_CALL(env, napi_get_cb_info(env, info, &argc, args, nullptr, nullptr));
++    if (argc != 2) {
++        napi_throw_type_error(env, NULL, "Wrong number of arguments");
++        return nullptr;
++    }
++
++    int64_t value0 = qJs::getInt64(args[0]);
++    int32_t value1 = qJs::getInt32(args[1]);
++    QObject *object = reinterpret_cast<QObject *>(value0);
++
++    QMetaObject::invokeMethod(object, "deleteSurroundingText", Qt::QueuedConnection,
++                              Q_ARG(int, int(value1)), Q_ARG(int, 0));
++    return Q_NULLPTR;
++}
++
++static napi_value deleteRight(napi_env env, napi_callback_info info)
++{
++    size_t argc = 2;
++    napi_value args[2];
++    NAPI_CALL(env, napi_get_cb_info(env, info, &argc, args, nullptr, nullptr));
++    if (argc != 2) {
++        napi_throw_type_error(env, NULL, "Wrong number of arguments");
++        return nullptr;
++    }
++
++    int64_t value0 = qJs::getInt64(args[0]);
++    int32_t value1 = qJs::getInt32(args[1]);
++    QObject *object = reinterpret_cast<QObject *>(value0);
++
++    QMetaObject::invokeMethod(object, "deleteSurroundingText", Qt::QueuedConnection,
++                              Q_ARG(int, 0), Q_ARG(int, int(value1)));
++
++    return Q_NULLPTR;
++}
++static napi_value moveCursor(napi_env env, napi_callback_info info)
++{
++    size_t argc = 2;
++    napi_value args[2];
++    NAPI_CALL(env, napi_get_cb_info(env, info, &argc, args, nullptr, nullptr));
++    if (argc != 2) {
++        napi_throw_type_error(env, NULL, "Wrong number of arguments");
++        return nullptr;
++    }
++
++    int64_t value0 = qJs::getInt64(args[0]);
++    int32_t value1 = qJs::getInt32(args[1]);
++    QObject *object = reinterpret_cast<QObject *>(value0);
++
++    QMetaObject::invokeMethod(object, "commitMoveCursor", Qt::QueuedConnection,
++                              Q_ARG(int, int(value1)));
++
++    return Q_NULLPTR;
++}
++
 +
 +// cursor position getter that also works with editors that have not been updated to the new API
 +static inline int getAbsoluteCursorPosition(const QSharedPointer<QInputMethodQueryEvent> &query)
@@ -6328,57 +6395,19 @@ index 0000000000..f8f9876204
 +
 +napi_value QOpenHarmonyPlatformInputContext::init(napi_env env, napi_value exports)
 +{
-+    Q_UNUSED(exports)
-+    Q_UNUSED(env)
++    napi_property_descriptor desc[] ={
++        DECLARE_NAPI_FUNCTION("insertText", insertText),
++        DECLARE_NAPI_FUNCTION("moveCursor", moveCursor),
++        DECLARE_NAPI_FUNCTION("deleteLeft", deleteLeft),
++        DECLARE_NAPI_FUNCTION("deleteRight", deleteRight),
++    };
++    NAPI_CALL(env, napi_define_properties(env, exports, sizeof(desc) / sizeof(desc[0]), desc));
 +    return nullptr;
 +}
 +
 +void QOpenHarmonyPlatformInputContext::sendKeyEvent(QKeyEvent *event)
 +{
-+    QObject *focusObject = qGuiApp->focusObject();
-+    if (!focusObject)
-+        return;
-+
-+    QCoreApplication::sendEvent(focusObject, event);
-+}
-+
-+void QOpenHarmonyPlatformInputContext::updateCursorPosition()
-+{
-+    QSharedPointer<QInputMethodQueryEvent> query = focusObjectInputMethodQuery();
-+    if (!query.isNull() && m_batchEditNestingLevel == 0) {
-+        const int cursorPos = getAbsoluteCursorPosition(query);
-+        const int composeLength = m_composingText.length();
-+
-+             //Q_ASSERT(m_composingText.isEmpty() == (m_composingTextStart == -1));
-+        if (m_composingText.isEmpty() != (m_composingTextStart == -1))
-+            qWarning() << "Input method out of sync" << m_composingText << m_composingTextStart;
-+
-+        int realSelectionStart = cursorPos;
-+        int realSelectionEnd = cursorPos;
-+
-+        int cpos = query->value(Qt::ImCursorPosition).toInt();
-+        int anchor = query->value(Qt::ImAnchorPosition).toInt();
-+        if (cpos != anchor) {
-+            if (!m_composingText.isEmpty()) {
-+                qWarning("Selecting text while preediting may give unpredictable results.");
-+                focusObjectStopComposing();
-+            }
-+            int blockPos = getBlockPosition(query);
-+            realSelectionStart = blockPos + cpos;
-+            realSelectionEnd = blockPos + anchor;
-+        }
-+        // Qt's idea of the cursor position is the start of the preedit area, so we maintain our own preedit cursor pos
-+        if (focusObjectIsComposing())
-+            realSelectionStart = realSelectionEnd = m_composingCursor;
-+
-+             // Some keyboards misbahave when selStart > selEnd
-+        if (realSelectionStart > realSelectionEnd)
-+            std::swap(realSelectionStart, realSelectionEnd);
-+
-+        //TODO
-+//        QtAndroidInput::updateSelection(realSelectionStart, realSelectionEnd,
-+//                                        m_composingTextStart, m_composingTextStart + composeLength); // pre-edit text
-+    }
++    QGuiApplication::sendEvent(m_focusObject, event);
 +}
 +
 +QOpenHarmonyPlatformInputContext::QOpenHarmonyPlatformInputContext()
@@ -6387,9 +6416,7 @@ index 0000000000..f8f9876204
 +      , m_composingCursor(-1)
 +      , m_focusObject(Q_NULLPTR)
 +{
-+    m_jsInputCtl = qJsObjectLoader->create("qtinputmanager");
-+    //m_jsInputCtl->defineProperties(sizeof(desc) / sizeof(desc[0]), desc);
-+    napi_property_descriptor desc[] ={ DECLARE_NAPI_FUNCTION("callQtCommit", callQtCommit) };
++    m_jsInputCtl = qJsObjectLoader->create("JsInputMethod");
 +    m_openHarmonyInputContext = this;
 +}
 +
@@ -6444,7 +6471,7 @@ index 0000000000..f8f9876204
 +        break;
 +    case 3:
 +        // ohos touch cancel
-+//        state = Qt::TouchPointStationary;
++        //        state = Qt::TouchPointStationary;
 +        break;
 +    default:
 +        break;
@@ -6500,61 +6527,27 @@ index 0000000000..f8f9876204
 +void QOpenHarmonyPlatformInputContext::reset()
 +{
 +    qInfo() << "QOpenHarmonyPlatformInputContext<===================reset:";
-+    focusObjectStopComposing();
-+    /* clear */
-+    m_composingText.clear();
-+    m_composingTextStart  = -1;
-+    m_composingCursor = -1;
-+    //m_extractedText.clear();
-+
-+    m_batchEditNestingLevel = 0;
-+//    m_handleMode = Hidden;
-+    if (qGuiApp->focusObject()) {
-+        QSharedPointer<QInputMethodQueryEvent> query = focusObjectInputMethodQuery(Qt::ImEnabled);
-+        if (!query.isNull() && query->value(Qt::ImEnabled).toBool()) {
-+            //QtAndroidInput::resetSoftwareKeyboard();
-+            return;
-+        }
-+    }
-+    //QtAndroidInput::hideSoftwareKeyboard();
++    clearInput();
 +}
 +
 +void QOpenHarmonyPlatformInputContext::commit()
-+{
-+    static QString oldText;
-+    if (oldText == m_composingText) {
-+        return;
-+    }
-+    focusObjectStopComposing();
-+    oldText = m_composingText;
++{    
 +    qInfo() << "QOpenHarmonyPlatformInputContext<===================commit:" << m_composingText;
 +}
 +
 +void QOpenHarmonyPlatformInputContext::showInputPanel()
 +{
 +    qInfo() << "QOpenHarmonyPlatformInputContext<===================showInputPanel:";
-+//    if (QGuiApplication::applicationState() != Qt::ApplicationActive) {
-+//        connect(qGuiApp, SIGNAL(applicationStateChanged(Qt::ApplicationState)), this, SLOT(showInputPanelLater(Qt::ApplicationState)));
-+//        return;
-+//    }
-+    QSharedPointer<QInputMethodQueryEvent> query = focusObjectInputMethodQuery();
-+    if (query.isNull())
-+        return;
-+
-+    disconnect(m_updateCursorPosConnection);
-+    if (qGuiApp->focusObject()->metaObject()->indexOfSignal("cursorPositionChanged(int,int)") >= 0) // QLineEdit breaks the pattern
-+        m_updateCursorPosConnection = connect(qGuiApp->focusObject(), SIGNAL(cursorPositionChanged(int,int)), this, SLOT(updateCursorPosition()));
-+    else
-+        m_updateCursorPosConnection = connect(qGuiApp->focusObject(), SIGNAL(cursorPositionChanged()), this, SLOT(updateCursorPosition()));
-+
-+    //m_jsInputCtl->call("open", m_composingText);
-+    m_jsInputCtl->call("attach");
++    bool isAttached = m_jsInputCtl->call<bool>("isAttached");
++    if (!isAttached)
++        m_jsInputCtl->call("attach", QVariant(qlonglong(static_cast<QObject*>(this))));
 +}
 +
 +void QOpenHarmonyPlatformInputContext::hideInputPanel()
 +{
 +    m_jsInputCtl->call("detach");
-+   qInfo() << "QOpenHarmonyPlatformInputContext<===================hideInputPanel:";
++    clearInput();
++    qInfo() << "QOpenHarmonyPlatformInputContext<===================hideInputPanel:";
 +}
 +
 +bool QOpenHarmonyPlatformInputContext::isAnimating() const
@@ -6570,18 +6563,16 @@ index 0000000000..f8f9876204
 +
 +void QOpenHarmonyPlatformInputContext::update(Qt::InputMethodQueries)
 +{
-+//    qInfo() << "QOpenHarmonyPlatformInputContext<============================update";
++  //    qInfo() << "QOpenHarmonyPlatformInputContext<============================update";
 +}
 +
 +void QOpenHarmonyPlatformInputContext::setFocusObject(QObject *object)
 +{
-+    if (object != m_focusObject) {
-+        focusObjectStopComposing();
++    if (object != m_focusObject) {        
 +        m_focusObject = object;
 +        reset();
 +    }
-+    QPlatformInputContext::setFocusObject(object);
-+    //updateSelectionHandles();
++    QPlatformInputContext::setFocusObject(object);    
 +}
 +
 +bool QOpenHarmonyPlatformInputContext::isInputPanelVisible() const
@@ -6628,12 +6619,105 @@ index 0000000000..f8f9876204
 +
 +}
 +
++void QOpenHarmonyPlatformInputContext::clearInput()
++{
++    m_composingText.clear();
++    m_composingTextStart  = -1;
++    m_composingCursor = -1;
++}
++
++void QOpenHarmonyPlatformInputContext::commitText(QString text)
++{
++    QSharedPointer<QInputMethodQueryEvent> query = focusObjectInputMethodQuery();
++    if (query.isNull())
++        return;
++
++    m_composingText = text;
++
++    QInputMethodEvent event;
++    event.setCommitString(text);
++    QGuiApplication::sendEvent(m_focusObject, &event);    
++}
++
++void QOpenHarmonyPlatformInputContext::commitMoveCursor(int direction)
++{
++    QSharedPointer<QInputMethodQueryEvent> query = focusObjectInputMethodQuery();
++    if (query.isNull())
++        return;
++
++    QInputMethodEvent event;
++    const int absolutecursorPos = getAbsoluteCursorPosition(query);
++    /* 1-up 2-down
++     * 3-left 4-right
++     */
++    switch(direction)
++    {
++    case 1:
++        break;
++    case 2:
++        break;
++    case 3:
++        event = QInputMethodEvent({}, { { QInputMethodEvent::Selection, qMax(absolutecursorPos - 1, 0), 0 } });
++        break;
++    case 4:
++        event = QInputMethodEvent ({}, { { QInputMethodEvent::Selection, absolutecursorPos + 1, 0 } });
++        break;
++    default:break;
++    }
++    QGuiApplication::sendEvent(m_focusObject, &event);
++}
++
 +void QOpenHarmonyPlatformInputContext::showInputPanelLater(Qt::ApplicationState state)
 +{
 +    if (state != Qt::ApplicationActive)
 +        return;
 +    disconnect(qGuiApp, SIGNAL(applicationStateChanged(Qt::ApplicationState)), this, SLOT(showInputPanelLater(Qt::ApplicationState)));
 +    showInputPanel();
++}
++
++void QOpenHarmonyPlatformInputContext::deleteSurroundingText(int leftLength, int rightLength)
++{
++    QSharedPointer<QInputMethodQueryEvent> query = focusObjectInputMethodQuery();
++    if (query.isNull())
++        return;
++
++    const int absolutecursorPos = getAbsoluteCursorPosition(query);
++    qWarning() << absolutecursorPos << "<============";
++
++    const QString &selectText = query->value(Qt::ImCurrentSelection).toString();
++    const int selectLength = selectText.length();
++    int beginPos = absolutecursorPos;
++
++    QInputMethodEvent event;
++    if (!selectText.isEmpty()) {
++        beginPos = qMax(absolutecursorPos - selectLength, 0);
++        event = QInputMethodEvent ({}, { { QInputMethodEvent::Selection, beginPos, selectLength } });
++        QGuiApplication::sendEvent(m_focusObject, &event);
++
++        event.setCommitString({}, beginPos, selectLength);
++        QGuiApplication::sendEvent(m_focusObject, &event);
++    }
++
++    if (leftLength > 0) {
++        beginPos = qMax(absolutecursorPos - leftLength, 0);
++        event = QInputMethodEvent ({}, { { QInputMethodEvent::Selection, beginPos, leftLength} });
++        QGuiApplication::sendEvent(m_focusObject, &event);
++
++        event.setCommitString({}, beginPos, leftLength);
++        QGuiApplication::sendEvent(m_focusObject, &event);
++    }
++
++    if (rightLength > 0) {
++        beginPos = absolutecursorPos <= 0 ? -1 : absolutecursorPos;
++        event = QInputMethodEvent ({}, { { QInputMethodEvent::Selection, beginPos, rightLength }});
++        QGuiApplication::sendEvent(m_focusObject, &event);
++
++        event.setCommitString({}, beginPos, rightLength);
++        QGuiApplication::sendEvent(m_focusObject, &event);
++    }
++
++    event = QInputMethodEvent({}, { { QInputMethodEvent::Selection, beginPos, 0 } });
++    QGuiApplication::sendEvent(m_focusObject, &event);
 +}
 +
 +void QOpenHarmonyPlatformInputContext::sendInputMethodEvent(QInputMethodEvent *event)
@@ -6667,80 +6751,19 @@ index 0000000000..f8f9876204
 +    return m_composingCursor != -1;
 +}
 +
-+void QOpenHarmonyPlatformInputContext::focusObjectStartComposing()
-+{
-+    if (focusObjectIsComposing() || m_composingText.isEmpty())
-+        return;
-+
-+         // Composing strings containing newline characters are rare and may cause problems
-+    if (m_composingText.contains(QLatin1Char('\n')))
-+        return;
-+
-+    QSharedPointer<QInputMethodQueryEvent> query = focusObjectInputMethodQuery();
-+    if (!query)
-+        return;
-+
-+    if (query->value(Qt::ImCursorPosition).toInt() != query->value(Qt::ImAnchorPosition).toInt())
-+        return;
-+
-+    const int absoluteCursorPos = getAbsoluteCursorPosition(query);
-+    if (absoluteCursorPos < m_composingTextStart
-+        || absoluteCursorPos > m_composingTextStart + m_composingText.length())
-+        return;
-+
-+    m_composingCursor = absoluteCursorPos;
-+
-+    QTextCharFormat underlined;
-+    underlined.setFontUnderline(true);
-+
-+    QInputMethodEvent event(m_composingText, {
-+                                                     { QInputMethodEvent::Cursor, absoluteCursorPos - m_composingTextStart, 1 },
-+                                                     { QInputMethodEvent::TextFormat, 0, m_composingText.length(), underlined }
-+                                             });
-+
-+    event.setCommitString({}, m_composingTextStart - absoluteCursorPos, m_composingText.length());
-+
-+    QGuiApplication::sendEvent(m_focusObject, &event);
-+}
-+
-+bool QOpenHarmonyPlatformInputContext::focusObjectStopComposing()
-+{
-+//    if (!focusObjectIsComposing())
-+//        return true; // not composing
-+
-+    QSharedPointer<QInputMethodQueryEvent> query = focusObjectInputMethodQuery();
-+    if (query.isNull())
-+        return false;
-+
-+    const int blockPos = getBlockPosition(query);
-+    const int localCursorPos = m_composingCursor - blockPos;
-+
-+    m_composingCursor = -1;
-+
-+    // Moving Qt's cursor to where the preedit cursor used to be
-+    QList<QInputMethodEvent::Attribute> attributes;
-+    attributes.append(QInputMethodEvent::Attribute(QInputMethodEvent::Selection, localCursorPos, 0));
-+
-+    QInputMethodEvent event(QString(), attributes);
-+    event.setCommitString(m_composingText);
-+    sendInputMethodEvent(&event);
-+
-+    return true;
-+}
 +
 +QT_END_NAMESPACE
 +
 +
 diff --git a/src/plugins/platforms/openharmony/qopenharmonyplatforminputcontext.h b/src/plugins/platforms/openharmony/qopenharmonyplatforminputcontext.h
 new file mode 100644
-index 0000000000..4b59e63e07
+index 0000000000..7e2a334fd5
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonyplatforminputcontext.h
-@@ -0,0 +1,76 @@
+@@ -0,0 +1,74 @@
 +#ifndef QOPENHARMONYPLATFORMINPUTCONTEXT_H
 +#define QOPENHARMONYPLATFORMINPUTCONTEXT_H
 +
-+#include <QTimer>
 +#include <functional>
 +#include <napi/native_api.h>
 +#include <qpa/qplatforminputcontext.h>
@@ -6777,24 +6800,24 @@ index 0000000000..4b59e63e07
 +    void invokeAction(QInputMethod::Action act, int cursorPosition) override;
 +    void setPlatformIntegration(QOpenHarmonyPlatformIntegration *integration);
 +    static napi_value init(napi_env env, napi_value exports);
-+
 +    void sendKeyEvent(QKeyEvent *event);
 +
-+public Q_SLOTS:
-+    void updateCursorPosition();
++public Q_SLOTS:      
 +    void mousePress(float x, float y);
 +    void mouseRelease(float x, float y);
-+    void touchDown(float x, float y);
++    void touchDown(float x, float y);    
 +
 +private Q_SLOTS:
++    void clearInput();
++    void commitText(QString text);
++    void commitMoveCursor(int direction);
 +    void showInputPanelLater(Qt::ApplicationState state);
++    void deleteSurroundingText(int leftLength, int rightLength);
 +
 +private:
++    bool focusObjectIsComposing() const;
 +    void sendInputMethodEvent(QInputMethodEvent *event);
 +    QSharedPointer<QInputMethodQueryEvent> focusObjectInputMethodQuery(Qt::InputMethodQueries queries = Qt::ImQueryAll);
-+    bool focusObjectIsComposing() const;
-+    void focusObjectStartComposing();
-+    bool focusObjectStopComposing();
 +
 +private:
 +    QString m_composingText;
@@ -6802,7 +6825,6 @@ index 0000000000..4b59e63e07
 +    int m_composingCursor;
 +    QObject *m_focusObject;
 +    bool m_ignoreMouseEvents = false;
-+    int m_batchEditNestingLevel;
 +    QMetaObject::Connection m_updateCursorPosConnection;
 +    QOpenHarmonyPlatformIntegration *m_integration = nullptr;
 +    QList<QWindowSystemInterface::TouchPoint> m_touchPoints;
@@ -8735,10 +8757,10 @@ index 0000000000..f768f216f2
 +#endif // QOPENHARMONYSURFACE_H
 diff --git a/src/plugins/platforms/openharmony/qopenharmonyxcomponent.cpp b/src/plugins/platforms/openharmony/qopenharmonyxcomponent.cpp
 new file mode 100644
-index 0000000000..9e8085f886
+index 0000000000..06700370eb
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonyxcomponent.cpp
-@@ -0,0 +1,636 @@
+@@ -0,0 +1,648 @@
 +#include <QDebug>
 +#include <QKeyEvent>
 +
@@ -8755,7 +8777,7 @@ index 0000000000..9e8085f886
 +
 +QOpenHarmonyXComponent::QOpenHarmonyXComponent(OH_NativeXComponent *component)
 +    : m_nativeComponent(component)
-+    , m_nativeWindow(0)
++      , m_nativeWindow(0)
 +{
 +    m_egl.reset(new QOpenHarmonyEGLCore);
 +    initXComponent(component);
@@ -8780,8 +8802,8 @@ index 0000000000..9e8085f886
 +    QOpenHarmonyXComponent *xc = QOpenHarmonyXComponentManager::instance()->xcomponent(component);
 +    if (xc == nullptr)
 +        return;
-+   EGLNativeWindowType nativeWindow = reinterpret_cast<EGLNativeWindowType>(window);
-+   xc->getSurfaceInfo(component, nativeWindow);
++    EGLNativeWindowType nativeWindow = reinterpret_cast<EGLNativeWindowType>(window);
++    xc->getSurfaceInfo(component, nativeWindow);
 +}
 +
 +void QOpenHarmonyXComponent::onSurfaceChanged(OH_NativeXComponent *component, void *window)
@@ -8800,407 +8822,419 @@ index 0000000000..9e8085f886
 +
 +void QOpenHarmonyXComponent::dispatchKeyEvent(OH_NativeXComponent *component, void *window)
 +{
-+    LOGW("<<<<<<<<::: dispatchKeyEvent:");
-+    QOpenHarmonyXComponent *xc = QOpenHarmonyXComponentManager::instance()->xcomponent(component);
-+    if (Q_NULLPTR == xc)
-+        return;
-+
-+    OH_NativeXComponent_KeyEvent *keyEvent = Q_NULLPTR;
-+    int32_t ret = OH_NativeXComponent_GetKeyEvent(component, &keyEvent);
-+    if (OH_NATIVEXCOMPONENT_RESULT_SUCCESS != ret) {
-+        LOGW("get key event failed");
-+        delete keyEvent;
-+        return;
-+    }    
-+
++    Q_UNUSED(window);
 +    QOpenHarmonyPlatformInputContext *context = QOpenHarmonyPlatformInputContext::openHarmonyInputContext();
 +    if (Q_NULLPTR == context)
 +        return;
 +
-+    static QHash<OH_NativeXComponent_KeyAction, QEvent::Type> sKeyType{
-+                                                                         { OH_NATIVEXCOMPONENT_KEY_ACTION_DOWN, QEvent::KeyPress },
-+                                                                         { OH_NATIVEXCOMPONENT_KEY_ACTION_UP, QEvent::KeyRelease },
-+                                                                         };
++    OH_NativeXComponent_KeyEvent *keyEvent = Q_NULLPTR;
++    /* 获取由XComponent触发的按键事件 */
++    if (OH_NativeXComponent_GetKeyEvent(component, &keyEvent) >= 0) {
++        OH_NativeXComponent_KeyAction action;
++        OH_NativeXComponent_GetKeyEventAction(keyEvent, &action); /* 获取按键事件的动作 */
 +
-+    OH_NativeXComponent_KeyCode code;
-+    OH_NativeXComponent_KeyAction keyAct;
-+    OH_NativeXComponent_GetKeyEventCode(keyEvent, &code);
-+    OH_NativeXComponent_GetKeyEventAction(keyEvent, &keyAct);
++        OH_NativeXComponent_KeyCode code;
++        OH_NativeXComponent_GetKeyEventCode(keyEvent, &code); /*  获取按键事件的键码值 */
 +
-+    LOGW("<<<<<<<<::: key code:", code);
-+    static QHash<OH_NativeXComponent_KeyCode, Qt::Key> sKeyMap{
-+        { KEY_HOME, Qt::Key_Home },
-+        { KEY_BACK, Qt::Key_Back },
-+        { KEY_MEDIA_PLAY_PAUSE, Qt::Key_MediaTogglePlayPause },
-+        { KEY_MEDIA_STOP, Qt::Key_MediaStop },
-+        { KEY_MEDIA_NEXT, Qt::Key_MediaNext },
-+        { KEY_MEDIA_PREVIOUS, Qt::Key_MediaPrevious },
-+        { KEY_MEDIA_REWIND, Qt::Key_AudioRewind },
-+        { KEY_MEDIA_FAST_FORWARD, Qt::Key_AudioForward },
-+        { KEY_VOLUME_UP, Qt::Key_VolumeUp },
-+        { KEY_VOLUME_DOWN, Qt::Key_VolumeDown },
-+        { KEY_POWER, Qt::Key_PowerDown },
-+        { KEY_CAMERA, Qt::Key_Camera },
-+        { KEY_VOLUME_MUTE, Qt::Key_VolumeMute },
-+        { KEY_MUTE, Qt::Key_MicMute },
-+        { KEY_BRIGHTNESS_UP, Qt::Key_MonBrightnessUp },
-+        { KEY_BRIGHTNESS_DOWN, Qt::Key_MonBrightnessDown },
-+        { KEY_0, Qt::Key_0 },
-+        { KEY_1, Qt::Key_1 },
-+        { KEY_2, Qt::Key_2 },
-+        { KEY_3, Qt::Key_3 },
-+        { KEY_4, Qt::Key_4 },
-+        { KEY_5, Qt::Key_5 },
-+        { KEY_6, Qt::Key_6 },
-+        { KEY_7, Qt::Key_7 },
-+        { KEY_8, Qt::Key_8 },
-+        { KEY_9, Qt::Key_9 },
-+        { KEY_STAR, Qt::Key_Asterisk },
-+        { KEY_POUND, Qt::Key_NumberSign },
-+        { KEY_DPAD_UP, Qt::Key_Up },
-+        { KEY_DPAD_DOWN, Qt::Key_Down },
-+        { KEY_DPAD_LEFT, Qt::Key_Left },
-+        { KEY_DPAD_RIGHT, Qt::Key_Right },
-+        //{ KEY_DPAD_CENTER, Qt::Key_ },
-+        { KEY_A, Qt::Key_A },
-+        { KEY_B, Qt::Key_B },
-+        { KEY_C, Qt::Key_C },
-+        { KEY_D, Qt::Key_D },
-+        { KEY_E, Qt::Key_E },
-+        { KEY_F, Qt::Key_F },
-+        { KEY_G, Qt::Key_G },
-+        { KEY_H, Qt::Key_H },
-+        { KEY_I, Qt::Key_I },
-+        { KEY_J, Qt::Key_J },
-+        { KEY_K, Qt::Key_K },
-+        { KEY_L, Qt::Key_L },
-+        { KEY_M, Qt::Key_M },
-+        { KEY_N, Qt::Key_N },
-+        { KEY_O, Qt::Key_O },
-+        { KEY_P, Qt::Key_P },
-+        { KEY_Q, Qt::Key_Q },
-+        { KEY_R, Qt::Key_R },
-+        { KEY_S, Qt::Key_S },
-+        { KEY_T, Qt::Key_T },
-+        { KEY_U, Qt::Key_U },
-+        { KEY_V, Qt::Key_V },
-+        { KEY_W, Qt::Key_W },
-+        { KEY_X, Qt::Key_X },
-+        { KEY_Y, Qt::Key_Y },
-+        { KEY_Z, Qt::Key_Z },
-+        { KEY_COMMA, Qt::Key_Comma },
-+        { KEY_PERIOD, Qt::Key_Period },
-+        { KEY_ALT_LEFT, Qt::Key_Alt },
-+        { KEY_ALT_RIGHT, Qt::Key_Alt },
-+        { KEY_SHIFT_LEFT, Qt::Key_Shift },
-+        { KEY_SHIFT_RIGHT, Qt::Key_Shift },
-+        { KEY_TAB, Qt::Key_Tab  },
-+        { KEY_SPACE, Qt::Key_Space },
-+        //{ KEY_SYM, Qt::KEY_},
-+        { KEY_EXPLORER, Qt::Key_Explorer },
-+        //{ KEY_ENVELOPE, Qt::Key_ },
-+        { KEY_ENTER, Qt::Key_Return },
-+        { KEY_DEL, Qt::Key_Back },
-+        { KEY_GRAVE, Qt::Key_Apostrophe },
-+        { KEY_MINUS, Qt::Key_Minus },
-+        { KEY_EQUALS, Qt::Key_Equal },
-+        { KEY_LEFT_BRACKET, Qt::Key_BracketLeft },
-+        { KEY_RIGHT_BRACKET, Qt::Key_BracketRight },
-+        { KEY_BACKSLASH, Qt::Key_Backslash },
-+        { KEY_SEMICOLON, Qt::Key_Semicolon },
-+        { KEY_APOSTROPHE, Qt::Key_Apostrophe },
-+        { KEY_SLASH, Qt::Key_Slash },
-+        { KEY_AT, Qt::Key_At },
-+        { KEY_PLUS, Qt::Key_Plus },
-+        { KEY_MENU, Qt::Key_Menu },
-+        { KEY_PAGE_UP, Qt::Key_PageUp },
-+        { KEY_PAGE_DOWN, Qt::Key_PageDown },
-+        { KEY_ESCAPE, Qt::Key_Escape },
-+        { KEY_FORWARD_DEL, Qt::Key_Delete },
-+        { KEY_CTRL_LEFT, Qt::Key_Control },
-+        { KEY_CTRL_RIGHT, Qt::Key_Control },
-+        { KEY_CAPS_LOCK, Qt::Key_CapsLock },
-+        { KEY_SCROLL_LOCK, Qt::Key_ScrollLock },
-+        { KEY_META_LEFT, Qt::Key_Meta },
-+        { KEY_META_RIGHT, Qt::Key_Meta },
-+        //{ KEY_FUNCTION, Qt::Key_ },
-+        { KEY_SYSRQ, Qt::Key_SysReq },
-+        { KEY_BREAK, Qt::Key_Pause },
-+        { KEY_MOVE_HOME, Qt::Key_Home },
-+        { KEY_MOVE_END, Qt::Key_End },
-+        { KEY_INSERT, Qt::Key_Insert },
-+        { KEY_FORWARD, Qt::Key_Forward },
-+        { KEY_MEDIA_PLAY, Qt::Key_MediaPlay },
-+        { KEY_MEDIA_PAUSE, Qt::Key_MediaPause },
-+        //{ KEY_MEDIA_CLOSE, Qt::Key_Media },
-+        //{ KEY_MEDIA_EJECT, Qt::Key_Eject },
-+        { KEY_MEDIA_RECORD, Qt::Key_MediaRecord },
-+        { KEY_F1, Qt::Key_F1 },
-+        { KEY_F2, Qt::Key_F2 },
-+        { KEY_F3, Qt::Key_F3 },
-+        { KEY_F4, Qt::Key_F4 },
-+        { KEY_F5, Qt::Key_F5 },
-+        { KEY_F6, Qt::Key_F6 },
-+        { KEY_F7, Qt::Key_F7 },
-+        { KEY_F8, Qt::Key_F8 },
-+        { KEY_F9, Qt::Key_F9 },
-+        { KEY_F10, Qt::Key_F10 },
-+        { KEY_F11, Qt::Key_F11 },
-+        { KEY_F12, Qt::Key_F12 },
-+        { KEY_NUM_LOCK, Qt::Key_NumLock },
-+        { KEY_NUMPAD_0, Qt::Key_0 },
-+        { KEY_NUMPAD_1, Qt::Key_1 },
-+        { KEY_NUMPAD_2, Qt::Key_2 },
-+        { KEY_NUMPAD_3, Qt::Key_3 },
-+        { KEY_NUMPAD_4, Qt::Key_4 },
-+        { KEY_NUMPAD_5, Qt::Key_5 },
-+        { KEY_NUMPAD_6, Qt::Key_6 },
-+        { KEY_NUMPAD_7, Qt::Key_7 },
-+        { KEY_NUMPAD_8, Qt::Key_8 },
-+        { KEY_NUMPAD_9, Qt::Key_9 },
-+        { KEY_NUMPAD_DIVIDE, Qt::Key_Slash },
-+        { KEY_NUMPAD_MULTIPLY, Qt::Key_Asterisk },
-+        { KEY_NUMPAD_SUBTRACT, Qt::Key_Minus },
-+        { KEY_NUMPAD_ADD, Qt::Key_Plus },
-+        { KEY_NUMPAD_DOT, Qt::Key_Period },
-+        { KEY_NUMPAD_COMMA, Qt::Key_Comma },
-+        { KEY_NUMPAD_ENTER, Qt::Key_Enter },
-+        { KEY_NUMPAD_EQUALS, Qt::Key_Equal },
-+        { KEY_NUMPAD_LEFT_PAREN, Qt::Key_ParenLeft },
-+        { KEY_NUMPAD_RIGHT_PAREN, Qt::Key_ParenRight },
-+        //{ KEY_VIRTUAL_MULTITASK, Qt::Key_ },
-+        { KEY_SLEEP, Qt::Key_Sleep },
-+        { KEY_ZENKAKU_HANKAKU, Qt::Key_Zenkaku_Hankaku },
-+        //{ KEY_102ND,  Qt::Key_ },
-+        //{ KEY_RO,  Qt::Key_ },
-+        { KEY_KATAKANA, Qt::Key_Katakana },
-+        { KEY_HIRAGANA, Qt::Key_Hiragana },
-+        { KEY_HENKAN, Qt::Key_Henkan },
-+        { KEY_KATAKANA_HIRAGANA, Qt::Key_Hiragana_Katakana },
-+        { KEY_MUHENKAN, Qt::Key_Muhenkan },
-+        { KEY_LINEFEED, Qt::Key_Return },
-+        //{ KEY_MACRO, Qt::Key_macron },
-+        //{ KEY_NUMPAD_PLUSMINUS, Qt::Key_ },
-+        //{ KEY_SCALE, Qt::Key_ },
-+        { KEY_HANGUEL, Qt::Key_Hangul },
-+        { KEY_HANJA, Qt::Key_Hangul_Hanja },
-+        { KEY_YEN, Qt::Key_yen },
-+        { KEY_STOP, Qt::Key_Stop },
-+        //{ KEY_AGAIN, Qt::Key_ },
-+        //{ KEY_PROPS, Qt::Key_ },
-+        { KEY_UNDO, Qt::Key_Undo },
-+        { KEY_COPY, Qt::Key_Copy },
-+        { KEY_OPEN, Qt::Key_Open },
-+        { KEY_PASTE, Qt::Key_Paste },
-+        { KEY_FIND, Qt::Key_Find },
-+        { KEY_CUT, Qt::Key_Cut },
-+        { KEY_HELP, Qt::Key_Help },
-+        //{ KEY_CALC, Qt::Key_ },
-+        //{ KEY_FILE, Qt::Key_ },
-+        //{ KEY_BOOKMARKS, Qt::Key_Book },
-+        //{ KEY_NEXT, Qt::Key_ },
-+        //{ KEY_PLAYPAUSE, Qt::Key_MediaTogglePlayPause }
-+        //{ KEY_PREVIOUS, Qt::Key_ },
-+        //{ KEY_STOPCD, Qt::Key_ },
-+        //{ KEY_CONFIG, Qt::Key_ },
-+        { KEY_REFRESH, Qt::Key_Refresh },
-+        { KEY_EXIT, Qt::Key_Exit },
-+        //{ KEY_EDIT, Qt::Key_ },
-+        //{ KEY_SCROLLUP, Qt::Key_ },
-+        //{ KEY_SCROLLDOWN, Qt::Key_ },
-+        { KEY_NEW, Qt::Key_New },
-+        { KEY_REDO, Qt::Key_Redo },
-+        { KEY_CLOSE, Qt::Key_Close },
-+        { KEY_PLAY, Qt::Key_Play },
-+        //{ KEY_BASSBOOST, Qt::Key_ },
-+        { KEY_PRINT, Qt::Key_Print },
-+        //{ KEY_CHAT, Qt::Key_ },
-+        { KEY_FINANCE, Qt::Key_Finance },
-+        { KEY_CANCEL, Qt::Key_Cancel },
-+        //{ KEY_KBDILLUM_TOGGLE, Qt::Key_ },
-+        { KEY_KBDILLUM_DOWN, Qt::Key_KeyboardBrightnessDown },
-+        { KEY_KBDILLUM_UP, Qt::Key_KeyboardBrightnessUp },
-+        { KEY_SEND, Qt::Key_Send },
-+        { KEY_REPLY, Qt::Key_Reply },
-+        { KEY_FORWARDMAIL, Qt::Key_Forward },
-+        { KEY_SAVE, Qt::Key_Save },
-+        { KEY_DOCUMENTS, Qt::Key_Documents },
-+        //{ KEY_VIDEO_NEXT, Qt::Key_ },
-+        //{ KEY_VIDEO_PREV, Qt::Key_ },
-+        //{ KEY_BRIGHTNESS_CYCLE, Qt::Key_ },
-+        //{ KEY_BRIGHTNESS_ZERO, Qt::Key_ },
-+        //{ KEY_DISPLAY_OFF, Qt::Key_ },
-+        //{ KEY_BTN_MISC, Qt::Key_ },
-+        { KEY_GOTO, Qt::Key_Go },
-+        { KEY_INFO, Qt::Key_Info },
-+        //{ KEY_PROGRAM, Qt::Key_ },
-+        //{ KEY_PVR, Qt::Key_ },
-+        { KEY_SUBTITLE, Qt::Key_Subtitle },
-+        //{ KEY_FULL_SCREEN, Qt::Key_ },
-+        //{ KEY_KEYBOARD, Qt::Key_ },
-+        //{ KEY_ASPECT_RATIO, Qt::Key_ },
-+        //{ KEY_PC, Qt::Key_ },
-+        //{ KEY_TV, Qt::Key_ },
-+        //{ KEY_TV2, Qt::Key_ },
-+        //{ KEY_VCR, Qt::Key_ },
-+        //{ KEY_VCR2, Qt::Key_ },
-+        //{ KEY_SAT, Qt::Key_ },
-+        { KEY_CD, Qt::Key_CD },
-+        //{ KEY_TAPE, Qt::Key_ },
-+        //{ KEY_TUNER, Qt::Key_ },
-+        { KEY_PLAYER, Qt::Key_Play },
-+        //{ KEY_DVD, Qt::Key_ },
-+        //{ KEY_AUDIO, Qt::Key_ },
-+        { KEY_VIDEO, Qt::Key_Video },
-+        { KEY_MEMO, Qt::Key_Memo },
-+        { KEY_CALENDAR, Qt::Key_Calendar },
-+        { KEY_RED, Qt::Key_Red },
-+        { KEY_GREEN, Qt::Key_Green },
-+        { KEY_YELLOW, Qt::Key_Yellow },
-+        { KEY_BLUE, Qt::Key_Blue },
-+        { KEY_CHANNELUP, Qt::Key_ChannelUp },
-+        { KEY_CHANNELDOWN, Qt::Key_ChannelDown },
-+        //{ KEY_LAST, Qt::Key_ },
-+        //{ KEY_RESTART, Qt::Key_ },
-+        //{ KEY_SLOW, Qt::Key_ },
-+        //{ KEY_SHUFFLE, Qt::Key_ },
-+        //{ KEY_VIDEOPHONE, Qt::Key_ },
-+        { KEY_GAMES, Qt::Key_Game },
-+        { KEY_ZOOMIN, Qt::Key_ZoomIn },
-+        { KEY_ZOOMOUT, Qt::Key_ZoomOut },
-+        //{ KEY_ZOOMRESET, Qt::Key_ },
-+        //{ KEY_WORDPROCESSOR, Qt::Key_ },
-+        //{ KEY_EDITOR, Qt::Key_ },
-+        //{ KEY_SPREADSHEET, Qt::Key_ },
-+        //{ KEY_GRAPHICSEDITOR, Qt::Key_ },
-+        //{ KEY_PRESENTATION, Qt::Key_ },
-+        //{ KEY_DATABASE, Qt::Key_ },
-+        { KEY_NEWS, Qt::Key_News },
-+        //{ KEY_VOICEMAIL, Qt::Key_ },
-+        //{ KEY_ADDRESSBOOK, Qt::Key_ },
-+        { KEY_MESSENGER, Qt::Key_Messenger },
-+        //{ KEY_BRIGHTNESS_TOGGLE, Qt::Key_BrightnessAdjust }
-+        //{ KEY_SPELLCHECK, Qt::Key_Spell }
-+        //{ KEY_COFFEE, Qt::Key_ },
-+        //{ KEY_MEDIA_REPEAT, Qt::Key_ },
-+        //{ KEY_IMAGES, Qt::Key_ },
-+        //{ KEY_BUTTONCONFIG, Qt::Key_ },
-+        //{ KEY_TASKMANAGER, Qt::Key_TaskPane }
-+        //{ KEY_JOURNAL, Qt::Key_ },
-+        //{ KEY_CONTROLPANEL, Qt::Key_ },
-+        //{ KEY_APPSELECT, Qt::Key_ },
-+        { KEY_SCREENSAVER, Qt::Key_ScreenSaver },
-+        //{ KEY_ASSISTANT, Qt::Key_ },
-+        //{ KEY_KBD_LAYOUT_NEXT, Qt::Key_ },
-+        //{ KEY_BRIGHTNESS_MIN, Qt::Key_ },
-+        //{ KEY_BRIGHTNESS_MAX, Qt::Key_ },
-+        //{ KEY_KBDINPUTASSIST_PREV, Qt::Key_ },
-+        //{ KEY_KBDINPUTASSIST_NEXT, Qt::Key_ },
-+        //{ KEY_KBDINPUTASSIST_PREVGROUP, Qt::Key_ },
-+        //{ KEY_KBDINPUTASSIST_NEXTGROUP, Qt::Key_ },
-+        //{ KEY_KBDINPUTASSIST_ACCEPT, Qt::Key_ },
-+        //{ KEY_KBDINPUTASSIST_CANCEL, Qt::Key_ },
-+        //{ KEY_FRONT, Qt::Key_ }
-+        //{ KEY_SETUP, Qt::Key_Settings },
-+        { KEY_WAKEUP, Qt::Key_WakeUp },
-+        //{ KEY_SENDFILE, Qt::Key_ },
-+        //{ KEY_DELETEFILE, Qt::Key_ },
-+        { KEY_XFER, Qt::Key_Xfer },
-+        //{ KEY_PROG1, Qt::Key_ },
-+        //{ KEY_PROG2, Qt::Key_ },
-+        //{ KEY_MSDOS, Qt::Key_ },
-+        //{ KEY_SCREENLOCK, Qt::Key_ },
-+        //{ KEY_DIRECTION_ROTATE_DISPLAY, Qt::Key },
-+        //{ KEY_CYCLEWINDOWS, Qt::Key_ },
-+        //{ KEY_COMPUTER, Qt::Key },
-+        { KEY_EJECTCLOSECD, Qt::Key_Eject },
-+        //{ KEY_ISO, Qt::Key_ },
-+        //{ KEY_MOVE, Qt::Key_ },
-+        { KEY_F13, Qt::Key_F13 },
-+        { KEY_F14, Qt::Key_F14 },
-+        { KEY_F15, Qt::Key_F15 },
-+        { KEY_F16, Qt::Key_F16 },
-+        { KEY_F17, Qt::Key_F17 },
-+        { KEY_F18, Qt::Key_F18 },
-+        { KEY_F19, Qt::Key_F19 },
-+        { KEY_F20, Qt::Key_F20 },
-+        { KEY_F21, Qt::Key_F21 },
-+        { KEY_F22, Qt::Key_F22 },
-+        { KEY_F23, Qt::Key_F23 },
-+        { KEY_F24, Qt::Key_F24 },
-+        //{ KEY_PROG3, Qt::Key_ },
-+        //{ KEY_PROG4, Qt::Key_ },
-+        //{ KEY_DASHBOARD, Qt::Key_ },
-+        { KEY_SUSPEND, Qt::Key_Suspend },
-+        //{ KEY_HP, Qt::Key_ },
-+        //{ KEY_SOUND, Qt::Key_ },
-+        { KEY_QUESTION, Qt::Key_Question },
-+        //{ KEY_CONNECT, Qt::Key_ },
-+        //{ KEY_SPORT, Qt::Key_ },
-+        { KEY_SHOP, Qt::Key_Shop },
-+        //{ KEY_ALTERASE, Qt::Key_ },
-+        //{ KEY_SWITCHVIDEOMODE, Qt::Key_Mode_switch }
-+        { KEY_BATTERY, Qt::Key_Battery },
-+        { KEY_BLUETOOTH, Qt::Key_Bluetooth },
-+        { KEY_WLAN, Qt::Key_WLAN },
-+        { KEY_UWB, Qt::Key_UWB },
-+        //{ KEY_WWAN_WIMAX, Qt::Key_ },
-+        //{ KEY_RFKILL, Qt::Key_ },
-+        //{ KEY_CHANNEL, Qt::Key_ },
-+        { KEY_BTN_0, Qt::Key_0 },
-+        { KEY_BTN_1, Qt::Key_1 },
-+        { KEY_BTN_2, Qt::Key_2 },
-+        { KEY_BTN_3, Qt::Key_3 },
-+        { KEY_BTN_4, Qt::Key_4 },
-+        { KEY_BTN_5, Qt::Key_5 },
-+        { KEY_BTN_6, Qt::Key_6 },
-+        { KEY_BTN_7, Qt::Key_7 },
-+        { KEY_BTN_8, Qt::Key_8 },
-+        { KEY_BTN_9, Qt::Key_9 }
-+    };
++        OH_NativeXComponent_EventSourceType sourceType;
++        OH_NativeXComponent_GetKeyEventSourceType(keyEvent, &sourceType); /* 获取按键事件的输入源类型 */
 +
-+    static QHash<OH_NativeXComponent_KeyCode, Qt::KeyboardModifiers> sKeyModifers{
-+        { KEY_SHIFT_LEFT, Qt::ShiftModifier },
-+        { KEY_SHIFT_RIGHT, Qt::ShiftModifier },
-+        { KEY_CTRL_LEFT, Qt::ControlModifier },
-+        { KEY_CTRL_RIGHT, Qt::ControlModifier },
-+        { KEY_ALT_LEFT, Qt::AltModifier },
-+        { KEY_ALT_RIGHT, Qt::AltModifier },
-+        { KEY_META_LEFT, Qt::MetaModifier },
-+        { KEY_META_RIGHT, Qt::MetaModifier },
-+        { KEY_NUM_LOCK, Qt::KeypadModifier },
-+        { KEY_NUMPAD_0, Qt::KeypadModifier },
-+        { KEY_NUMPAD_1, Qt::KeypadModifier },
-+        { KEY_NUMPAD_2, Qt::KeypadModifier },
-+        { KEY_NUMPAD_3, Qt::KeypadModifier },
-+        { KEY_NUMPAD_4, Qt::KeypadModifier },
-+        { KEY_NUMPAD_5, Qt::KeypadModifier },
-+        { KEY_NUMPAD_6, Qt::KeypadModifier },
-+        { KEY_NUMPAD_7, Qt::KeypadModifier },
-+        { KEY_NUMPAD_8, Qt::KeypadModifier },
-+        { KEY_NUMPAD_9, Qt::KeypadModifier },
-+        { KEY_NUMPAD_DIVIDE, Qt::KeypadModifier },
-+        { KEY_NUMPAD_MULTIPLY, Qt::KeypadModifier },
-+        { KEY_NUMPAD_SUBTRACT, Qt::KeypadModifier },
-+        { KEY_NUMPAD_ADD, Qt::KeypadModifier },
-+        { KEY_NUMPAD_DOT, Qt::KeypadModifier },
-+        { KEY_NUMPAD_COMMA, Qt::KeypadModifier },
-+        { KEY_NUMPAD_ENTER, Qt::KeypadModifier },
-+        { KEY_NUMPAD_EQUALS, Qt::KeypadModifier },
-+        { KEY_NUMPAD_LEFT_PAREN, Qt::KeypadModifier },
-+        { KEY_NUMPAD_RIGHT_PAREN, Qt::KeypadModifier},
-+    };
-+    static int nativeModifier = Qt::NoModifier;
-+    if (sKeyModifers.keys().contains(code))
-+        nativeModifier |= code;
++        int64_t deviceId;
++        OH_NativeXComponent_GetKeyEventDeviceId(keyEvent, &deviceId); /* 获取按键事件的设备ID */
 +
-+    Qt::Key k = sKeyMap.value(code, Qt::Key_unknown);
-+    QEvent::Type t = sKeyType.value(keyAct, QEvent::None);
-+    Qt::KeyboardModifiers modifiers(Qt::NoModifier);
-+    modifiers |= sKeyModifers.value(code, Qt::NoModifier);
++        int64_t timeStamp;
++        OH_NativeXComponent_GetKeyEventTimestamp(keyEvent, &timeStamp); /* 获取按键事件的时间戳 */
 +
-+    QKeyEvent kEvent(t, k, modifiers, code, code, nativeModifier);
-+    context->sendKeyEvent(&kEvent);
++#if 0
++        qWarning() << "dispatchKeyEvent:::::" << action << code << sourceType << deviceId << timeStamp;
++        QOpenHarmonyPlatformInputContext *context = QOpenHarmonyPlatformInputContext::openHarmonyInputContext();
++        if (Q_NULLPTR == context)
++            return;
++#endif
++        static QHash<OH_NativeXComponent_KeyAction, QEvent::Type> sKeyType{
++                                                                             { OH_NATIVEXCOMPONENT_KEY_ACTION_DOWN, QEvent::KeyPress },
++                                                                             { OH_NATIVEXCOMPONENT_KEY_ACTION_UP, QEvent::KeyRelease },
++                                                                             };
++
++
++        static QHash<OH_NativeXComponent_KeyCode, Qt::Key> sKeyMap{
++            { KEY_HOME, Qt::Key_Home },
++            { KEY_BACK, Qt::Key_Back },
++            { KEY_MEDIA_PLAY_PAUSE, Qt::Key_MediaTogglePlayPause },
++            { KEY_MEDIA_STOP, Qt::Key_MediaStop },
++            { KEY_MEDIA_NEXT, Qt::Key_MediaNext },
++            { KEY_MEDIA_PREVIOUS, Qt::Key_MediaPrevious },
++            { KEY_MEDIA_REWIND, Qt::Key_AudioRewind },
++            { KEY_MEDIA_FAST_FORWARD, Qt::Key_AudioForward },
++            { KEY_VOLUME_UP, Qt::Key_VolumeUp },
++            { KEY_VOLUME_DOWN, Qt::Key_VolumeDown },
++            { KEY_POWER, Qt::Key_PowerDown },
++            { KEY_CAMERA, Qt::Key_Camera },
++            { KEY_VOLUME_MUTE, Qt::Key_VolumeMute },
++            { KEY_MUTE, Qt::Key_MicMute },
++            { KEY_BRIGHTNESS_UP, Qt::Key_MonBrightnessUp },
++            { KEY_BRIGHTNESS_DOWN, Qt::Key_MonBrightnessDown },
++            { KEY_0, Qt::Key_0 },
++            { KEY_1, Qt::Key_1 },
++            { KEY_2, Qt::Key_2 },
++            { KEY_3, Qt::Key_3 },
++            { KEY_4, Qt::Key_4 },
++            { KEY_5, Qt::Key_5 },
++            { KEY_6, Qt::Key_6 },
++            { KEY_7, Qt::Key_7 },
++            { KEY_8, Qt::Key_8 },
++            { KEY_9, Qt::Key_9 },
++            { KEY_STAR, Qt::Key_Asterisk },
++            { KEY_POUND, Qt::Key_NumberSign },
++            { KEY_DPAD_UP, Qt::Key_Up },
++            { KEY_DPAD_DOWN, Qt::Key_Down },
++            { KEY_DPAD_LEFT, Qt::Key_Left },
++            { KEY_DPAD_RIGHT, Qt::Key_Right },
++            //{ KEY_DPAD_CENTER, Qt::Key_ },
++            { KEY_A, Qt::Key_A },
++            { KEY_B, Qt::Key_B },
++            { KEY_C, Qt::Key_C },
++            { KEY_D, Qt::Key_D },
++            { KEY_E, Qt::Key_E },
++            { KEY_F, Qt::Key_F },
++            { KEY_G, Qt::Key_G },
++            { KEY_H, Qt::Key_H },
++            { KEY_I, Qt::Key_I },
++            { KEY_J, Qt::Key_J },
++            { KEY_K, Qt::Key_K },
++            { KEY_L, Qt::Key_L },
++            { KEY_M, Qt::Key_M },
++            { KEY_N, Qt::Key_N },
++            { KEY_O, Qt::Key_O },
++            { KEY_P, Qt::Key_P },
++            { KEY_Q, Qt::Key_Q },
++            { KEY_R, Qt::Key_R },
++            { KEY_S, Qt::Key_S },
++            { KEY_T, Qt::Key_T },
++            { KEY_U, Qt::Key_U },
++            { KEY_V, Qt::Key_V },
++            { KEY_W, Qt::Key_W },
++            { KEY_X, Qt::Key_X },
++            { KEY_Y, Qt::Key_Y },
++            { KEY_Z, Qt::Key_Z },
++            { KEY_COMMA, Qt::Key_Comma },
++            { KEY_PERIOD, Qt::Key_Period },
++            { KEY_ALT_LEFT, Qt::Key_Alt },
++            { KEY_ALT_RIGHT, Qt::Key_Alt },
++            { KEY_SHIFT_LEFT, Qt::Key_Shift },
++            { KEY_SHIFT_RIGHT, Qt::Key_Shift },
++            { KEY_TAB, Qt::Key_Tab  },
++            { KEY_SPACE, Qt::Key_Space },
++            //{ KEY_SYM, Qt::KEY_},
++            { KEY_EXPLORER, Qt::Key_Explorer },
++            //{ KEY_ENVELOPE, Qt::Key_ },
++            { KEY_ENTER, Qt::Key_Return },
++            { KEY_DEL, Qt::Key_Back },
++            { KEY_GRAVE, Qt::Key_Apostrophe },
++            { KEY_MINUS, Qt::Key_Minus },
++            { KEY_EQUALS, Qt::Key_Equal },
++            { KEY_LEFT_BRACKET, Qt::Key_BracketLeft },
++            { KEY_RIGHT_BRACKET, Qt::Key_BracketRight },
++            { KEY_BACKSLASH, Qt::Key_Backslash },
++            { KEY_SEMICOLON, Qt::Key_Semicolon },
++            { KEY_APOSTROPHE, Qt::Key_Apostrophe },
++            { KEY_SLASH, Qt::Key_Slash },
++            { KEY_AT, Qt::Key_At },
++            { KEY_PLUS, Qt::Key_Plus },
++            { KEY_MENU, Qt::Key_Menu },
++            { KEY_PAGE_UP, Qt::Key_PageUp },
++            { KEY_PAGE_DOWN, Qt::Key_PageDown },
++            { KEY_ESCAPE, Qt::Key_Escape },
++            { KEY_FORWARD_DEL, Qt::Key_Delete },
++            { KEY_CTRL_LEFT, Qt::Key_Control },
++            { KEY_CTRL_RIGHT, Qt::Key_Control },
++            { KEY_CAPS_LOCK, Qt::Key_CapsLock },
++            { KEY_SCROLL_LOCK, Qt::Key_ScrollLock },
++            { KEY_META_LEFT, Qt::Key_Meta },
++            { KEY_META_RIGHT, Qt::Key_Meta },
++            //{ KEY_FUNCTION, Qt::Key_ },
++            { KEY_SYSRQ, Qt::Key_SysReq },
++            { KEY_BREAK, Qt::Key_Pause },
++            { KEY_MOVE_HOME, Qt::Key_Home },
++            { KEY_MOVE_END, Qt::Key_End },
++            { KEY_INSERT, Qt::Key_Insert },
++            { KEY_FORWARD, Qt::Key_Forward },
++            { KEY_MEDIA_PLAY, Qt::Key_MediaPlay },
++            { KEY_MEDIA_PAUSE, Qt::Key_MediaPause },
++            //{ KEY_MEDIA_CLOSE, Qt::Key_Media },
++            //{ KEY_MEDIA_EJECT, Qt::Key_Eject },
++            { KEY_MEDIA_RECORD, Qt::Key_MediaRecord },
++            { KEY_F1, Qt::Key_F1 },
++            { KEY_F2, Qt::Key_F2 },
++            { KEY_F3, Qt::Key_F3 },
++            { KEY_F4, Qt::Key_F4 },
++            { KEY_F5, Qt::Key_F5 },
++            { KEY_F6, Qt::Key_F6 },
++            { KEY_F7, Qt::Key_F7 },
++            { KEY_F8, Qt::Key_F8 },
++            { KEY_F9, Qt::Key_F9 },
++            { KEY_F10, Qt::Key_F10 },
++            { KEY_F11, Qt::Key_F11 },
++            { KEY_F12, Qt::Key_F12 },
++            { KEY_NUM_LOCK, Qt::Key_NumLock },
++            { KEY_NUMPAD_0, Qt::Key_0 },
++            { KEY_NUMPAD_1, Qt::Key_1 },
++            { KEY_NUMPAD_2, Qt::Key_2 },
++            { KEY_NUMPAD_3, Qt::Key_3 },
++            { KEY_NUMPAD_4, Qt::Key_4 },
++            { KEY_NUMPAD_5, Qt::Key_5 },
++            { KEY_NUMPAD_6, Qt::Key_6 },
++            { KEY_NUMPAD_7, Qt::Key_7 },
++            { KEY_NUMPAD_8, Qt::Key_8 },
++            { KEY_NUMPAD_9, Qt::Key_9 },
++            { KEY_NUMPAD_DIVIDE, Qt::Key_Slash },
++            { KEY_NUMPAD_MULTIPLY, Qt::Key_Asterisk },
++            { KEY_NUMPAD_SUBTRACT, Qt::Key_Minus },
++            { KEY_NUMPAD_ADD, Qt::Key_Plus },
++            { KEY_NUMPAD_DOT, Qt::Key_Period },
++            { KEY_NUMPAD_COMMA, Qt::Key_Comma },
++            { KEY_NUMPAD_ENTER, Qt::Key_Enter },
++            { KEY_NUMPAD_EQUALS, Qt::Key_Equal },
++            { KEY_NUMPAD_LEFT_PAREN, Qt::Key_ParenLeft },
++            { KEY_NUMPAD_RIGHT_PAREN, Qt::Key_ParenRight },
++            //{ KEY_VIRTUAL_MULTITASK, Qt::Key_ },
++            { KEY_SLEEP, Qt::Key_Sleep },
++            { KEY_ZENKAKU_HANKAKU, Qt::Key_Zenkaku_Hankaku },
++            //{ KEY_102ND,  Qt::Key_ },
++            //{ KEY_RO,  Qt::Key_ },
++            { KEY_KATAKANA, Qt::Key_Katakana },
++            { KEY_HIRAGANA, Qt::Key_Hiragana },
++            { KEY_HENKAN, Qt::Key_Henkan },
++            { KEY_KATAKANA_HIRAGANA, Qt::Key_Hiragana_Katakana },
++            { KEY_MUHENKAN, Qt::Key_Muhenkan },
++            { KEY_LINEFEED, Qt::Key_Return },
++            //{ KEY_MACRO, Qt::Key_macron },
++            //{ KEY_NUMPAD_PLUSMINUS, Qt::Key_ },
++            //{ KEY_SCALE, Qt::Key_ },
++            { KEY_HANGUEL, Qt::Key_Hangul },
++            { KEY_HANJA, Qt::Key_Hangul_Hanja },
++            { KEY_YEN, Qt::Key_yen },
++            { KEY_STOP, Qt::Key_Stop },
++            //{ KEY_AGAIN, Qt::Key_ },
++            //{ KEY_PROPS, Qt::Key_ },
++            { KEY_UNDO, Qt::Key_Undo },
++            { KEY_COPY, Qt::Key_Copy },
++            { KEY_OPEN, Qt::Key_Open },
++            { KEY_PASTE, Qt::Key_Paste },
++            { KEY_FIND, Qt::Key_Find },
++            { KEY_CUT, Qt::Key_Cut },
++            { KEY_HELP, Qt::Key_Help },
++            //{ KEY_CALC, Qt::Key_ },
++            //{ KEY_FILE, Qt::Key_ },
++            //{ KEY_BOOKMARKS, Qt::Key_Book },
++            //{ KEY_NEXT, Qt::Key_ },
++            //{ KEY_PLAYPAUSE, Qt::Key_MediaTogglePlayPause }
++            //{ KEY_PREVIOUS, Qt::Key_ },
++            //{ KEY_STOPCD, Qt::Key_ },
++            //{ KEY_CONFIG, Qt::Key_ },
++            { KEY_REFRESH, Qt::Key_Refresh },
++            { KEY_EXIT, Qt::Key_Exit },
++            //{ KEY_EDIT, Qt::Key_ },
++            //{ KEY_SCROLLUP, Qt::Key_ },
++            //{ KEY_SCROLLDOWN, Qt::Key_ },
++            { KEY_NEW, Qt::Key_New },
++            { KEY_REDO, Qt::Key_Redo },
++            { KEY_CLOSE, Qt::Key_Close },
++            { KEY_PLAY, Qt::Key_Play },
++            //{ KEY_BASSBOOST, Qt::Key_ },
++            { KEY_PRINT, Qt::Key_Print },
++            //{ KEY_CHAT, Qt::Key_ },
++            { KEY_FINANCE, Qt::Key_Finance },
++            { KEY_CANCEL, Qt::Key_Cancel },
++            //{ KEY_KBDILLUM_TOGGLE, Qt::Key_ },
++            { KEY_KBDILLUM_DOWN, Qt::Key_KeyboardBrightnessDown },
++            { KEY_KBDILLUM_UP, Qt::Key_KeyboardBrightnessUp },
++            { KEY_SEND, Qt::Key_Send },
++            { KEY_REPLY, Qt::Key_Reply },
++            { KEY_FORWARDMAIL, Qt::Key_Forward },
++            { KEY_SAVE, Qt::Key_Save },
++            { KEY_DOCUMENTS, Qt::Key_Documents },
++            //{ KEY_VIDEO_NEXT, Qt::Key_ },
++            //{ KEY_VIDEO_PREV, Qt::Key_ },
++            //{ KEY_BRIGHTNESS_CYCLE, Qt::Key_ },
++            //{ KEY_BRIGHTNESS_ZERO, Qt::Key_ },
++            //{ KEY_DISPLAY_OFF, Qt::Key_ },
++            //{ KEY_BTN_MISC, Qt::Key_ },
++            { KEY_GOTO, Qt::Key_Go },
++            { KEY_INFO, Qt::Key_Info },
++            //{ KEY_PROGRAM, Qt::Key_ },
++            //{ KEY_PVR, Qt::Key_ },
++            { KEY_SUBTITLE, Qt::Key_Subtitle },
++            //{ KEY_FULL_SCREEN, Qt::Key_ },
++            //{ KEY_KEYBOARD, Qt::Key_ },
++            //{ KEY_ASPECT_RATIO, Qt::Key_ },
++            //{ KEY_PC, Qt::Key_ },
++            //{ KEY_TV, Qt::Key_ },
++            //{ KEY_TV2, Qt::Key_ },
++            //{ KEY_VCR, Qt::Key_ },
++            //{ KEY_VCR2, Qt::Key_ },
++            //{ KEY_SAT, Qt::Key_ },
++            { KEY_CD, Qt::Key_CD },
++            //{ KEY_TAPE, Qt::Key_ },
++            //{ KEY_TUNER, Qt::Key_ },
++            { KEY_PLAYER, Qt::Key_Play },
++            //{ KEY_DVD, Qt::Key_ },
++            //{ KEY_AUDIO, Qt::Key_ },
++            { KEY_VIDEO, Qt::Key_Video },
++            { KEY_MEMO, Qt::Key_Memo },
++            { KEY_CALENDAR, Qt::Key_Calendar },
++            { KEY_RED, Qt::Key_Red },
++            { KEY_GREEN, Qt::Key_Green },
++            { KEY_YELLOW, Qt::Key_Yellow },
++            { KEY_BLUE, Qt::Key_Blue },
++            { KEY_CHANNELUP, Qt::Key_ChannelUp },
++            { KEY_CHANNELDOWN, Qt::Key_ChannelDown },
++            //{ KEY_LAST, Qt::Key_ },
++            //{ KEY_RESTART, Qt::Key_ },
++            //{ KEY_SLOW, Qt::Key_ },
++            //{ KEY_SHUFFLE, Qt::Key_ },
++            //{ KEY_VIDEOPHONE, Qt::Key_ },
++            { KEY_GAMES, Qt::Key_Game },
++            { KEY_ZOOMIN, Qt::Key_ZoomIn },
++            { KEY_ZOOMOUT, Qt::Key_ZoomOut },
++            //{ KEY_ZOOMRESET, Qt::Key_ },
++            //{ KEY_WORDPROCESSOR, Qt::Key_ },
++            //{ KEY_EDITOR, Qt::Key_ },
++            //{ KEY_SPREADSHEET, Qt::Key_ },
++            //{ KEY_GRAPHICSEDITOR, Qt::Key_ },
++            //{ KEY_PRESENTATION, Qt::Key_ },
++            //{ KEY_DATABASE, Qt::Key_ },
++            { KEY_NEWS, Qt::Key_News },
++            //{ KEY_VOICEMAIL, Qt::Key_ },
++            //{ KEY_ADDRESSBOOK, Qt::Key_ },
++            { KEY_MESSENGER, Qt::Key_Messenger },
++            //{ KEY_BRIGHTNESS_TOGGLE, Qt::Key_BrightnessAdjust }
++            //{ KEY_SPELLCHECK, Qt::Key_Spell }
++            //{ KEY_COFFEE, Qt::Key_ },
++            //{ KEY_MEDIA_REPEAT, Qt::Key_ },
++            //{ KEY_IMAGES, Qt::Key_ },
++            //{ KEY_BUTTONCONFIG, Qt::Key_ },
++            //{ KEY_TASKMANAGER, Qt::Key_TaskPane }
++            //{ KEY_JOURNAL, Qt::Key_ },
++            //{ KEY_CONTROLPANEL, Qt::Key_ },
++            //{ KEY_APPSELECT, Qt::Key_ },
++            { KEY_SCREENSAVER, Qt::Key_ScreenSaver },
++            //{ KEY_ASSISTANT, Qt::Key_ },
++            //{ KEY_KBD_LAYOUT_NEXT, Qt::Key_ },
++            //{ KEY_BRIGHTNESS_MIN, Qt::Key_ },
++            //{ KEY_BRIGHTNESS_MAX, Qt::Key_ },
++            //{ KEY_KBDINPUTASSIST_PREV, Qt::Key_ },
++            //{ KEY_KBDINPUTASSIST_NEXT, Qt::Key_ },
++            //{ KEY_KBDINPUTASSIST_PREVGROUP, Qt::Key_ },
++            //{ KEY_KBDINPUTASSIST_NEXTGROUP, Qt::Key_ },
++            //{ KEY_KBDINPUTASSIST_ACCEPT, Qt::Key_ },
++            //{ KEY_KBDINPUTASSIST_CANCEL, Qt::Key_ },
++            //{ KEY_FRONT, Qt::Key_ }
++            //{ KEY_SETUP, Qt::Key_Settings },
++            { KEY_WAKEUP, Qt::Key_WakeUp },
++            //{ KEY_SENDFILE, Qt::Key_ },
++            //{ KEY_DELETEFILE, Qt::Key_ },
++            { KEY_XFER, Qt::Key_Xfer },
++            //{ KEY_PROG1, Qt::Key_ },
++            //{ KEY_PROG2, Qt::Key_ },
++            //{ KEY_MSDOS, Qt::Key_ },
++            //{ KEY_SCREENLOCK, Qt::Key_ },
++            //{ KEY_DIRECTION_ROTATE_DISPLAY, Qt::Key },
++            //{ KEY_CYCLEWINDOWS, Qt::Key_ },
++            //{ KEY_COMPUTER, Qt::Key },
++            { KEY_EJECTCLOSECD, Qt::Key_Eject },
++            //{ KEY_ISO, Qt::Key_ },
++            //{ KEY_MOVE, Qt::Key_ },
++            { KEY_F13, Qt::Key_F13 },
++            { KEY_F14, Qt::Key_F14 },
++            { KEY_F15, Qt::Key_F15 },
++            { KEY_F16, Qt::Key_F16 },
++            { KEY_F17, Qt::Key_F17 },
++            { KEY_F18, Qt::Key_F18 },
++            { KEY_F19, Qt::Key_F19 },
++            { KEY_F20, Qt::Key_F20 },
++            { KEY_F21, Qt::Key_F21 },
++            { KEY_F22, Qt::Key_F22 },
++            { KEY_F23, Qt::Key_F23 },
++            { KEY_F24, Qt::Key_F24 },
++            //{ KEY_PROG3, Qt::Key_ },
++            //{ KEY_PROG4, Qt::Key_ },
++            //{ KEY_DASHBOARD, Qt::Key_ },
++            { KEY_SUSPEND, Qt::Key_Suspend },
++            //{ KEY_HP, Qt::Key_ },
++            //{ KEY_SOUND, Qt::Key_ },
++            { KEY_QUESTION, Qt::Key_Question },
++            //{ KEY_CONNECT, Qt::Key_ },
++            //{ KEY_SPORT, Qt::Key_ },
++            { KEY_SHOP, Qt::Key_Shop },
++            //{ KEY_ALTERASE, Qt::Key_ },
++            //{ KEY_SWITCHVIDEOMODE, Qt::Key_Mode_switch }
++            { KEY_BATTERY, Qt::Key_Battery },
++            { KEY_BLUETOOTH, Qt::Key_Bluetooth },
++            { KEY_WLAN, Qt::Key_WLAN },
++            { KEY_UWB, Qt::Key_UWB },
++            //{ KEY_WWAN_WIMAX, Qt::Key_ },
++            //{ KEY_RFKILL, Qt::Key_ },
++            //{ KEY_CHANNEL, Qt::Key_ },
++            { KEY_BTN_0, Qt::Key_0 },
++            { KEY_BTN_1, Qt::Key_1 },
++            { KEY_BTN_2, Qt::Key_2 },
++            { KEY_BTN_3, Qt::Key_3 },
++            { KEY_BTN_4, Qt::Key_4 },
++            { KEY_BTN_5, Qt::Key_5 },
++            { KEY_BTN_6, Qt::Key_6 },
++            { KEY_BTN_7, Qt::Key_7 },
++            { KEY_BTN_8, Qt::Key_8 },
++            { KEY_BTN_9, Qt::Key_9 }
++        };
++
++        static QHash<OH_NativeXComponent_KeyCode, Qt::KeyboardModifiers> sKeyModifers{
++                                                                                        { KEY_SHIFT_LEFT, Qt::ShiftModifier },
++                                                                                        { KEY_SHIFT_RIGHT, Qt::ShiftModifier },
++                                                                                        { KEY_CTRL_LEFT, Qt::ControlModifier },
++                                                                                        { KEY_CTRL_RIGHT, Qt::ControlModifier },
++                                                                                        { KEY_ALT_LEFT, Qt::AltModifier },
++                                                                                        { KEY_ALT_RIGHT, Qt::AltModifier },
++                                                                                        { KEY_META_LEFT, Qt::MetaModifier },
++                                                                                        { KEY_META_RIGHT, Qt::MetaModifier },
++                                                                                        { KEY_NUM_LOCK, Qt::KeypadModifier },
++                                                                                        { KEY_NUMPAD_0, Qt::KeypadModifier },
++                                                                                        { KEY_NUMPAD_1, Qt::KeypadModifier },
++                                                                                        { KEY_NUMPAD_2, Qt::KeypadModifier },
++                                                                                        { KEY_NUMPAD_3, Qt::KeypadModifier },
++                                                                                        { KEY_NUMPAD_4, Qt::KeypadModifier },
++                                                                                        { KEY_NUMPAD_5, Qt::KeypadModifier },
++                                                                                        { KEY_NUMPAD_6, Qt::KeypadModifier },
++                                                                                        { KEY_NUMPAD_7, Qt::KeypadModifier },
++                                                                                        { KEY_NUMPAD_8, Qt::KeypadModifier },
++                                                                                        { KEY_NUMPAD_9, Qt::KeypadModifier },
++                                                                                        { KEY_NUMPAD_DIVIDE, Qt::KeypadModifier },
++                                                                                        { KEY_NUMPAD_MULTIPLY, Qt::KeypadModifier },
++                                                                                        { KEY_NUMPAD_SUBTRACT, Qt::KeypadModifier },
++                                                                                        { KEY_NUMPAD_ADD, Qt::KeypadModifier },
++                                                                                        { KEY_NUMPAD_DOT, Qt::KeypadModifier },
++                                                                                        { KEY_NUMPAD_COMMA, Qt::KeypadModifier },
++                                                                                        { KEY_NUMPAD_ENTER, Qt::KeypadModifier },
++                                                                                        { KEY_NUMPAD_EQUALS, Qt::KeypadModifier },
++                                                                                        { KEY_NUMPAD_LEFT_PAREN, Qt::KeypadModifier },
++                                                                                        { KEY_NUMPAD_RIGHT_PAREN, Qt::KeypadModifier},
++                                                                                        };
++        static int nativeModifier = Qt::NoModifier;
++        if (sKeyModifers.keys().contains(code))
++            nativeModifier |= code;
++
++        Qt::Key k = sKeyMap.value(code, Qt::Key_unknown);
++        QEvent::Type t = sKeyType.value(action, QEvent::None);
++        Qt::KeyboardModifiers modifiers(Qt::NoModifier);
++        modifiers |= sKeyModifers.value(code, Qt::NoModifier);
++
++        QKeyEvent kEvent(t, k, modifiers, code, code, nativeModifier);
++        context->sendKeyEvent(&kEvent);
++        //QWindowSystemInterface::handleKeyEvent(Q_NULLPTR, ulong(timeStamp), t, k, modifiers);
++
++    } else {
++        qWarning() << "Get Key Event Error";
++    }
 +}
 +
 +void QOpenHarmonyXComponent::dispatchTouchEvent(OH_NativeXComponent *component, void *window)
@@ -9463,10 +9497,10 @@ index 0000000000..3771faa096
 +#endif // QOPENHARMONYXCOMPONENT_H
 diff --git a/src/plugins/platforms/openharmony/qopenharmonyxcomponentmanager.cpp b/src/plugins/platforms/openharmony/qopenharmonyxcomponentmanager.cpp
 new file mode 100644
-index 0000000000..289b63c270
+index 0000000000..b2b037a43e
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonyxcomponentmanager.cpp
-@@ -0,0 +1,229 @@
+@@ -0,0 +1,228 @@
 +#include "qopenharmonyxcomponentmanager.h"
 +#include "qopenharmonyxcomponent.h"
 +#include "qopenharmonyjsenvironment.h"
@@ -9640,8 +9674,7 @@ index 0000000000..289b63c270
 +}
 +
 +void QOpenHarmonyXComponentManager::init(napi_env env, napi_value exports)
-+{
-+    LOGI("888888888888888888888888888888888888");
++{    
 +    static bool inited = false;
 +    if (!inited) {
 +        inited = true;
