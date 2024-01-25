@@ -2522,10 +2522,10 @@ index 0000000000..6a4626655c
 +};
 diff --git a/src/openharmony/native/QtCore/JsApplication.ts b/src/openharmony/native/QtCore/JsApplication.ts
 new file mode 100644
-index 0000000000..b27e0379b9
+index 0000000000..e5bd848229
 --- /dev/null
 +++ b/src/openharmony/native/QtCore/JsApplication.ts
-@@ -0,0 +1,152 @@
+@@ -0,0 +1,156 @@
 +import window from '@ohos.window';
 +import display from '@ohos.display';
 +import fs from '@ohos.file.fs';
@@ -2552,6 +2552,14 @@ index 0000000000..b27e0379b9
 +  addWindow(name: string, window: JsWindow): void {
 +    let obj  = JsDataStore.getJsObjectLoader().createObject("JsWindowManager", "JsWindowManager");
 +    (obj as JsWindowManager).addWindow(name, window);
++  }
++
++  updateQtScreen(size: window.Size): void {
++    let d = display.getDefaultDisplaySync();
++    let titleHeight: number = JsDataStore.windowTitleHeight();
++    let borderWidth: number = JsDataStore.windowBorderWidth();
++    JsDataStore.getQtNativeModule("QPA").setDisplayMetrics(size.width - borderWidth - borderWidth, size.height - titleHeight - borderWidth, d.densityDPI, d.scaledDensity, d.xDPI, d.yDPI,
++      0, 0, size.width - borderWidth - borderWidth, size.height - titleHeight - borderWidth);
 +  }
 +
 +  async run(windowStage: window.WindowStage) {
@@ -2581,15 +2589,11 @@ index 0000000000..b27e0379b9
 +    let localStore = new LocalStorage({"name": this.mainWindowName});
 +    await windowStage.loadContent('pages/Index', localStore);
 +    this.addWindow(this.mainWindowName, window);
-+    let p = this.mainWindow.getWindowProperties();
-+    let d = display.getDefaultDisplaySync();
 +    if (this.qpa != null) {
-+      this.qpa.setDisplayMetrics(p.windowRect.width, p.windowRect.height, d.densityDPI, d.scaledDensity, d.xDPI, d.yDPI,
-+        0, 0, p.windowRect.width, p.windowRect.height);
-+      this.qpa.setDeviceType(JsDataStore.deviceType());
-+      // this.qpa.setDisplayMetrics(d.width, d.height, d.densityDPI, d.scaledDensity, d.xDPI, d.yDPI,
-+      //   area.leftRect.left, area.topRect.height, d.width - area.leftRect.width - area.rightRect.width, d.height - area.topRect.height - area.bottomRect.height);
++      let p = this.mainWindow.getWindowProperties();
++      this.updateQtScreen({width: p.windowRect.width, height: p.windowRect.height});
 +    }
++    this.mainWindow.on("windowSizeChange", this.updateQtScreen);
 +    windowStage.on("windowStageEvent", (state)=>{
 +      if (this.qpa != null)
 +        this.qpa.updateApplicationState(state);
@@ -2681,10 +2685,10 @@ index 0000000000..b27e0379b9
 \ No newline at end of file
 diff --git a/src/openharmony/native/QtCore/JsDataStore.ts b/src/openharmony/native/QtCore/JsDataStore.ts
 new file mode 100644
-index 0000000000..4650216b2e
+index 0000000000..a16eee9e0a
 --- /dev/null
 +++ b/src/openharmony/native/QtCore/JsDataStore.ts
-@@ -0,0 +1,114 @@
+@@ -0,0 +1,136 @@
 +import common from '@ohos.app.ability.common';
 +import window from '@ohos.window';
 +import bundleManager from '@ohos.bundle.bundleManager';
@@ -2793,9 +2797,31 @@ index 0000000000..4650216b2e
 +  }
 +
 +  deviceType(): string {
++    // ÏÖÄ¿Ç°ÔÚpc¡¢padÉÏÄ£Äâ³ÉÊÖ»ú¶Ë
 +    return 'default';
 +    // return deviceInfo.deviceType;
 +  }
++
++  windowTitleHeight(): number {
++    // Todo read from system
++    return deviceInfo.deviceType == "default" ? 0 : 93;
++  }
++
++  windowBorderWidth(): number {
++    // Todo read from system
++    return deviceInfo.deviceType == "default" ? 0 : 4;
++  }
++
++  statusBarHeight(): number {
++    // Todo read from system
++    return deviceInfo.deviceType == "default" ? 0 : 73;
++  }
++
++  navigationBarHeight(): number {
++    // Todo read from system
++    return deviceInfo.deviceType == "default" ? 0 : 100;
++  }
++
 +}
 +
 +export default new JsDataStore;
@@ -3555,10 +3581,10 @@ index 0000000000..12729a2b3b
 \ No newline at end of file
 diff --git a/src/openharmony/native/QtCore/JsWindow.ts b/src/openharmony/native/QtCore/JsWindow.ts
 new file mode 100644
-index 0000000000..76ea421090
+index 0000000000..369eb9fbe0
 --- /dev/null
 +++ b/src/openharmony/native/QtCore/JsWindow.ts
-@@ -0,0 +1,85 @@
+@@ -0,0 +1,81 @@
 +import window from '@ohos.window'
 +import JsLogger from './JsLogger'
 +import display from '@ohos.display';
@@ -3575,11 +3601,7 @@ index 0000000000..76ea421090
 +        this.window = window;
 +        this.window?.on("windowSizeChange", (size)=>{
 +            JsLogger.info("%{public}s window size changed %{public}d %{public}d", name, size.width, size.height);
-+            let d = display.getDefaultDisplaySync();
-+            // JsDataStore.getQtNativeModule("QPA").handleGeometryChange(name, p.windowRect.left, p.windowRect.top, size.width, size.height);
-+            JsDataStore.getQtNativeModule("QPA").setDisplayMetrics(size.width, size.height, d.densityDPI, d.scaledDensity, d.xDPI, d.yDPI,
-+                0, 0, size.width, size.height);
-+            JsDataStore.getQtNativeModule("QPA").handleGeometryChange(name, 0, 0, size.width, size.height);
++            // JsDataStore.getQtNativeModule("QPA").handleGeometryChange(name, 0, 0, size.width, size.height);
 +        });
 +    }
 +
@@ -4046,10 +4068,10 @@ index 0000000000..f29ee6fccb
 +#endif // QOPENHARMONYDRAG_H
 diff --git a/src/plugins/platforms/openharmony/qopenharmonyeglcore.cpp b/src/plugins/platforms/openharmony/qopenharmonyeglcore.cpp
 new file mode 100644
-index 0000000000..aebac49cd9
+index 0000000000..62afca9740
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonyeglcore.cpp
-@@ -0,0 +1,337 @@
+@@ -0,0 +1,335 @@
 +#include "qopenharmonyeglcore.h"
 +#include <EGL/egl.h>
 +#include <GLES3/gl3.h>
@@ -4194,12 +4216,13 @@ index 0000000000..aebac49cd9
 +
 +QImage QOpenHarmonyEGLCore::image() const
 +{
++    if (m_image.size() != QSize(m_width, m_height))
++        m_image = m_image.scaled(m_width, m_height, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
 +    return m_image;
 +}
 +
 +void QOpenHarmonyEGLCore::initCore()
 +{
-+    // 1. Create EGLContext from
 +    int attrib3_list[] = {
 +        EGL_CONTEXT_CLIENT_VERSION, 2,
 +        EGL_NONE
@@ -4276,10 +4299,7 @@ index 0000000000..aebac49cd9
 +    static GLushort indices[] = { 0, 1, 2, 0, 2, 3 };
 +    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_SHORT, indices);
 +    update();
-+    if (m_image.size() != image.size())
-+        m_image = image.scaled(m_width, m_height, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
-+    else
-+        m_image = image;
++    m_image = image;
 +}
 +
 +void QOpenHarmonyEGLCore::update()
@@ -4389,7 +4409,7 @@ index 0000000000..aebac49cd9
 +}
 diff --git a/src/plugins/platforms/openharmony/qopenharmonyeglcore.h b/src/plugins/platforms/openharmony/qopenharmonyeglcore.h
 new file mode 100644
-index 0000000000..de764026b3
+index 0000000000..68c17e05e4
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonyeglcore.h
 @@ -0,0 +1,57 @@
@@ -4446,7 +4466,7 @@ index 0000000000..de764026b3
 +    int m_height;
 +    bool m_valid = false;
 +    bool m_inited = false;
-+    QImage m_image;
++    mutable QImage m_image;
 +};
 +
 +#endif // QOPENHARMONYEGLCORE_H
@@ -5351,10 +5371,10 @@ index 0000000000..fca5cd99c3
 +#endif // QOPENHARMONYJSWINDOW_H
 diff --git a/src/plugins/platforms/openharmony/qopenharmonyjswindowmanager.cpp b/src/plugins/platforms/openharmony/qopenharmonyjswindowmanager.cpp
 new file mode 100644
-index 0000000000..08618e7bcd
+index 0000000000..bcbb1f55fb
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonyjswindowmanager.cpp
-@@ -0,0 +1,191 @@
+@@ -0,0 +1,195 @@
 +#include "qopenharmonyjswindowmanager.h"
 +#include "qopenharmonyxcomponent.h"
 +#include "qopenharmonyjsenvironment.h"
@@ -5536,10 +5556,14 @@ index 0000000000..08618e7bcd
 +
 +void QOpenHarmonyJsWindowManager::handleGeometryChange(const QString &name, const QRect &rect)
 +{
-+    QOpenHarmonyJsWindow *w = window(name);
-+    if (w == nullptr)
-+        return;
-+    w->handleGeometryChange(rect);
++    if (QtOpenHarmony::isPhone()) {
++        QtOpenHarmony::updateDisplayMetrics(rect.width(), rect.height());
++    } else {
++        QOpenHarmonyJsWindow *w = window(name);
++        if (w == nullptr)
++            return;
++        w->handleGeometryChange(rect);
++    }
 +}
 +
 +void QOpenHarmonyJsWindowManager::windowCreated()
@@ -5719,10 +5743,10 @@ index 0000000000..1a88d88b24
 +#endif // QOPENHARMONYDEFINES_H
 diff --git a/src/plugins/platforms/openharmony/qopenharmonymain.cpp b/src/plugins/platforms/openharmony/qopenharmonymain.cpp
 new file mode 100644
-index 0000000000..20866d1f5c
+index 0000000000..b09de23309
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonymain.cpp
-@@ -0,0 +1,430 @@
+@@ -0,0 +1,417 @@
 +#include <memory>
 +#include <semaphore.h>
 +#include <dlfcn.h>
@@ -5766,6 +5790,8 @@ index 0000000000..20866d1f5c
 +static int m_screenHeightPixels = 0;
 +static int m_desktopWidthPixels  = 0;
 +static int m_desktopHeightPixels = 0;
++static int m_avoidLeftWidth = 0;
++static int m_avoidTopHeight = 0;
 +static NativeResourceManager *m_resourceManager = nullptr;
 +static QOpenHarmonyPlatformIntegration *m_platformIntegration = nullptr;
 +static QOpenHarmonyFileEngineHandler *m_openHarmonyFileEngineHandler = nullptr;
@@ -5933,8 +5959,8 @@ index 0000000000..20866d1f5c
 +    double xdpi = value[4];
 +    double ydpi = value[5];
 +
-+    int left = static_cast<int>(value[6]);
-+    int top = static_cast<int>(value[7]);
++    m_avoidLeftWidth = static_cast<int>(value[6]);
++    m_avoidTopHeight = static_cast<int>(value[7]);
 +
 +    m_desktopWidthPixels = static_cast<int>(value[8]);
 +    m_desktopHeightPixels = static_cast<int>(value[9]);
@@ -5943,7 +5969,7 @@ index 0000000000..20866d1f5c
 +    m_screenHeightPixels = qMax(m_screenHeightPixels, m_desktopHeightPixels);
 +
 +    if (m_platformIntegration == nullptr) {
-+        QOpenHarmonyPlatformIntegration::setDefaultDisplayMetrics(left, top, m_desktopWidthPixels,
++        QOpenHarmonyPlatformIntegration::setDefaultDisplayMetrics(m_avoidLeftWidth, m_avoidTopHeight, m_desktopWidthPixels,
 +                                                              m_desktopHeightPixels,
 +                                                              qRound(double(m_screenWidthPixels)  / xdpi * 25.4),
 +                                                              qRound(double(m_screenHeightPixels) / ydpi * 25.4),
@@ -5953,7 +5979,7 @@ index 0000000000..20866d1f5c
 +        m_platformIntegration->setDisplayMetrics(qRound(double(m_screenWidthPixels)  / xdpi * 25.4),
 +                                                        qRound(double(m_screenHeightPixels) / ydpi * 25.4));
 +        m_platformIntegration->setScreenSize(m_screenWidthPixels, m_screenHeightPixels);
-+        m_platformIntegration->setDesktopSize(left, top, m_desktopWidthPixels, m_desktopHeightPixels);
++        m_platformIntegration->setDesktopSize(m_avoidLeftWidth, m_avoidTopHeight, m_desktopWidthPixels, m_desktopHeightPixels);
 +    }
 +    return nullptr;
 +}
@@ -6110,25 +6136,10 @@ index 0000000000..20866d1f5c
 +
 +void QtOpenHarmony::updateDisplayMetrics(int w, int h)
 +{
-+//    m_screenWidthPixels = w;
-+//    m_screenHeightPixels = h;
-+
-+////    openharmony xdpi and ydpi is 0
-+//    double xdpi = 72;
-+//    double ydpi = 72;
-+//    if (m_platformIntegration == nullptr) {
-+//        QOpenHarmonyPlatformIntegration::setDefaultDisplayMetrics(m_screenWidthPixels,
-+//                                                                  m_screenHeightPixels,
-+//                                                                  qRound(double(m_screenWidthPixels)  / xdpi * 25.4),
-+//                                                                  qRound(double(m_screenHeightPixels) / ydpi * 25.4),
-+//                                                                  m_screenWidthPixels,
-+//                                                                  m_screenHeightPixels);
-+//    } else {
-+//        m_platformIntegration->setDisplayMetrics(qRound(double(m_desktopWidthPixels)  / xdpi * 25.4),
-+//                                                 qRound(double(m_desktopHeightPixels) / ydpi * 25.4));
-+//        m_platformIntegration->setScreenSize(m_screenWidthPixels, m_screenHeightPixels);
-+//        m_platformIntegration->setDesktopSize(m_screenWidthPixels, m_screenWidthPixels);
-+//    }
++    m_screenWidthPixels = w;
++    m_screenHeightPixels = h;
++    if (m_platformIntegration != nullptr)
++        m_platformIntegration->setScreenSize(w, h);
 +}
 +
 +NativeResourceManager *QtOpenHarmony::resourceManager()
@@ -6803,10 +6814,10 @@ index 0000000000..39762fdc90
 +#endif // QOPENHARMONYPLATFORMDIALOGHELPERS_H
 diff --git a/src/plugins/platforms/openharmony/qopenharmonyplatformfontdatabase.cpp b/src/plugins/platforms/openharmony/qopenharmonyplatformfontdatabase.cpp
 new file mode 100644
-index 0000000000..894071dd1e
+index 0000000000..82131d485a
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonyplatformfontdatabase.cpp
-@@ -0,0 +1,35 @@
+@@ -0,0 +1,36 @@
 +#include <QDir>
 +
 +#include "qopenharmonyplatformfontdatabase.h"
@@ -6826,6 +6837,7 @@ index 0000000000..894071dd1e
 +    if (Q_UNLIKELY(!dir.exists())) {
 +        qWarning("QFontDatabase: Cannot find font directory %s - is Qt installed correctly?",
 +               qPrintable(fontpath));
++        //Todo QtÊ¹ÓÃ_statº¯Êý»ñÈ¡×´Ì¬ÐÅÏ¢Ê±·µ»Ø-1£¬È¨ÏÞ±»¾Ü¾ø.µ«ÊÇÊ¹ÓÃentryInfoListÄÜ¹»ÁÐ³öÄ¿Â¼ÏÂµÄ×ÖÌå
 +    }
 +
 +    QStringList nameFilters;
@@ -8123,10 +8135,10 @@ index 0000000000..c885aa5fec
 +#endif // QOPENHARMONYPLATFORMOPENGLCONTEXT_H
 diff --git a/src/plugins/platforms/openharmony/qopenharmonyplatformopenglwindow.cpp b/src/plugins/platforms/openharmony/qopenharmonyplatformopenglwindow.cpp
 new file mode 100644
-index 0000000000..547046ae7a
+index 0000000000..8e80ab7de7
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonyplatformopenglwindow.cpp
-@@ -0,0 +1,218 @@
+@@ -0,0 +1,220 @@
 +#include "qopenharmonyplatformopenglwindow.h"
 +#include "qopenharmonyxcomponent.h"
 +#include "qopenharmonyplatformscreen.h"
@@ -8159,6 +8171,8 @@ index 0000000000..547046ae7a
 +
 +QOpenHarmonyPlatformOpenGLWindow::~QOpenHarmonyPlatformOpenGLWindow()
 +{
++    if (QtOpenHarmony::isPhone())
++        return;
 +    clearEgl();
 +    if (m_jsWindow != nullptr)
 +        qJsWindowManager->destoryWindow(m_jsWindow);
@@ -8227,12 +8241,12 @@ index 0000000000..547046ae7a
 +
 +void QOpenHarmonyPlatformOpenGLWindow::setGeometry(const QRect &rect)
 +{
-+    if (m_jsWindow == nullptr)
-+        createJsWindow();
-+    if (m_jsWindow == nullptr)
-+        return;
 +    // åœ¨æ‰‹æœºä¸Šï¼Œæ‰€æœ‰çª—å£ç»˜åˆ¶åœ¨ä¸€ä¸ªXcomponent,
 +    if (!QtOpenHarmony::isPhone()) {
++        if (m_jsWindow == nullptr)
++            createJsWindow();
++        if (m_jsWindow == nullptr)
++            return;
 +        // è®¾ç½®jswindowçš„å°ºå¯¸
 +        m_jsWindow->setGeometry(rect);
 +    }
@@ -8337,9 +8351,9 @@ index 0000000000..547046ae7a
 +void QOpenHarmonyPlatformOpenGLWindow::setVisible(bool visible)
 +{
 +    QOpenHarmonyPlatformWindow::setVisible(visible);
-+    if (m_jsWindow == nullptr)
-+        createJsWindow();
-+    if (m_jsWindow != nullptr && !QtOpenHarmony::isPhone()) {
++    if (!QtOpenHarmony::isPhone()) {
++        if (m_jsWindow == nullptr)
++            createJsWindow();
 +        m_jsWindow->setVisible(visible);
 +    }
 +}
@@ -8434,10 +8448,10 @@ index 0000000000..c4cb6257c3
 +
 diff --git a/src/plugins/platforms/openharmony/qopenharmonyplatformscreen.cpp b/src/plugins/platforms/openharmony/qopenharmonyplatformscreen.cpp
 new file mode 100644
-index 0000000000..a77bf29b91
+index 0000000000..10a9b29cf2
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonyplatformscreen.cpp
-@@ -0,0 +1,328 @@
+@@ -0,0 +1,329 @@
 +#include <QDebug>
 +#include <QTime>
 +
@@ -8621,6 +8635,7 @@ index 0000000000..a77bf29b91
 +    QRect oldGeometry = m_availableGeometry;
 +
 +    m_availableGeometry = rect;
++
 +    QWindowSystemInterface::handleScreenGeometryChange(QPlatformScreen::screen(), geometry(), availableGeometry());
 +    resizeMaximizedWindows();
 +
@@ -8677,8 +8692,8 @@ index 0000000000..a77bf29b91
 +        return;
 +    }
 +
-+    if (m_window == nullptr) {
-+        m_window = qJsWindowManager->createWindow();
++    if (m_window == nullptr || m_windowStack.isEmpty()) {
++        m_window = qJsWindowManager->createWindow(m_windowStack.first());
 +    }
 +    if (m_window == nullptr) {
 +        return;
