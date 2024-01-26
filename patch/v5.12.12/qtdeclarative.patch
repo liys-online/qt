@@ -148,7 +148,7 @@ index 9e5bc0b021..e12c80a777 100644
      if (isResource) {
          // qrc resource
 diff --git a/src/quick/items/qquickwindow.cpp b/src/quick/items/qquickwindow.cpp
-index 3c97475e86..307ae5fd5c 100644
+index 3c97475e86..e6041d7aa5 100644
 --- a/src/quick/items/qquickwindow.cpp
 +++ b/src/quick/items/qquickwindow.cpp
 @@ -45,6 +45,12 @@
@@ -175,7 +175,7 @@ index 3c97475e86..307ae5fd5c 100644
 +    mask->setZ(std::numeric_limits<qreal>::max());
 +    QQuickTextPrivate *maskPrivate = QQuickTextPrivate::get(mask);
 +    maskPrivate->anchors()->setRight(contentItemPrivate->right());
-+    maskPrivate->anchors()->setBottom(contentItemPrivate->bottom());    
++    maskPrivate->anchors()->setBottom(contentItemPrivate->bottom());
 +#endif
 +
      customRenderMode = qgetenv("QSG_VISUALIZE");
