@@ -1,10 +1,10 @@
 diff --git a/src/bluetooth/bluetooth.pro b/src/bluetooth/bluetooth.pro
-index 0b253942..7525f76b 100644
+index b7f9a198..f1dd6777 100644
 --- a/src/bluetooth/bluetooth.pro
 +++ b/src/bluetooth/bluetooth.pro
-@@ -155,6 +155,21 @@ qtConfig(bluez) {
+@@ -157,6 +157,21 @@ qtConfig(bluez) {
  
-     PRIVATE_HEADERS += qlowenergycontroller_android_p.h \
+     HEADERS += qlowenergycontroller_android_p.h \
                         qbluetoothsocket_android_p.h
 +} else:openharmony {
 +    include(openharmony/openharmony.pri)
@@ -19,7 +19,7 @@ index 0b253942..7525f76b 100644
 +               qbluetoothdevicediscoveryagent_ohos.cpp \
 +               qbluetoothservicediscoveryagent_ohos.cpp
 +
-+    PRIVATE_HEADERS += qbluetoothsocket_ohos_p.h \
++    HEADERS += qbluetoothsocket_ohos_p.h \
 +                       qlowenergycontroller_ohos_p.h
  } else:osx {
      QT_PRIVATE = concurrent
@@ -604,11 +604,11 @@ index 00000000..ad2f5db1
 +
 diff --git a/src/bluetooth/openharmony/openharmony.pri b/src/bluetooth/openharmony/openharmony.pri
 new file mode 100644
-index 00000000..fbc1329e
+index 00000000..df993a7e
 --- /dev/null
 +++ b/src/bluetooth/openharmony/openharmony.pri
 @@ -0,0 +1,20 @@
-+PRIVATE_HEADERS +=  \
++HEADERS +=  \
 +        $$PWD/openharmonyload_p.h \
 +        $$PWD/bluetoothdatareceiver_p.h \
 +        $$PWD/serveracceptancethread_p.h \
@@ -1339,14 +1339,15 @@ index 00000000..ae54df82
 +};
 +#endif // SERVERACCEPTANCETHREAD_P_H
 diff --git a/src/bluetooth/qbluetooth.cpp b/src/bluetooth/qbluetooth.cpp
-index 6eab11fb..49d27923 100644
+index 1e8ce0b8..5e9cf19b 100644
 --- a/src/bluetooth/qbluetooth.cpp
 +++ b/src/bluetooth/qbluetooth.cpp
-@@ -102,5 +102,6 @@ Q_LOGGING_CATEGORY(QT_BT, "qt.bluetooth")
- Q_LOGGING_CATEGORY(QT_BT_ANDROID, "qt.bluetooth.android")
+@@ -104,6 +104,7 @@ Q_LOGGING_CATEGORY(QT_BT_ANDROID, "qt.bluetooth.android")
  Q_LOGGING_CATEGORY(QT_BT_BLUEZ, "qt.bluetooth.bluez")
+ Q_LOGGING_CATEGORY(QT_BT_WINDOWS, "qt.bluetooth.windows")
  Q_LOGGING_CATEGORY(QT_BT_WINRT, "qt.bluetooth.winrt")
 +Q_LOGGING_CATEGORY(QT_BT_OPENHARMONY, "qt.bluetooth.openharmony")
+ Q_LOGGING_CATEGORY(QT_BT_WINRT_SERVICE_THREAD, "qt.bluetooth.winrt.service.thread")
  
  QT_END_NAMESPACE
 diff --git a/src/bluetooth/qbluetoothdevicediscoveryagent_ohos.cpp b/src/bluetooth/qbluetoothdevicediscoveryagent_ohos.cpp
@@ -1632,10 +1633,10 @@ index 00000000..060c8aef
 +}
 +QT_END_NAMESPACE
 diff --git a/src/bluetooth/qbluetoothdevicediscoveryagent_p.h b/src/bluetooth/qbluetoothdevicediscoveryagent_p.h
-index ce31392f..4a5d2ff3 100644
+index ca93d839..15dce11b 100644
 --- a/src/bluetooth/qbluetoothdevicediscoveryagent_p.h
 +++ b/src/bluetooth/qbluetoothdevicediscoveryagent_p.h
-@@ -83,6 +83,13 @@ QT_END_NAMESPACE
+@@ -59,6 +59,13 @@
  #include <QtCore/QTimer>
  #endif
  
@@ -1646,20 +1647,20 @@ index ce31392f..4a5d2ff3 100644
 +class OpenHarmonyBluetoothDiscoveryReceiver;
 +#endif
 +
- QT_BEGIN_NAMESPACE
- 
- #ifdef QT_WINRT_BLUETOOTH
-@@ -90,7 +97,7 @@ class QWinRTBluetoothDeviceDiscoveryWorker;
- #endif
+ #ifdef Q_OS_DARWIN
+ #include "osx/btdelegates_p.h"
+ #include "osx/btraii_p.h"
+@@ -113,7 +120,7 @@ class QWinRTBluetoothDeviceDiscoveryWorker;
  
  class QBluetoothDeviceDiscoveryAgentPrivate
--#if defined(QT_ANDROID_BLUETOOTH) || defined(QT_WINRT_BLUETOOTH)
-+#if defined(QT_ANDROID_BLUETOOTH) || defined(QT_WINRT_BLUETOOTH) || defined(QT_OPENHARMONY_BLUETOOTH)
+ #if defined(QT_ANDROID_BLUETOOTH) || defined(QT_WINRT_BLUETOOTH) || defined(QT_WIN_BLUETOOTH) \
+-            || defined(Q_OS_DARWIN)
++            || defined(Q_OS_DARWIN) || defined(QT_OPENHARMONY_BLUETOOTH)
      : public QObject
- {
-     Q_OBJECT
-@@ -164,6 +171,24 @@ private:
-     QTimer extendedDiscoveryTimer;
+ #if defined(Q_OS_MACOS)
+     , public DarwinBluetooth::DeviceInquiryDelegate
+@@ -196,6 +203,24 @@ private:
+     QMap<QString, QVariantMap> devicesProperties;
  #endif
  
 +#ifdef QT_OPENHARMONY_BLUETOOTH
@@ -1680,9 +1681,9 @@ index ce31392f..4a5d2ff3 100644
 +    QSharedPointer<QOpenHarmonyJsObject> m_jsBluetoothManager;
 +#endif
 +
- #ifdef QT_WINRT_BLUETOOTH
- private slots:
-     void registerDevice(const QBluetoothDeviceInfo &info);
+ #ifdef QT_WIN_BLUETOOTH
+ public:
+     static QString discoveredLeDeviceSystemPath(const QBluetoothAddress &deviceAddress);
 diff --git a/src/bluetooth/qbluetoothlocaldevice.h b/src/bluetooth/qbluetoothlocaldevice.h
 index 9f6d1e1b..59bdd36b 100644
 --- a/src/bluetooth/qbluetoothlocaldevice.h
@@ -2038,10 +2039,10 @@ index 00000000..dfe5f7b2
 +
 +QT_END_NAMESPACE
 diff --git a/src/bluetooth/qbluetoothlocaldevice_p.h b/src/bluetooth/qbluetoothlocaldevice_p.h
-index 1f99f27e..b30c6004 100644
+index 6bb74737..3b5a27b8 100644
 --- a/src/bluetooth/qbluetoothlocaldevice_p.h
 +++ b/src/bluetooth/qbluetoothlocaldevice_p.h
-@@ -84,6 +84,10 @@ QT_END_NAMESPACE
+@@ -85,6 +85,10 @@ QT_END_NAMESPACE
  #include <QtCore/QPair>
  #endif
  
@@ -2049,21 +2050,12 @@ index 1f99f27e..b30c6004 100644
 +#include "QtCore/qopenharmonyjsobject.h"
 +#endif
 +
- QT_BEGIN_NAMESPACE
+ #ifdef QT_WINRT_BLUETOOTH
+ #include <wrl.h>
  
- extern void registerQBluetoothLocalDeviceMetaType();
-@@ -97,7 +101,7 @@ class QBluetoothLocalDevicePrivate : public QObject
-     Q_OBJECT
- public:
-     QBluetoothLocalDevicePrivate(
--        QBluetoothLocalDevice *q, const QBluetoothAddress &address = QBluetoothAddress());
-+            QBluetoothLocalDevice *q, const QBluetoothAddress &address = QBluetoothAddress());
-     ~QBluetoothLocalDevicePrivate();
- 
-     QAndroidJniObject *adapter();
-@@ -207,6 +211,43 @@ private:
-     void initializeAdapter();
-     void initializeAdapterBluez5();
+@@ -263,6 +267,43 @@ private:
+     Microsoft::WRL::ComPtr<ABI::Windows::Devices::Bluetooth::IBluetoothDeviceStatics> mStatics;
+     Microsoft::WRL::ComPtr<ABI::Windows::Devices::Bluetooth::IBluetoothLEDeviceStatics> mLEStatics;
  };
 +#elif QT_OPENHARMONY_BLUETOOTH
 +class QOpenHarmonyJsObject;
@@ -2102,12 +2094,12 @@ index 1f99f27e..b30c6004 100644
 +    QBluetoothLocalDevice *q_ptr;
 +    QSharedPointer<QOpenHarmonyJsObject> m_jsBluetoothManager;
 +};
- #elif !defined(QT_OSX_BLUETOOTH) // winrt and dummy backend
+ #elif !defined(QT_OSX_BLUETOOTH) // dummy backend
  class QBluetoothLocalDevicePrivate : public QObject
  {
 diff --git a/src/bluetooth/qbluetoothserver_ohos.cpp b/src/bluetooth/qbluetoothserver_ohos.cpp
 new file mode 100644
-index 00000000..90b98398
+index 00000000..b8a32c3e
 --- /dev/null
 +++ b/src/bluetooth/qbluetoothserver_ohos.cpp
 @@ -0,0 +1,237 @@
@@ -2128,9 +2120,9 @@ index 00000000..90b98398
 +Q_DECLARE_LOGGING_CATEGORY(QT_BT_OPENHARMONY)
 +
 +QHash<QBluetoothServerPrivate*, int> __fakeServerPorts;
-+QBluetoothServerPrivate::QBluetoothServerPrivate(QBluetoothServiceInfo::Protocol sType)
++QBluetoothServerPrivate::QBluetoothServerPrivate(QBluetoothServiceInfo::Protocol sType,  QBluetoothServer *parent)
 +    : socket(0),maxPendingConnections(1), securityFlags(QBluetooth::NoSecurity), serverType(sType),
-+      m_lastError(QBluetoothServer::NoError)
++      m_lastError(QBluetoothServer::NoError), q_ptr(parent)
 +{
 +    thread = new ServerAcceptanceThread();
 +    thread->setMaxPendingConnections(maxPendingConnections);
@@ -2349,7 +2341,7 @@ index 00000000..90b98398
 +QT_END_NAMESPACE
 +
 diff --git a/src/bluetooth/qbluetoothserver_p.h b/src/bluetooth/qbluetoothserver_p.h
-index d78eee5f..f8d67cb5 100644
+index d14dc7b4..3d6c0704 100644
 --- a/src/bluetooth/qbluetoothserver_p.h
 +++ b/src/bluetooth/qbluetoothserver_p.h
 @@ -69,6 +69,10 @@ QT_FORWARD_DECLARE_CLASS(QSocketNotifier)
@@ -2363,7 +2355,7 @@ index d78eee5f..f8d67cb5 100644
  #ifdef QT_WINRT_BLUETOOTH
  #include <QtCore/QMutex>
  
-@@ -124,6 +128,14 @@ public:
+@@ -136,6 +140,14 @@ public:
      bool isListening() const;
      bool initiateActiveListening(const QBluetoothUuid& uuid, const QString &serviceName);
      bool deactivateActiveListening();
@@ -2379,39 +2371,10 @@ index d78eee5f..f8d67cb5 100644
      EventRegistrationToken connectionToken {-1};
  
 diff --git a/src/bluetooth/qbluetoothservicediscoveryagent.cpp b/src/bluetooth/qbluetoothservicediscoveryagent.cpp
-index 53ce98e5..a6dfd9b0 100644
+index e76c2311..19d1a4f9 100644
 --- a/src/bluetooth/qbluetoothservicediscoveryagent.cpp
 +++ b/src/bluetooth/qbluetoothservicediscoveryagent.cpp
-@@ -317,8 +317,7 @@ QBluetoothAddress QBluetoothServiceDiscoveryAgent::remoteAddress() const
- */
- void QBluetoothServiceDiscoveryAgent::start(DiscoveryMode mode)
- {
--    Q_D(QBluetoothServiceDiscoveryAgent);
--
-+    Q_D(QBluetoothServiceDiscoveryAgent);    
-     if (d->discoveryState() == QBluetoothServiceDiscoveryAgentPrivate::Inactive
-             && d->error != InvalidBluetoothAdapterError) {
- #if QT_CONFIG(bluez)
-@@ -326,14 +325,14 @@ void QBluetoothServiceDiscoveryAgent::start(DiscoveryMode mode)
-         // on Bluez5
-         d->foundHostAdapterPath.clear();
- #endif
--        d->setDiscoveryMode(mode);
--        if (d->deviceAddress.isNull()) {
-+        d->setDiscoveryMode(mode);        
-+        if (d->deviceAddress.isNull()) {            
-             d->startDeviceDiscovery();
-         } else {
-             d->discoveredDevices << QBluetoothDeviceInfo(d->deviceAddress, QString(), 0);
--            d->startServiceDiscovery();
-+            d->startServiceDiscovery();            
-         }
--    }
-+    }    
- }
- 
- /*!
-@@ -425,7 +424,7 @@ QString QBluetoothServiceDiscoveryAgent::errorString() const
+@@ -436,7 +436,7 @@ QString QBluetoothServiceDiscoveryAgent::errorString() const
      This signal is triggered when the service discovery was canceled via a call to \l stop().
   */
  
@@ -2420,7 +2383,7 @@ index 53ce98e5..a6dfd9b0 100644
  /*!
      Starts device discovery.
  */
-@@ -443,6 +442,15 @@ void QBluetoothServiceDiscoveryAgentPrivate::startDeviceDiscovery()
+@@ -454,6 +454,14 @@ void QBluetoothServiceDiscoveryAgentPrivate::startDeviceDiscovery()
                           q, [this](){
              this->_q_deviceDiscoveryFinished();
          });
@@ -2432,11 +2395,10 @@ index 53ce98e5..a6dfd9b0 100644
 +            this->_q_deviceDiscovered(info);
 +            this->_q_deviceDiscoveryFinished();
 +        });
-+
          QObject::connect(deviceDiscoveryAgent, &QBluetoothDeviceDiscoveryAgent::deviceDiscovered,
                           q, [this](const QBluetoothDeviceInfo &info){
              this->_q_deviceDiscovered(info);
-@@ -456,7 +464,7 @@ void QBluetoothServiceDiscoveryAgentPrivate::startDeviceDiscovery()
+@@ -467,7 +475,7 @@ void QBluetoothServiceDiscoveryAgentPrivate::startDeviceDiscovery()
  
      setDiscoveryState(DeviceDiscovery);
  
@@ -2445,32 +2407,6 @@ index 53ce98e5..a6dfd9b0 100644
  }
  
  /*!
-@@ -495,8 +503,7 @@ void QBluetoothServiceDiscoveryAgentPrivate::_q_deviceDiscoveryFinished()
-     }
- 
-     delete deviceDiscoveryAgent;
--    deviceDiscoveryAgent = nullptr;
--
-+    deviceDiscoveryAgent = nullptr;    
-     startServiceDiscovery();
- }
- 
-@@ -534,14 +541,12 @@ void QBluetoothServiceDiscoveryAgentPrivate::_q_deviceDiscoveryError(QBluetoothD
- */
- void QBluetoothServiceDiscoveryAgentPrivate::startServiceDiscovery()
- {
--    Q_Q(QBluetoothServiceDiscoveryAgent);
--
-+    Q_Q(QBluetoothServiceDiscoveryAgent);    
-     if (discoveredDevices.isEmpty()) {
-         setDiscoveryState(Inactive);
-         emit q->finished();
-         return;
-     }
--
-     setDiscoveryState(ServiceDiscovery);
-     start(discoveredDevices.at(0).address());
- }
 diff --git a/src/bluetooth/qbluetoothservicediscoveryagent_ohos.cpp b/src/bluetooth/qbluetoothservicediscoveryagent_ohos.cpp
 new file mode 100644
 index 00000000..ffc400d6
@@ -2923,10 +2859,10 @@ index 00000000..ffc400d6
 +
 +QT_END_NAMESPACE
 diff --git a/src/bluetooth/qbluetoothservicediscoveryagent_p.h b/src/bluetooth/qbluetoothservicediscoveryagent_p.h
-index dbf8b1d4..c7dfacde 100644
+index 40321c55..325ca41f 100644
 --- a/src/bluetooth/qbluetoothservicediscoveryagent_p.h
 +++ b/src/bluetooth/qbluetoothservicediscoveryagent_p.h
-@@ -86,6 +86,12 @@ class LocalDeviceBroadcastReceiver;
+@@ -105,6 +105,12 @@ class LocalDeviceBroadcastReceiver;
  #include <QtBluetooth/QBluetoothLocalDevice>
  #endif
  
@@ -2939,10 +2875,10 @@ index dbf8b1d4..c7dfacde 100644
  #ifdef QT_WINRT_BLUETOOTH
  class QWinRTBluetoothServiceDiscoveryWorker;
  #endif
-@@ -150,6 +156,15 @@ public:
+@@ -171,6 +177,14 @@ public:
+     void _q_fetchUuidsTimeout();
      void _q_hostModeStateChanged(QBluetoothLocalDevice::HostMode state);
  #endif
- 
 +#ifdef QT_OPENHARMONY_BLUETOOTH
 +    void _q_processFetchedUuids(const QBluetoothAddress &address, const QList<QBluetoothUuid> &uuids);
 +
@@ -2951,26 +2887,24 @@ index dbf8b1d4..c7dfacde 100644
 +    void _q_fetchUuidsTimeout();
 +    void _q_hostModeStateChanged(QBluetoothLocalDevice::HostMode state);
 +#endif
-+
- private:
-     void start(const QBluetoothAddress &address);
-     void stop();
-@@ -200,6 +215,15 @@ private:
+ #ifdef QT_WIN_BLUETOOTH
+     void _q_nextSdpScan(const QVariant &input);
+     bool serviceMatches(const QBluetoothServiceInfo &info);
+@@ -231,7 +245,14 @@ private:
+     // scan result is received.
      QMap<QBluetoothAddress,QPair<QBluetoothDeviceInfo,QList<QBluetoothUuid> > > sdpCache;
  #endif
- 
 +#ifdef QT_OPENHARMONY_BLUETOOTH
 +    OPenHarmonyServiceDiscoveryReceiver *receiver = nullptr;
 +    OPenHarmonyLocalDeviceBroadcastReceiver *localDeviceReceiver = nullptr;
-+
+ 
 +    QSharedPointer<QOpenHarmonyJsObject> m_jsBtMgr;
 +    QSharedPointer<QOpenHarmonyJsObject> m_jsAdapter;
 +    QMap<QBluetoothAddress,QPair<QBluetoothDeviceInfo,QList<QBluetoothUuid> > > sdpCache;
 +#endif
-+
- #ifdef QT_WINRT_BLUETOOTH
- private slots:
-     void processFoundService(quint64 deviceAddress, const QBluetoothServiceInfo &info);
+ #ifdef QT_WIN_BLUETOOTH
+ private:
+     bool pendingStop;
 diff --git a/src/bluetooth/qbluetoothserviceinfo_ohos.cpp b/src/bluetooth/qbluetoothserviceinfo_ohos.cpp
 new file mode 100644
 index 00000000..1c59c713
@@ -3078,7 +3012,7 @@ index 00000000..1c59c713
 +
 +QT_END_NAMESPACE
 diff --git a/src/bluetooth/qbluetoothsocket.cpp b/src/bluetooth/qbluetoothsocket.cpp
-index daa589bb..2abd1067 100644
+index 9da67272..0ee28dbe 100644
 --- a/src/bluetooth/qbluetoothsocket.cpp
 +++ b/src/bluetooth/qbluetoothsocket.cpp
 @@ -45,6 +45,8 @@
@@ -3089,38 +3023,25 @@ index daa589bb..2abd1067 100644
 +#include "qbluetoothsocket_ohos_p.h"
  #elif defined(QT_WINRT_BLUETOOTH)
  #include "qbluetoothsocket_winrt_p.h"
- #else
-@@ -52,7 +54,6 @@
- #endif
- 
- #include "qbluetoothservicediscoveryagent.h"
--
- #include <QtCore/QLoggingCategory>
- #include <QSocketNotifier>
- 
-@@ -267,6 +268,8 @@ static QBluetoothSocketBasePrivate *createSocketPrivate()
+ #elif defined(QT_WIN_BLUETOOTH)
+@@ -274,6 +276,8 @@ static QBluetoothSocketBasePrivate *createSocketPrivate()
+     }
+ #elif defined(QT_ANDROID_BLUETOOTH)
      return new QBluetoothSocketPrivateAndroid();
- #elif defined(QT_WINRT_BLUETOOTH)
-     return new QBluetoothSocketPrivateWinRT();
 +#elif defined(QT_OPENHARMONY_BLUETOOTH)
 +    return new QBluetoothSocketPrivateOpenHarmony();
- #else
-     return new QBluetoothSocketPrivateDummy();
- #endif
+ #elif defined(QT_WINRT_BLUETOOTH)
+     return new QBluetoothSocketPrivateWinRT();
+ #elif defined(QT_WIN_BLUETOOTH)
 diff --git a/src/bluetooth/qbluetoothsocket.h b/src/bluetooth/qbluetoothsocket.h
-index d2535544..e4ca30e4 100644
+index 8d35f77e..731987d7 100644
 --- a/src/bluetooth/qbluetoothsocket.h
 +++ b/src/bluetooth/qbluetoothsocket.h
-@@ -72,10 +72,12 @@ class Q_BLUETOOTH_EXPORT QBluetoothSocket : public QIODevice
-     friend class QBluetoothServerPrivate;
-     friend class QBluetoothSocketPrivate;
-     friend class QBluetoothSocketPrivateAndroid;
-+    friend class QBluetoothSocketPrivateOpenHarmony;
-     friend class QBluetoothSocketPrivateBluez;
-     friend class QBluetoothSocketPrivateBluezDBus;
+@@ -70,6 +70,7 @@ class Q_BLUETOOTH_EXPORT QBluetoothSocket : public QIODevice
      friend class QBluetoothSocketPrivateDummy;
+     friend class QBluetoothSocketPrivateWin;
      friend class QBluetoothSocketPrivateWinRT;
-+    friend class QBluetoothSocketPrivateOPenharmony;
++    friend class QBluetoothSocketPrivateOpenHarmony;
  
  public:
  
@@ -3716,10 +3637,10 @@ index 00000000..e29cd19f
 +
 +#endif // QBLUETOOTHSOCKET_ANDROID_P_H
 diff --git a/src/bluetooth/qbluetoothsocketbase_p.h b/src/bluetooth/qbluetoothsocketbase_p.h
-index 410dcbbd..6c96d474 100644
+index d1894e96..15267b68 100644
 --- a/src/bluetooth/qbluetoothsocketbase_p.h
 +++ b/src/bluetooth/qbluetoothsocketbase_p.h
-@@ -123,7 +123,7 @@ public:
+@@ -122,7 +122,7 @@ public:
                               QBluetoothSocket::OpenMode openMode = QBluetoothSocket::ReadWrite) = 0;
  
  
@@ -3729,20 +3650,20 @@ index 410dcbbd..6c96d474 100644
                            QIODevice::OpenMode openMode) = 0;
  #else
 diff --git a/src/bluetooth/qbluetoothtransfermanager.cpp b/src/bluetooth/qbluetoothtransfermanager.cpp
-index 165faceb..f00ac1c7 100644
+index d84f726c..45005eef 100644
 --- a/src/bluetooth/qbluetoothtransfermanager.cpp
 +++ b/src/bluetooth/qbluetoothtransfermanager.cpp
 @@ -122,7 +122,7 @@ QBluetoothTransferReply *QBluetoothTransferManager::put(const QBluetoothTransfer
      return reply;
  #else
-     // Android, iOS, and WinRT have no implementation
--#if !defined(QT_ANDROID_BLUETOOTH) && !defined(QT_IOS_BLUETOOTH) && !defined(QT_WINRT_BLUETOOTH)
-+#if !defined(QT_ANDROID_BLUETOOTH) && !defined(QT_IOS_BLUETOOTH) && !defined(QT_WINRT_BLUETOOTH) && !defined(QT_OPENHARMONY_BLUETOOTH)
+     // Android, iOS, and Win/WinRT have no implementation
+-#if !defined(QT_ANDROID_BLUETOOTH) && !defined(QT_IOS_BLUETOOTH) && !defined(QT_WINRT_BLUETOOTH) && !defined(QT_WIN_BLUETOOTH)
++#if !defined(QT_ANDROID_BLUETOOTH) && !defined(QT_IOS_BLUETOOTH) && !defined(QT_WINRT_BLUETOOTH) && !defined(QT_WIN_BLUETOOTH) && !defined(QT_OPENHARMONY_BLUETOOTH)
      printDummyWarning();
  #endif
      Q_UNUSED(request);
 diff --git a/src/bluetooth/qlowenergycharacteristic.h b/src/bluetooth/qlowenergycharacteristic.h
-index cb747e32..a43ef1df 100644
+index fe9b73fa..a0861ffc 100644
 --- a/src/bluetooth/qlowenergycharacteristic.h
 +++ b/src/bluetooth/qlowenergycharacteristic.h
 @@ -98,6 +98,7 @@ protected:
@@ -3754,19 +3675,19 @@ index cb747e32..a43ef1df 100644
      friend class QLowEnergyControllerPrivateBluezDBus;
      friend class QLowEnergyControllerPrivateCommon;
 diff --git a/src/bluetooth/qlowenergycontroller.cpp b/src/bluetooth/qlowenergycontroller.cpp
-index 6b4c17d6..0115700f 100644
+index b065555c..df1f09e3 100644
 --- a/src/bluetooth/qlowenergycontroller.cpp
 +++ b/src/bluetooth/qlowenergycontroller.cpp
-@@ -54,6 +54,8 @@
- #include "qlowenergycontroller_bluez_p.h"
+@@ -55,6 +55,8 @@
  #elif defined(QT_ANDROID_BLUETOOTH)
  #include "qlowenergycontroller_android_p.h"
+ #include "android/androidutils_p.h"
 +#elif defined(QT_OPENHARMONY_BLUETOOTH)
 +#include "qlowenergycontroller_ohos_p.h"
  #elif defined(QT_WINRT_BLUETOOTH)
+ #include "qtbluetoothglobal_p.h"
  #include "qlowenergycontroller_winrt_p.h"
- #else
-@@ -308,6 +310,8 @@ static QLowEnergyControllerPrivate *privateController(QLowEnergyController::Role
+@@ -324,6 +326,8 @@ static QLowEnergyControllerPrivate *privateController(QLowEnergyController::Role
  #elif defined(QT_ANDROID_BLUETOOTH)
      Q_UNUSED(role);
      return new QLowEnergyControllerPrivateAndroid();
@@ -3774,15 +3695,7 @@ index 6b4c17d6..0115700f 100644
 +    return new QLowEnergyControllerPrivateOpenHarmony();
  #elif defined(QT_WINRT_BLUETOOTH)
      Q_UNUSED(role);
-     return new QLowEnergyControllerPrivateWinRT();
-@@ -733,6 +737,7 @@ void QLowEnergyController::startAdvertising(const QLowEnergyAdvertisingParameter
-         qCWarning(QT_BT) << "Cannot start advertising in central role" << state();
-         return;
-     }
-+    qDebug() << "ooooooooooooooooooooooooo" << state();
-     if (state() != UnconnectedState) {
-         qCWarning(QT_BT) << "Cannot start advertising in state" << state();
-         return;
+ #if QT_CONFIG(winrt_btle_no_pairing)
 diff --git a/src/bluetooth/qlowenergycontroller_ohos.cpp b/src/bluetooth/qlowenergycontroller_ohos.cpp
 new file mode 100644
 index 00000000..73fb98eb
@@ -4770,7 +4683,7 @@ index 00000000..0f18ecd1
 +
 +#endif // QLOWENERGYCONTROLLERPRIVATEOHOS_P_H
 diff --git a/src/bluetooth/qlowenergydescriptor.h b/src/bluetooth/qlowenergydescriptor.h
-index 9dd0cc20..6a78e500 100644
+index 18bb53c0..e6c6a7ff 100644
 --- a/src/bluetooth/qlowenergydescriptor.h
 +++ b/src/bluetooth/qlowenergydescriptor.h
 @@ -81,6 +81,7 @@ protected:
@@ -4780,26 +4693,26 @@ index 9dd0cc20..6a78e500 100644
 +    friend class QLowEnergyControllerPrivateOpenHarmony;
      friend class QLowEnergyControllerPrivateBluezDBus;
      friend class QLowEnergyControllerPrivateCommon;
-     friend class QLowEnergyControllerPrivateOSX;
+     friend class QLowEnergyControllerPrivateWin32;
 diff --git a/src/bluetooth/qlowenergyservice.h b/src/bluetooth/qlowenergyservice.h
-index 9de65a84..811db534 100644
+index a2715471..fb9597f7 100644
 --- a/src/bluetooth/qlowenergyservice.h
 +++ b/src/bluetooth/qlowenergyservice.h
-@@ -136,6 +136,7 @@ private:
-     friend class QLowEnergyControllerPrivate;
+@@ -137,6 +137,7 @@ private:
      friend class QLowEnergyControllerPrivateBluez;
      friend class QLowEnergyControllerPrivateAndroid;
+     friend class QLowEnergyControllerPrivateDarwin;
 +    friend class QLowEnergyControllerPrivateOpenHarmony;
      QLowEnergyService(QSharedPointer<QLowEnergyServicePrivate> p,
                        QObject *parent = nullptr);
  };
 diff --git a/src/bluetooth/qlowenergyserviceprivate_p.h b/src/bluetooth/qlowenergyserviceprivate_p.h
-index fb4163a0..41456e79 100644
+index 1816a23f..167ca7e2 100644
 --- a/src/bluetooth/qlowenergyserviceprivate_p.h
 +++ b/src/bluetooth/qlowenergyserviceprivate_p.h
-@@ -128,7 +128,9 @@ public:
-     // reference to the BluetoothGattService object
-     QAndroidJniObject androidService;
+@@ -137,7 +137,9 @@ public:
+ #if defined(QT_WIN_BLUETOOTH)
+     Qt::HANDLE hService = nullptr;
  #endif
 -
 +#if defined (QT_OPENHARMONY_BLUETOOTH)
@@ -4809,10 +4722,10 @@ index fb4163a0..41456e79 100644
  
  typedef QHash<QLowEnergyHandle, QLowEnergyServicePrivate::CharData> CharacteristicDataMap;
 diff --git a/src/nfc/nfc.pro b/src/nfc/nfc.pro
-index ed88b79a..c10a7900 100644
+index c6ae147d..4a84cda1 100644
 --- a/src/nfc/nfc.pro
 +++ b/src/nfc/nfc.pro
-@@ -56,7 +56,7 @@ SOURCES += \
+@@ -54,7 +54,7 @@ SOURCES += \
      qnearfieldsharetarget.cpp \
      qnfc.cpp
  
@@ -4821,7 +4734,7 @@ index ed88b79a..c10a7900 100644
      NFC_BACKEND_AVAILABLE = yes
  
      QT_PRIVATE += dbus
-@@ -112,6 +112,33 @@ linux:!android:qtHaveModule(dbus) {
+@@ -110,6 +110,33 @@ linux:!android:qtHaveModule(dbus) {
          qnearfieldsharemanagerimpl_p.cpp \
          qnearfieldsharetargetimpl_p.cpp \
          android/androidmainnewintentlistener.cpp
@@ -4831,7 +4744,7 @@ index ed88b79a..c10a7900 100644
 +    DEFINES += OPENHARMONY_NFC
 +    QT_PRIVATE += core-private gui
 +
-+    PRIVATE_HEADERS += \
++    HEADERS += \
 +        qllcpserver_openharmony_p.h \
 +        qllcpsocket_openharmony_p.h \
 +        qnearfieldmanager_openharmony_p.h \
@@ -5729,7 +5642,7 @@ index 00000000..0be026c0
 +
 +#endif // QLLCPSOCKET_OPENHARMONY_P_H
 diff --git a/src/nfc/qnearfieldmanager.cpp b/src/nfc/qnearfieldmanager.cpp
-index 02e4d918..2da5f74a 100644
+index 757c8c99..8dfffd47 100644
 --- a/src/nfc/qnearfieldmanager.cpp
 +++ b/src/nfc/qnearfieldmanager.cpp
 @@ -46,6 +46,8 @@
