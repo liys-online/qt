@@ -154,15 +154,14 @@ index 01aba47a9a..c415d69f78 100644
          // qrc resource
          QFileInfo fileInfo(path);
 diff --git a/src/quick/items/qquickwindow.cpp b/src/quick/items/qquickwindow.cpp
-index 50b7a333c7..79566f0314 100644
+index 50b7a333c7..90a2c7094a 100644
 --- a/src/quick/items/qquickwindow.cpp
 +++ b/src/quick/items/qquickwindow.cpp
-@@ -44,6 +44,12 @@
+@@ -44,6 +44,11 @@
  #include "qquickitem_p.h"
  #include "qquickevents_p_p.h"
  
 +#ifdef USE_MASK
-+#include <limits>
 +#include "qquicktext_p.h"
 +#include <private/qquicktext_p_p.h>
 +#endif
@@ -170,7 +169,15 @@ index 50b7a333c7..79566f0314 100644
  #if QT_CONFIG(quick_draganddrop)
  #include <private/qquickdrag_p.h>
  #endif
-@@ -698,6 +704,16 @@ void QQuickWindowPrivate::init(QQuickWindow *c, QQuickRenderControl *control)
+@@ -686,7 +691,6 @@ void QQuickWindowPrivate::init(QQuickWindow *c, QQuickRenderControl *control)
+ {
+     q_ptr = c;
+ 
+-
+     Q_Q(QQuickWindow);
+ 
+     contentItem = new QQuickRootItem;
+@@ -698,6 +702,16 @@ void QQuickWindowPrivate::init(QQuickWindow *c, QQuickRenderControl *control)
      contentItemPrivate->flags |= QQuickItem::ItemIsFocusScope;
      contentItem->setSize(q->size());
  

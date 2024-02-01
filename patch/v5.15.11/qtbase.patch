@@ -44,7 +44,7 @@ index 0000000000..d7be212137
 +QMAKE_CXXFLAGS_USE_PRECOMPILE = $$QMAKE_CFLAGS_USE_PRECOMPILE
 diff --git a/mkspecs/common/oh-base-tail.conf b/mkspecs/common/oh-base-tail.conf
 new file mode 100644
-index 0000000000..a9b28bfefd
+index 0000000000..5ee5cb4a57
 --- /dev/null
 +++ b/mkspecs/common/oh-base-tail.conf
 @@ -0,0 +1,76 @@
@@ -107,8 +107,8 @@ index 0000000000..a9b28bfefd
 +
 +QMAKE_LINK_SHLIB        = $$QMAKE_LINK
 +QMAKE_LFLAGS            = --sysroot=$$shell_path($$SDK_ROOT/native/sysroot)
-+#QMAKE_LFLAGS_APP        = -Wl,--no-undefined -Wl,-z,noexecstack -shared
-+#QMAKE_LFLAGS_SHLIB      = -Wl,--no-undefined -Wl,-z,noexecstack -shared
++QMAKE_LFLAGS_APP       = -Wl,--no-undefined -Wl,-z,noexecstack -shared
++QMAKE_LFLAGS_SHLIB     = -Wl,--no-undefined -Wl,-z,noexecstack -shared
 +QMAKE_LFLAGS_PLUGIN     = $$QMAKE_LFLAGS_SHLIB
 +QMAKE_LFLAGS_NOUNDEF    = -Wl,--no-undefined
 +QMAKE_LFLAGS_RPATH      = -Wl,-rpath=
@@ -2685,7 +2685,7 @@ index 0000000000..e5bd848229
 \ No newline at end of file
 diff --git a/src/openharmony/native/QtCore/JsDataStore.ts b/src/openharmony/native/QtCore/JsDataStore.ts
 new file mode 100644
-index 0000000000..a16eee9e0a
+index 0000000000..a43a6e5a97
 --- /dev/null
 +++ b/src/openharmony/native/QtCore/JsDataStore.ts
 @@ -0,0 +1,136 @@
@@ -2797,7 +2797,7 @@ index 0000000000..a16eee9e0a
 +  }
 +
 +  deviceType(): string {
-+    // ÏÖÄ¿Ç°ÔÚpc¡¢padÉÏÄ£Äâ³ÉÊÖ»ú¶Ë
++    // ç°ç›®å‰åœ¨pcã€padä¸Šæ¨¡æ‹Ÿæˆæ‰‹æœºç«¯
 +    return 'default';
 +    // return deviceInfo.deviceType;
 +  }
@@ -3551,16 +3551,16 @@ index 0000000000..0a2a0f6b00
 \ No newline at end of file
 diff --git a/src/openharmony/native/QtCore/JsQtPlatform.ts b/src/openharmony/native/QtCore/JsQtPlatform.ts
 new file mode 100644
-index 0000000000..12729a2b3b
+index 0000000000..9bc2c21d25
 --- /dev/null
 +++ b/src/openharmony/native/QtCore/JsQtPlatform.ts
 @@ -0,0 +1,23 @@
 +import { JsQtModule } from './JsQtModule'
 +import { JsDialog } from './JsDialog'
 +import { JsPasteBoard } from './JsPasteBoard'
++import { JsFileManager } from './JsFileManager'
++import { JsInputMethod } from './JsInputMethod'
 +import { JsWindowManager } from './JsWindowManager'
-+import { JsWindow } from './JsWindow'
-+import { JsFile } from './JsFile'
 +import qpa from 'libplugins_platforms_qopenharmony.so'
 +
 +class JsQtPlatform extends JsQtModule {
@@ -3570,15 +3570,14 @@ index 0000000000..12729a2b3b
 +    this.moduleJsObjects = {
 +      JsDialog,
 +      JsPasteBoard,
-+      JsWindowManager,
-+      JsWindow,
-+      JsFile
++      JsFileManager,
++      JsInputMethod,
++      JsWindowManager
 +    };
 +  }
 +}
 +export default new JsQtPlatform;
 +export const QtQPA : Object = qpa
-\ No newline at end of file
 diff --git a/src/openharmony/native/QtCore/JsWindow.ts b/src/openharmony/native/QtCore/JsWindow.ts
 new file mode 100644
 index 0000000000..369eb9fbe0
@@ -3738,10 +3737,10 @@ index 0000000000..1c9156fde0
 +OTHER_FILES += $$templates.files
 diff --git a/src/openharmony/pages/Index.ets b/src/openharmony/pages/Index.ets
 new file mode 100644
-index 0000000000..8e956b4724
+index 0000000000..16904a1c31
 --- /dev/null
 +++ b/src/openharmony/pages/Index.ets
-@@ -0,0 +1,16 @@
+@@ -0,0 +1,17 @@
 +
 +@Entry
 +@Component
@@ -3752,6 +3751,7 @@ index 0000000000..8e956b4724
 +  build() {
 +    Row() {
 +      XComponent({id: this.idName, type: 'surface', libraryname: 'plugins_platforms_qopenharmony' }).width("100%").height("100%")
++        .focusable(true)
 +        .onLoad(()=>{
 +
 +        })
@@ -5743,10 +5743,10 @@ index 0000000000..1a88d88b24
 +#endif // QOPENHARMONYDEFINES_H
 diff --git a/src/plugins/platforms/openharmony/qopenharmonymain.cpp b/src/plugins/platforms/openharmony/qopenharmonymain.cpp
 new file mode 100644
-index 0000000000..b09de23309
+index 0000000000..efabe40ee5
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonymain.cpp
-@@ -0,0 +1,417 @@
+@@ -0,0 +1,453 @@
 +#include <memory>
 +#include <semaphore.h>
 +#include <dlfcn.h>
@@ -5803,35 +5803,43 @@ index 0000000000..b09de23309
 +        return nullptr;
 +    }
 +
-+    QVarLengthArray<const char *> params(1);
 +    QByteArray p((char*)arg);
-+    params[0] = static_cast<const char *>(p.constData());
-+
-+    int ret = m_main(1, const_cast<char **>(params.data()));
++    QByteArrayList byts = p.split(' ');
++    QVarLengthArray<char *> argvs(byts.length());
++    int i = 0;
++    for(QByteArray b : byts){
++        argvs[i] = b.data();
++        i++;
++    }
++    /* FIXME å¯åŠ¨å‚æ•°ä¸ªæ•°é—®é¢˜å¼•èµ·å´©æºƒ */
++    int ret = m_main(1, const_cast<char **>(argvs.data()));
 +
 +    if (m_mainLibraryHnd) {
 +        int res = dlclose(m_mainLibraryHnd);
 +        if (res < 0)
 +            LOGE("dlclose failed: %{public}s", dlerror());
-+    }
++    }    
 +
 +    sem_post(&m_terminateSemaphore);
 +    sem_wait(&m_exitSemaphore);
 +    sem_destroy(&m_exitSemaphore);
-+
-+    // We must call exit() to ensure that all global objects will be destructed
-+    exit(ret);
-+    return 0;
++#if 1
++    if (0 != ret)
++        pthread_exit((void*)-1);
++    else
++        pthread_exit((void*)0);
++#endif
++    return nullptr;
 +}
 +
 +static napi_value startQtApplication(napi_env env, napi_callback_info info)
 +{
 +    napi_status status;
-+    size_t argc = 2;
-+    napi_value args[2];
++    size_t argc = 3;
++    napi_value args[3];
 +    NAPI_CALL(env, napi_get_cb_info(env, info, &argc, args, nullptr, nullptr));
 +
-+    if (argc != 2) {
++    if (argc < 2) {
 +        napi_throw_type_error(env, NULL, "Wrong number of arguments");
 +        return qJs::createBool(false);
 +    }
@@ -5902,8 +5910,36 @@ index 0000000000..b09de23309
 +
 +    m_openHarmonyFileEngineHandler = new QOpenHarmonyFileEngineHandler;
 +
-+    QByteArray applib = libDir + "/" + fileName;
-+    pthread_create(&m_qtAppThread, nullptr, startMainMethod, (void*)applib.data());
++    QByteArray byt = libDir + "/" + fileName;
++    if (3 == argc) {
++        QStringList argvs = qJs::getStringList(args[2]);
++        argvs.prepend(byt);
++        QString tmp = argvs.join(QString(" "));
++        byt.clear();
++        byt = tmp.toLocal8Bit();
++    }
++
++    int result = pthread_create(&m_qtAppThread, nullptr, startMainMethod, byt.data());
++    if (result) {
++        LOGW("create qt thread error:%{public}s", result);
++        return qJs::createBool(false);
++    }
++
++#if 0
++    void * thread_result;
++    result = pthread_join(m_qtAppThread, &thread_result);
++    if (result) {
++        LOGW("join qt thread error:%{public}s", result);
++        return qJs::createBool(false);
++    }
++
++    result = pthread_join(m_qtAppThread, &thread_result);
++    if (result == ESRCH) {
++        LOGW("qt thread inexistence");
++        return qJs::createBool(false);
++    }
++    LOGW("<------------------ join %{public}s", thread_result);
++#endif
 +    return qJs::createBool(true);
 +}
 +
@@ -6089,9 +6125,9 @@ index 0000000000..b09de23309
 +        QOpenHarmonyPlatformMessageDialogHelper::init(env, exports);
 +        QOpenHarmonyPlatformFileDialogHelper::init(env, exports);
 +
-+    #ifndef QT_NO_CLIPBOARD
++#ifndef QT_NO_CLIPBOARD
 +        QOpenHarmonyPlatformClipboard::init(env, exports);
-+    #endif
++#endif
 +        qJs::init(env);
 +        inited = true;
 +    }

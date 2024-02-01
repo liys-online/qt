@@ -1,16 +1,17 @@
 diff --git a/config.tests/arch/write_info.pri b/config.tests/arch/write_info.pri
-index 3b55a63f49..e0518dd242 100644
+index 5b43ce1cd5..e0518dd242 100644
 --- a/config.tests/arch/write_info.pri
 +++ b/config.tests/arch/write_info.pri
-@@ -3,7 +3,7 @@ targetinfofile ~= s/pro$/target.txt/
+@@ -3,6 +3,9 @@ targetinfofile ~= s/pro$/target.txt/
  
  win32 {
      ext = .exe
--} else:android {
 +} else:android|openharmony {
-     file_prefix = lib
-     ext = .so
++    file_prefix = lib
++    ext = .so
  } else:wasm {
+     ext = .wasm
+ }
 diff --git a/mkspecs/common/oh-base-head.conf b/mkspecs/common/oh-base-head.conf
 new file mode 100644
 index 0000000000..d7be212137
@@ -133,45 +134,16 @@ index 0000000000..14524b35ee
 +    !contains(TARGET, ".so"): TARGET = lib$${TARGET}.so
 +    QMAKE_LFLAGS += -Wl,-soname,$$shell_quote($$TARGET)
 +}
-diff --git a/mkspecs/features/qt_configure.prf b/mkspecs/features/qt_configure.prf
-index 850ee98057..8c92306173 100644
---- a/mkspecs/features/qt_configure.prf
-+++ b/mkspecs/features/qt_configure.prf
-@@ -777,6 +777,7 @@ defineTest(qtConfLibrary_inline) {
- # this source type cannot fail.
- defineTest(qtConfLibrary_makeSpec) {
-     spec = $$eval($${1}.spec)
-+
-     isEmpty(spec): \
-         error("makeSpec source in library '$$eval($${1}.library)' does not specify 'spec'.")
- 
-@@ -1233,6 +1234,7 @@ defineTest(qtConfPrepareCompileTestSource) {
- defineTest(qtConfTest_compile) {
-     test = $$eval($${1}.test)
-     host = $$eval($${1}.host)
-+
-     isEmpty(host): host = false
- 
-     test_base_out_dir = $$OUT_PWD/$$basename(QMAKE_CONFIG_TESTS_DIR)
-@@ -2135,8 +2137,7 @@ defineTest(qtConfOutput_publicFeature) {
-     name = "$$eval($${1}.name)"
-     isEmpty(name): \
-         name = $$eval($${1}.feature)
--    feature = $$replace(name, [-+.], _)
--
-+    feature = $$replace(name, [-+.], _)    
-     $${2} {
-         qtConfExtendVar("publicPro", "QT.$${currentModule}.enabled_features", $$name)
-         QT.$${currentModule}.enabled_features += $$name
 diff --git a/mkspecs/features/qt_plugin.prf b/mkspecs/features/qt_plugin.prf
-index 40528a65e2..3e563b8cc0 100644
+index 573d717eea..94b8dd5666 100644
 --- a/mkspecs/features/qt_plugin.prf
 +++ b/mkspecs/features/qt_plugin.prf
-@@ -91,7 +91,17 @@ CONFIG(static, static|shared)|prefix_build {
+@@ -91,8 +91,19 @@ CONFIG(static, static|shared)|prefix_build {
  target.path = $$[QT_INSTALL_PLUGINS]/$$PLUGIN_TYPE
  INSTALLS += target
  
--TARGET = $$qt5LibraryTarget($$TARGET)
+-qt_libinfix_plugins: TARGET = $$TARGET$$QT_LIBINFIX
+-TARGET = $$qt5LibraryTarget($$TARGET, "plugins/$$PLUGIN_TYPE/")
 +defineReplace(qt5OpenHarmonyPluginTarget) {
 +    LIBRARY_NAME_PREFIX = $$2
 +    LIBRARY_NAME_PREFIX = $$replace(LIBRARY_NAME_PREFIX, "//", "/")
@@ -183,6 +155,8 @@ index 40528a65e2..3e563b8cc0 100644
 +
 +
 +TARGET = $$qt5OpenHarmonyPluginTarget($$TARGET, "plugins/$$PLUGIN_TYPE/")
++#qt_libinfix_plugins: TARGET = $$TARGET$$QT_LIBINFIX
++#TARGET = $$qt5LibraryTarget($$TARGET, "plugins/$$PLUGIN_TYPE/")
  
  CONFIG += create_cmake
  
@@ -415,10 +389,10 @@ index 0000000000..f405c91ecb
 +
 +#endif // QPLATFORMDEFS_H
 diff --git a/src/corelib/global/qlogging.cpp b/src/corelib/global/qlogging.cpp
-index 3c82097cfe..f85b2baa19 100644
+index 292116cc47..540d6f00a1 100644
 --- a/src/corelib/global/qlogging.cpp
 +++ b/src/corelib/global/qlogging.cpp
-@@ -1679,6 +1679,36 @@ static bool android_default_message_handler(QtMsgType type,
+@@ -1668,6 +1668,36 @@ static bool android_default_message_handler(QtMsgType type,
  }
  #endif //Q_OS_ANDROID
  
@@ -428,8 +402,8 @@ index 3c82097cfe..f85b2baa19 100644
 +#define APP_LOG_TAG "QtForOpenHarmony"
 +
 +static bool openharmony_default_message_handler(QtMsgType type,
-+                                  const QMessageLogContext &context,
-+                                  const QString &message)
++                                                const QMessageLogContext &context,
++                                                const QString &message)
 +{
 +    if (shouldLogToStderr())
 +        return false; // Leave logging up to stderr handler
@@ -453,9 +427,9 @@ index 3c82097cfe..f85b2baa19 100644
 +#endif
 +
  #ifdef Q_OS_WIN
- static bool win_message_handler(QtMsgType type, const QMessageLogContext &context, const QString &message)
+ static void win_outputDebugString_helper(const QString &message)
  {
-@@ -1770,6 +1800,8 @@ static void qDefaultMessageHandler(QtMsgType type, const QMessageLogContext &con
+@@ -1779,6 +1809,8 @@ static void qDefaultMessageHandler(QtMsgType type, const QMessageLogContext &con
      handledStderr |= AppleUnifiedLogger::messageHandler(type, context, message);
  # elif defined Q_OS_WASM
      handledStderr |= wasm_default_message_handler(type, context, message);
@@ -465,10 +439,10 @@ index 3c82097cfe..f85b2baa19 100644
  #endif
  
 diff --git a/src/corelib/global/qsystemdetection.h b/src/corelib/global/qsystemdetection.h
-index d87e181e5c..22227d672a 100644
+index ad5d30d544..72a026b182 100644
 --- a/src/corelib/global/qsystemdetection.h
 +++ b/src/corelib/global/qsystemdetection.h
-@@ -111,6 +111,9 @@
+@@ -118,6 +118,9 @@
  #elif defined(__ANDROID__) || defined(ANDROID)
  #  define Q_OS_ANDROID
  #  define Q_OS_LINUX
@@ -479,7 +453,7 @@ index d87e181e5c..22227d672a 100644
  #  define Q_OS_CYGWIN
  #elif !defined(SAG_COM) && (!defined(WINAPI_FAMILY) || WINAPI_FAMILY==WINAPI_FAMILY_DESKTOP_APP) && (defined(WIN64) || defined(_WIN64) || defined(__WIN64__))
 diff --git a/src/corelib/io/qfileselector.cpp b/src/corelib/io/qfileselector.cpp
-index 500b475d1d..8b09cfb04d 100644
+index ee378f6434..1798a905c6 100644
 --- a/src/corelib/io/qfileselector.cpp
 +++ b/src/corelib/io/qfileselector.cpp
 @@ -199,6 +199,9 @@ static bool isLocalScheme(const QString &file)
@@ -504,7 +478,7 @@ index 500b475d1d..8b09cfb04d 100644
          QString equivalentPath = scheme + filePath.path();
          QString selectedPath = d->select(equivalentPath);
 diff --git a/src/corelib/io/qurl.cpp b/src/corelib/io/qurl.cpp
-index 6d82981fd6..5896fcbdb5 100644
+index 50512a4a73..3d6226cd2c 100644
 --- a/src/corelib/io/qurl.cpp
 +++ b/src/corelib/io/qurl.cpp
 @@ -445,6 +445,11 @@ static inline QString webDavScheme()
@@ -519,18 +493,18 @@ index 6d82981fd6..5896fcbdb5 100644
  static inline QString webDavSslTag()
  {
      return QStringLiteral("@SSL");
-@@ -1021,6 +1026,9 @@ inline bool QUrlPrivate::setScheme(const QString &value, int len, bool doSetErro
+@@ -1018,6 +1023,9 @@ inline bool QUrlPrivate::setScheme(const QString &value, int len, bool doSetErro
      if (scheme == fileScheme()
  #ifdef Q_OS_WIN
          || scheme == webDavScheme()
 +#endif
 +#ifdef Q_OS_OPENHARMONY
-+            || scheme == harmonyFileScheme()
++        || scheme == harmonyFileScheme()
  #endif
         ) {
          flags |= IsLocalFile;
 diff --git a/src/corelib/kernel/kernel.pri b/src/corelib/kernel/kernel.pri
-index 3f7bf3cd47..f7c6fa9dc8 100644
+index 749672c899..602dce2d9f 100644
 --- a/src/corelib/kernel/kernel.pri
 +++ b/src/corelib/kernel/kernel.pri
 @@ -212,4 +212,24 @@ android:!android-embedded {
@@ -559,10 +533,10 @@ index 3f7bf3cd47..f7c6fa9dc8 100644
 +
  !darwin:!unix:!win32: SOURCES += kernel/qelapsedtimer_generic.cpp
 diff --git a/src/corelib/kernel/qcoreapplication.cpp b/src/corelib/kernel/qcoreapplication.cpp
-index db6546028a..10fba6c9c8 100644
+index d671f70bd3..cebbec8e29 100644
 --- a/src/corelib/kernel/qcoreapplication.cpp
 +++ b/src/corelib/kernel/qcoreapplication.cpp
-@@ -2337,7 +2337,7 @@ QString QCoreApplication::applicationFilePath()
+@@ -2335,7 +2335,7 @@ QString QCoreApplication::applicationFilePath()
      }
  #endif
  #if defined( Q_OS_UNIX )
@@ -870,16 +844,17 @@ index 0000000000..0c0bd12c64
 +#endif // QJNIHELPERS_H
 diff --git a/src/corelib/kernel/qopenharmonyjsenvironment.cpp b/src/corelib/kernel/qopenharmonyjsenvironment.cpp
 new file mode 100644
-index 0000000000..7ca972cb29
+index 0000000000..8b8af52eee
 --- /dev/null
 +++ b/src/corelib/kernel/qopenharmonyjsenvironment.cpp
-@@ -0,0 +1,395 @@
+@@ -0,0 +1,402 @@
 +#include "qopenharmonyjsenvironment.h"
 +#include "qopenharmonydefines.h"
 +#include "qopenharmonyhelpers_p.h"
 +#include "qopenharmonyjsfunction.h"
 +
 +static napi_threadsafe_function g_threadsafe_call_js_function = nullptr;
++static napi_threadsafe_function g_threadsafe_remove_object_function = nullptr;
 +napi_env QOpenHarmonyJsEnvironment::m_env = nullptr;
 +bool QOpenHarmonyJsEnvironment::m_exit = false;
 +
@@ -958,10 +933,8 @@ index 0000000000..7ca972cb29
 +napi_value QOpenHarmonyJsEnvironment::createObject(const QVariantMap &map)
 +{
 +    napi_value result = nullptr;
-+    QMapIterator<QString, QVariant> i(map);
 +    NAPI_CALL_BASE(m_env, napi_create_object(m_env, &result), nullptr);
-+    while (i.hasNext()) {
-+        i.next();
++    for (auto i = map.cbegin(); i != map.cend(); ++i){
 +        napi_value name = createString(i.key());
 +        napi_value v = QtHarmonyPrivate::variant_to_napi_value(i.value());
 +        napi_set_property(m_env, result, name, v);
@@ -988,6 +961,14 @@ index 0000000000..7ca972cb29
 +        return false;
 +    napi_acquire_threadsafe_function(g_threadsafe_call_js_function);
 +    return napi_call_threadsafe_function(g_threadsafe_call_js_function, func, napi_tsfn_blocking) == napi_ok;
++}
++
++void QOpenHarmonyJsEnvironment::threadSafeRemoveObject(const QString &objectName)
++{
++    napi_acquire_threadsafe_function(g_threadsafe_remove_object_function);
++    QByteArray dataArray = objectName.toLatin1();
++    char *_data = dataArray.data();
++    napi_call_threadsafe_function(g_threadsafe_remove_object_function, (void *)_data, napi_tsfn_blocking);
 +}
 +
 +QString QOpenHarmonyJsEnvironment::getString(napi_value value)
@@ -1271,10 +1252,10 @@ index 0000000000..7ca972cb29
 +}
 diff --git a/src/corelib/kernel/qopenharmonyjsenvironment.h b/src/corelib/kernel/qopenharmonyjsenvironment.h
 new file mode 100644
-index 0000000000..98c7f3a7d4
+index 0000000000..0390478e5b
 --- /dev/null
 +++ b/src/corelib/kernel/qopenharmonyjsenvironment.h
-@@ -0,0 +1,121 @@
+@@ -0,0 +1,122 @@
 +#ifndef QOPENHARMONYJSENVIRONMENT_H
 +#define QOPENHARMONYJSENVIRONMENT_H
 +
@@ -1341,6 +1322,7 @@ index 0000000000..98c7f3a7d4
 +    static napi_value callFunction(napi_value object, napi_value function, int argc = 0, const napi_value *argv = nullptr);
 +
 +    static bool callThreadSafeFunction(QOpenHarmonyJsFunction *func);
++    static void threadSafeRemoveObject(const QString &objectName);
 +
 +    static QString getString(napi_value value);
 +
@@ -1700,7 +1682,7 @@ index 0000000000..4c982d1784
 +#endif // QOPENHARMONYJSFUNCTION_H
 diff --git a/src/corelib/kernel/qopenharmonyjsobject.cpp b/src/corelib/kernel/qopenharmonyjsobject.cpp
 new file mode 100644
-index 0000000000..f97073cd90
+index 0000000000..9141921922
 --- /dev/null
 +++ b/src/corelib/kernel/qopenharmonyjsobject.cpp
 @@ -0,0 +1,95 @@
@@ -1735,7 +1717,7 @@ index 0000000000..f97073cd90
 +    : d_ptr(new QOpenHarmonyJsObjectPrivate(objectType, objectName))
 +{
 +    d_ptr->q_ptr = this;
-+    // ÂøÖÈ°ª‰ΩøÁî®ref, Âê¶Âàô‰ºöÂ¥©Ê∫É
++    // ±ÿ–Î π”√ref, ∑Ò‘Úª·±¿¿£
 +    napi_create_reference(qJs::env(), jsObject, 1, &d_ptr->m_jsObject);
 +}
 +
@@ -2265,64 +2247,70 @@ index 0000000000..e980f4cf8d
 +    napi_module_register(&openharmonyQtCoreModule);
 +}
 diff --git a/src/corelib/plugin/qfactoryloader.cpp b/src/corelib/plugin/qfactoryloader.cpp
-index 35c64180d4..396ee5882c 100644
+index 582f48e93e..d9032f61ed 100644
 --- a/src/corelib/plugin/qfactoryloader.cpp
 +++ b/src/corelib/plugin/qfactoryloader.cpp
-@@ -193,7 +193,11 @@ void QFactoryLoader::update()
+@@ -196,10 +196,10 @@ void QFactoryLoader::update()
              continue;
          d->loadedPaths << pluginDir;
  
-+#ifdef Q_OS_OPENHARMONY
-+        QString path = pluginDir;
-+#else
-         QString path = pluginDir + d->suffix;
-+#endif
+-#ifdef Q_OS_ANDROID
++#if defined(Q_OS_ANDROID) || defined(Q_OS_OPENHARMONY)
+         QString path = pluginDir;
+ #else
+-        QString path = pluginDir + d->suffix;
++        QString path = pluginDir + d->suffix;        
+ #endif
  
          if (qt_debug_component())
-             qDebug() << "QFactoryLoader::QFactoryLoader() checking directory path" << path << "...";
-@@ -204,6 +208,8 @@ void QFactoryLoader::update()
+@@ -211,10 +211,10 @@ void QFactoryLoader::update()
          QStringList plugins = QDir(path).entryList(
- #ifdef Q_OS_WIN
+ #if defined(Q_OS_WIN)
                      QStringList(QStringLiteral("*.dll")),
-+#elif defined(Q_OS_OPENHARMONY)
-+                    QStringList(QString("libplugins_%1_*.so").arg(d->suffix)),
+-#elif defined(Q_OS_ANDROID)
++#elif defined(Q_OS_ANDROID) || defined(Q_OS_OPENHARMONY)
+                     QStringList(QLatin1String("libplugins_%1_*.so").arg(d->suffix)),
  #endif
-                     QDir::Files);
-         QLibraryPrivate *library = 0;
-@@ -339,6 +345,10 @@ QFactoryLoader::QFactoryLoader(const char *iid,
+-                    QDir::Files);
++                    QDir::Files);        
+         QLibraryPrivate *library = nullptr;
+ 
+         for (int j = 0; j < plugins.count(); ++j) {
+@@ -349,9 +349,9 @@ QFactoryLoader::QFactoryLoader(const char *iid,
  #if QT_CONFIG(library)
      d->cs = cs;
      d->suffix = suffix;
-+# ifdef Q_OS_OPENHARMONY
-+    if (!d->suffix.isEmpty() && d->suffix.at(0) == QLatin1Char('/'))
-+        d->suffix.remove(0, 1);
-+# endif
+-# ifdef Q_OS_ANDROID
++#if defined(Q_OS_ANDROID) || defined(Q_OS_OPENHARMONY)
+     if (!d->suffix.isEmpty() && d->suffix.at(0) == QLatin1Char('/'))
+-        d->suffix.remove(0, 1);
++        d->suffix.remove(0, 1);    
+ # endif
  
      QMutexLocker locker(qt_factoryloader_mutex());
-     update();
 diff --git a/src/corelib/thread/qthread_unix.cpp b/src/corelib/thread/qthread_unix.cpp
-index 695d45d8e7..b10617fdaa 100644
+index a27782d37c..f900b4eb5c 100644
 --- a/src/corelib/thread/qthread_unix.cpp
 +++ b/src/corelib/thread/qthread_unix.cpp
-@@ -312,7 +312,7 @@ static void setCurrentThreadName(const char *name)
+@@ -302,7 +302,7 @@ void terminate_on_exception(T &&t)
  
  void *QThreadPrivate::start(void *arg)
  {
 -#if !defined(Q_OS_ANDROID)
 +#if !defined(Q_OS_ANDROID) && !defined(Q_OS_OPENHARMONY)
-     pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+     pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, nullptr);
  #endif
      pthread_cleanup_push(QThreadPrivate::finish, arg);
-@@ -354,7 +354,7 @@ void *QThreadPrivate::start(void *arg)
+@@ -343,7 +343,7 @@ void *QThreadPrivate::start(void *arg)
  #endif
  
          emit thr->started(QThread::QPrivateSignal());
 -#if !defined(Q_OS_ANDROID)
 +#if !defined(Q_OS_ANDROID) && !defined(Q_OS_OPENHARMONY)
-         pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
+         pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, nullptr);
          pthread_testcancel();
  #endif
-@@ -751,7 +751,7 @@ void QThread::start(Priority priority)
+@@ -721,7 +721,7 @@ void QThread::start(Priority priority)
  
  void QThread::terminate()
  {
@@ -2331,7 +2319,7 @@ index 695d45d8e7..b10617fdaa 100644
      Q_D(QThread);
      QMutexLocker locker(&d->mutex);
  
-@@ -793,7 +793,7 @@ void QThread::setTerminationEnabled(bool enabled)
+@@ -764,7 +764,7 @@ void QThread::setTerminationEnabled(bool enabled)
                 "Current thread was not started with QThread.");
  
      Q_UNUSED(thr)
@@ -2339,34 +2327,34 @@ index 695d45d8e7..b10617fdaa 100644
 +#if defined(Q_OS_ANDROID) || defined(Q_OS_OPENHARMONY)
      Q_UNUSED(enabled);
  #else
-     pthread_setcancelstate(enabled ? PTHREAD_CANCEL_ENABLE : PTHREAD_CANCEL_DISABLE, NULL);
+     pthread_setcancelstate(enabled ? PTHREAD_CANCEL_ENABLE : PTHREAD_CANCEL_DISABLE, nullptr);
 diff --git a/src/gui/configure.json b/src/gui/configure.json
-index 6dd6f5b16c..65d59f07be 100644
+index 1f08795c57..a14a499e4a 100644
 --- a/src/gui/configure.json
 +++ b/src/gui/configure.json
-@@ -1313,7 +1313,7 @@
+@@ -1306,7 +1306,7 @@
              "label": "OpenGL ES 2.0",
-             "enable": "input.opengl == 'es2'",
+             "enable": "input.opengl == 'es2' || input.angle == 'yes'",
              "disable": "input.opengl == 'desktop' || input.opengl == 'dynamic' || input.opengl == 'no'",
--            "condition": "config.win32 || (!config.watchos && !features.opengl-desktop && libs.opengl_es2)",
-+            "condition": "config.openharmony || config.win32 || (!config.watchos && !features.opengl-desktop && libs.opengl_es2)",
+-            "condition": "(config.win32 && !features.opengl-dynamic) || (!config.watchos && !features.opengl-desktop && libs.opengl_es2)",
++            "condition": "config.openharmony || (config.win32 && !features.opengl-dynamic) || (!config.watchos && !features.opengl-desktop && libs.opengl_es2)",
              "output": [
                  "publicFeature",
                  "publicQtConfig",
-@@ -1323,7 +1323,7 @@
+@@ -1316,7 +1316,7 @@
          },
          "opengles3": {
              "label": "OpenGL ES 3.0",
--            "condition": "features.opengles2 && !features.angle && tests.opengles3 && !config.wasm",
-+            "condition": "features.opengles2 && !features.angle && !config.wasm",
+-            "condition": "features.opengles2 && !features.angle && tests.opengles3",
++            "condition": "features.opengles2 && !features.angle",
              "output": [
                  "publicFeature",
                  { "type": "define", "name": "QT_OPENGL_ES_3" }
 diff --git a/src/gui/configure.pri b/src/gui/configure.pri
-index 1b95449a10..b409140a2d 100644
+index 490ef0df28..537fd3ff69 100644
 --- a/src/gui/configure.pri
 +++ b/src/gui/configure.pri
-@@ -66,6 +66,7 @@ defineTest(qtConfTest_qpaDefaultPlatform) {
+@@ -70,6 +70,7 @@ defineTest(qtConfTest_qpaDefaultPlatform) {
      else: integrity: name = integrityfb
      else: haiku: name = haiku
      else: wasm: name = wasm
@@ -2374,37 +2362,11 @@ index 1b95449a10..b409140a2d 100644
      else: name = xcb
  
      $${1}.value = $$name
-diff --git a/src/gui/gui.pro b/src/gui/gui.pro
-index 06c9cd3939..d45b4d8b8c 100644
---- a/src/gui/gui.pro
-+++ b/src/gui/gui.pro
-@@ -70,7 +70,12 @@ qtConfig(angle) {
-     CMAKE_QT_OPENGL_IMPLEMENTATION = GLESv2
- } else {
-     qtConfig(egl) {
--        CMAKE_EGL_LIBS = $$cmakeProcessLibs($$QMAKE_LIBS_EGL)
-+        #FIXME wanghao changed QMAKE_LIBS_EGL is absolute path
-+        openharmony {
-+            CMAKE_EGL_LIBS = EGL
-+        } else {
-+            CMAKE_EGL_LIBS = $$cmakeProcessLibs($$QMAKE_LIBS_EGL)
-+        }
-         !isEmpty(QMAKE_LIBDIR_EGL): CMAKE_EGL_LIBDIR += $$cmakeTargetPath($$QMAKE_LIBDIR_EGL)
-     }
- 
-@@ -78,6 +83,7 @@ qtConfig(angle) {
-         !isEmpty(QMAKE_INCDIR_OPENGL_ES2): CMAKE_GL_INCDIRS = $$cmakeTargetPaths($$QMAKE_INCDIR_OPENGL_ES2)
-         CMAKE_OPENGL_INCDIRS = $$cmakePortablePaths($$QMAKE_INCDIR_OPENGL_ES2)
-         CMAKE_OPENGL_LIBS = $$cmakeProcessLibs($$QMAKE_LIBS_OPENGL_ES2)
-+        openharmony:CMAKE_OPENGL_LIBS=GLESv3    #FIXME wanghao changed CMAKE_OPENGL_LIBS is absolute path
-         !isEmpty(QMAKE_LIBDIR_OPENGL_ES2): CMAKE_OPENGL_LIBDIR = $$cmakePortablePaths($$QMAKE_LIBDIR_OPENGL_ES2)
-         CMAKE_GL_HEADER_NAME = GLES2/gl2.h
-         CMAKE_QT_OPENGL_IMPLEMENTATION = GLESv2
 diff --git a/src/gui/kernel/qscreen.cpp b/src/gui/kernel/qscreen.cpp
-index f208eb02be..9033d0730c 100644
+index 990272b0c2..b1b539bfb3 100644
 --- a/src/gui/kernel/qscreen.cpp
 +++ b/src/gui/kernel/qscreen.cpp
-@@ -392,7 +392,11 @@ QRect QScreen::geometry() const
+@@ -427,7 +427,11 @@ QRect QScreen::geometry() const
  QRect QScreen::availableGeometry() const
  {
      Q_D(const QScreen);
@@ -2416,21 +2378,8 @@ index f208eb02be..9033d0730c 100644
  }
  
  /*!
-diff --git a/src/gui/kernel/qsimpledrag.cpp b/src/gui/kernel/qsimpledrag.cpp
-index bd409c124f..29bb587b12 100644
---- a/src/gui/kernel/qsimpledrag.cpp
-+++ b/src/gui/kernel/qsimpledrag.cpp
-@@ -248,7 +248,7 @@ void QBasicDrag::recreateShapedPixmapWindow(QScreen *screen, const QPoint &pos)
- 
-     m_drag_icon_window->setUseCompositing(m_useCompositing);
-     m_drag_icon_window->setPixmap(m_drag->pixmap());
--    m_drag_icon_window->setHotspot(m_drag->hotSpot());
-+    m_drag_icon_window->setHotspot(m_drag->hotSpot());    
-     m_drag_icon_window->updateGeometry(pos);
-     m_drag_icon_window->setVisible(true);
- }
 diff --git a/src/network/access/qnetworkaccessfilebackend.cpp b/src/network/access/qnetworkaccessfilebackend.cpp
-index 60353cb03e..b8b7290cbf 100644
+index 507417f86c..a29678555e 100644
 --- a/src/network/access/qnetworkaccessfilebackend.cpp
 +++ b/src/network/access/qnetworkaccessfilebackend.cpp
 @@ -57,6 +57,9 @@ QStringList QNetworkAccessFileBackendFactory::supportedSchemes() const
@@ -2466,10 +2415,10 @@ index 60353cb03e..b8b7290cbf 100644
                  fileName = url.toString(QUrl::RemoveAuthority | QUrl::RemoveFragment | QUrl::RemoveQuery);
          }
 diff --git a/src/network/access/qnetworkaccessmanager.cpp b/src/network/access/qnetworkaccessmanager.cpp
-index 31b1dbf2a5..c42d41d696 100644
+index a10fe9e3fe..7c363279a2 100644
 --- a/src/network/access/qnetworkaccessmanager.cpp
 +++ b/src/network/access/qnetworkaccessmanager.cpp
-@@ -1378,6 +1378,9 @@ QNetworkReply *QNetworkAccessManager::createRequest(QNetworkAccessManager::Opera
+@@ -1419,6 +1419,9 @@ QNetworkReply *QNetworkAccessManager::createRequest(QNetworkAccessManager::Opera
          if (isLocalFile
  #ifdef Q_OS_ANDROID
              || scheme == QLatin1String("assets")
@@ -2480,129 +2429,21 @@ index 31b1dbf2a5..c42d41d696 100644
              || scheme == QLatin1String("qrc")) {
              return new QNetworkReplyFileImpl(this, req, op);
 diff --git a/src/network/access/qnetworkreplyfileimpl.cpp b/src/network/access/qnetworkreplyfileimpl.cpp
-index ef319ebf0d..7f531f5b47 100644
+index 6e69b4c4d3..ff8ff19361 100644
 --- a/src/network/access/qnetworkreplyfileimpl.cpp
 +++ b/src/network/access/qnetworkreplyfileimpl.cpp
-@@ -109,6 +109,11 @@ QNetworkReplyFileImpl::QNetworkReplyFileImpl(QNetworkAccessManager *manager, con
+@@ -110,6 +110,11 @@ QNetworkReplyFileImpl::QNetworkReplyFileImpl(QNetworkAccessManager *manager, con
              if (scheme == QLatin1String("assets"))
                  fileName = QLatin1String("assets:") + url.path();
              else
 +#endif
 +#if defined(Q_OS_OPENHARMONY)
-+            if (scheme == QLatin1String("rawfile"))
-+                fileName = QLatin1String("rawfile:") + url.path();
-+            else
++                if (scheme == QLatin1String("rawfile"))
++                    fileName = QLatin1String("rawfile:") + url.path();
++                else
  #endif
                  fileName = url.toString(QUrl::RemoveAuthority | QUrl::RemoveFragment | QUrl::RemoveQuery);
          }
-diff --git a/src/network/socket/qabstractsocketengine.cpp b/src/network/socket/qabstractsocketengine.cpp
-index 3fffff6d5a..f461b555dc 100644
---- a/src/network/socket/qabstractsocketengine.cpp
-+++ b/src/network/socket/qabstractsocketengine.cpp
-@@ -117,8 +117,7 @@ QAbstractSocketEngine *QAbstractSocketEngine::createSocketEngine(QAbstractSocket
-     // only NoProxy can have reached here
-     if (proxy.type() != QNetworkProxy::NoProxy)
-         return 0;
--#endif
--
-+#endif    
-     return new QNativeSocketEngine(parent);
- }
- 
-diff --git a/src/network/socket/qnativesocketengine.cpp b/src/network/socket/qnativesocketengine.cpp
-index 8947a7ee8a..11ad26f306 100644
---- a/src/network/socket/qnativesocketengine.cpp
-+++ b/src/network/socket/qnativesocketengine.cpp
-@@ -440,7 +440,7 @@ QNativeSocketEngine::~QNativeSocketEngine()
-     broadcast enabled.
- */
- bool QNativeSocketEngine::initialize(QAbstractSocket::SocketType socketType, QAbstractSocket::NetworkLayerProtocol protocol)
--{
-+{    
-     Q_D(QNativeSocketEngine);
-     if (isValid())
-         close();
-@@ -691,15 +691,20 @@ bool QNativeSocketEngine::bind(const QHostAddress &address, quint16 port)
- */
- bool QNativeSocketEngine::listen()
- {
-+    qWarning() << "<-----------QNativeSocketEngine::listen()---000";
-     Q_D(QNativeSocketEngine);
-+    qWarning() << "<-----------QNativeSocketEngine::listen()---111";
-     Q_CHECK_VALID_SOCKETLAYER(QNativeSocketEngine::listen(), false);
-+    qWarning() << "<-----------QNativeSocketEngine::listen()---222";
-     Q_CHECK_STATE(QNativeSocketEngine::listen(), QAbstractSocket::BoundState, false);
- #ifndef QT_NO_SCTP
-     Q_CHECK_TYPES(QNativeSocketEngine::listen(), QAbstractSocket::TcpSocket,
-                   QAbstractSocket::SctpSocket, false);
- #else
-+    qWarning() << "<-----------QNativeSocketEngine::listen()---333";
-     Q_CHECK_TYPE(QNativeSocketEngine::listen(), QAbstractSocket::TcpSocket, false);
- #endif
-+    qWarning() << "<-----------QNativeSocketEngine::listen()---444";
- 
-     // We're using a backlog of 50. Most modern kernels support TCP
-     // syncookies by default, and if they do, the backlog is ignored.
-diff --git a/src/network/socket/qsocks5socketengine.cpp b/src/network/socket/qsocks5socketengine.cpp
-index e7e4d64c32..7a6dfe44bc 100644
---- a/src/network/socket/qsocks5socketengine.cpp
-+++ b/src/network/socket/qsocks5socketengine.cpp
-@@ -1906,13 +1906,13 @@ QAbstractSocketEngine *
- QSocks5SocketEngineHandler::createSocketEngine(QAbstractSocket::SocketType socketType,
-                                                const QNetworkProxy &proxy, QObject *parent)
- {
--    Q_UNUSED(socketType);
--
-+    Q_UNUSED(socketType);    
-     // proxy type must have been resolved by now
-     if (proxy.type() != QNetworkProxy::Socks5Proxy) {
-         QSOCKS5_DEBUG << "not proxying";
-         return 0;
-     }
-+
-     QScopedPointer<QSocks5SocketEngine> engine(new QSocks5SocketEngine(parent));
-     engine->setProxy(proxy);
-     return engine.take();
-diff --git a/src/network/socket/qtcpserver.cpp b/src/network/socket/qtcpserver.cpp
-index eddf789921..f0f3a62935 100644
---- a/src/network/socket/qtcpserver.cpp
-+++ b/src/network/socket/qtcpserver.cpp
-@@ -305,11 +305,10 @@ bool QTcpServer::listen(const QHostAddress &address, quint16 port)
-     static const QNetworkProxy &proxy = *(QNetworkProxy *)0;
- #else
-     QNetworkProxy proxy = d->resolveProxy(addr, port);
--#endif
--
-+#endif    
-     delete d->socketEngine;
-     d->socketEngine = QAbstractSocketEngine::createSocketEngine(d->socketType, proxy, this);
--    if (!d->socketEngine) {
-+    if (!d->socketEngine) {        
-         d->serverSocketError = QAbstractSocket::UnsupportedSocketOperationError;
-         d->serverSocketErrorString = tr("Operation on socket is not supported");
-         return false;
-@@ -318,18 +317,18 @@ bool QTcpServer::listen(const QHostAddress &address, quint16 port)
-     //copy network session down to the socket engine (if it has been set)
-     d->socketEngine->setProperty("_q_networksession", property("_q_networksession"));
- #endif
--    if (!d->socketEngine->initialize(d->socketType, proto)) {
-+    if (!d->socketEngine->initialize(d->socketType, proto)) {        
-         d->serverSocketError = d->socketEngine->error();
-         d->serverSocketErrorString = d->socketEngine->errorString();
-         return false;
-     }
-+
-     proto = d->socketEngine->protocol();
-     if (addr.protocol() == QAbstractSocket::AnyIPProtocol && proto == QAbstractSocket::IPv4Protocol)
-         addr = QHostAddress::AnyIPv4;
- 
-     d->configureCreatedSocket();
--
--    if (!d->socketEngine->bind(addr, port)) {
-+    if (!d->socketEngine->bind(addr, port)) {        
-         d->serverSocketError = d->socketEngine->error();
-         d->serverSocketErrorString = d->socketEngine->errorString();
-         return false;
 diff --git a/src/openharmony/entryability/EntryAbility.ts b/src/openharmony/entryability/EntryAbility.ts
 new file mode 100644
 index 0000000000..6a4626655c
@@ -2655,7 +2496,7 @@ index 0000000000..6a4626655c
 +};
 diff --git a/src/openharmony/native/QtCore/JsApplication.ts b/src/openharmony/native/QtCore/JsApplication.ts
 new file mode 100644
-index 0000000000..9f8c968ddc
+index 0000000000..e5bd848229
 --- /dev/null
 +++ b/src/openharmony/native/QtCore/JsApplication.ts
 @@ -0,0 +1,156 @@
@@ -2815,6 +2656,7 @@ index 0000000000..9f8c968ddc
 +}
 +
 +export default new JsApplication;
+\ No newline at end of file
 diff --git a/src/openharmony/native/QtCore/JsDataStore.ts b/src/openharmony/native/QtCore/JsDataStore.ts
 new file mode 100644
 index 0000000000..a43a6e5a97
@@ -3712,7 +3554,7 @@ index 0000000000..9bc2c21d25
 +export const QtQPA : Object = qpa
 diff --git a/src/openharmony/native/QtCore/JsWindow.ts b/src/openharmony/native/QtCore/JsWindow.ts
 new file mode 100644
-index 0000000000..62861e0292
+index 0000000000..369eb9fbe0
 --- /dev/null
 +++ b/src/openharmony/native/QtCore/JsWindow.ts
 @@ -0,0 +1,81 @@
@@ -3785,14 +3627,14 @@ index 0000000000..62861e0292
 +
 +    async hideWindow() : Promise<void>  {
 +        let d = display.getDefaultDisplaySync();
-+        // Áî±‰∫éÈ∏øËíôÊ≤°ÊúâÂØπÂ§ñÊèê‰æõhideÊé•Âè£ÔºåÊääÁ™óÂè£ÁßªÂà∞Â±èÂπï‰πãÂ§ñÂéª
++        // ”…”⁄∫Ë√…√ª”–∂‘Õ‚Ã·π©hideΩ”ø⁄£¨∞—¥∞ø⁄“∆µΩ∆¡ƒª÷ÆÕ‚»•
 +        await this.window.moveWindowTo(d.width + 50, d.height + 50);
 +    }
 +
 +    async load() : Promise<void> {
 +        let store = new LocalStorage({"name": this.name});
 +        await this.window.loadContent('pages/Index', store);
-+        // Â¶ÇÊûú‰∏çÊòæÁ§∫Á™óÂè£Ôºåxcompoent‰∏ç‰ºöÂàõÂª∫ÔºåÂØºËá¥c++Á´ØÁ≠âÂæÖÂ§±Ë¥•„ÄÇ
++        // »Áπ˚≤ªœ‘ æ¥∞ø⁄£¨xcompoent≤ªª·¥¥Ω®£¨µº÷¬c++∂Àµ»¥˝ ß∞‹°£
 +        await this.setVisible(true);
 +        this.hideWindow();
 +    }
@@ -3890,44 +3732,6 @@ index 0000000000..16904a1c31
 +    }
 +  }
 +}
-diff --git a/src/platformsupport/input/evdevkeyboard/qevdevkeyboardhandler.cpp b/src/platformsupport/input/evdevkeyboard/qevdevkeyboardhandler.cpp
-index ad134a825f..dcbefde499 100644
---- a/src/platformsupport/input/evdevkeyboard/qevdevkeyboardhandler.cpp
-+++ b/src/platformsupport/input/evdevkeyboard/qevdevkeyboardhandler.cpp
-@@ -149,10 +149,14 @@ void QEvdevKeyboardHandler::switchLed(int led, bool state)
-     qCDebug(qLcEvdevKey) << "switchLed" << led << state;
- 
-     struct ::input_event led_ie;
-+#if __BITS_PER_LONG != 32 || !defined(__USE_TIME_BITS64)
-     ::gettimeofday(&led_ie.time, 0);
--    led_ie.type = EV_LED;
--    led_ie.code = led;
--    led_ie.value = state;
-+#else
-+    struct timeval tv;
-+    ::gettimeofday(&tv, 0);
-+    led_ie.__sec = tv.tv_sec;
-+    led_ie.__usec = tv.tv_usec;
-+#endif
- 
-     qt_safe_write(m_fd.get(), &led_ie, sizeof(led_ie));
- }
-diff --git a/src/platformsupport/input/evdevtouch/qevdevtouchhandler.cpp b/src/platformsupport/input/evdevtouch/qevdevtouchhandler.cpp
-index 70271c7fd6..1634094364 100644
---- a/src/platformsupport/input/evdevtouch/qevdevtouchhandler.cpp
-+++ b/src/platformsupport/input/evdevtouch/qevdevtouchhandler.cpp
-@@ -568,7 +568,11 @@ void QEvdevTouchScreenData::processInputEvent(input_event *data)
- 
-         // update timestamps
-         m_lastTimeStamp = m_timeStamp;
-+#if __BITS_PER_LONG != 32 || !defined(__USE_TIME_BITS64)
-         m_timeStamp = data->time.tv_sec + data->time.tv_usec / 1000000.0;
-+#else
-+        m_timeStamp = data->__sec +  data->__usec / 1000000.0 ;
-+#endif
- 
-         m_lastTouchPoints = m_touchPoints;
-         m_touchPoints.clear();
 diff --git a/src/plugins/platforms/openharmony/openharmony.json b/src/plugins/platforms/openharmony/openharmony.json
 new file mode 100644
 index 0000000000..886625295c
@@ -5866,7 +5670,7 @@ index 0000000000..1a88d88b24
 +#endif // QOPENHARMONYDEFINES_H
 diff --git a/src/plugins/platforms/openharmony/qopenharmonymain.cpp b/src/plugins/platforms/openharmony/qopenharmonymain.cpp
 new file mode 100644
-index 0000000000..4425b99cbe
+index 0000000000..efabe40ee5
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonymain.cpp
 @@ -0,0 +1,453 @@
@@ -6248,9 +6052,9 @@ index 0000000000..4425b99cbe
 +        QOpenHarmonyPlatformMessageDialogHelper::init(env, exports);
 +        QOpenHarmonyPlatformFileDialogHelper::init(env, exports);
 +
-+    #ifndef QT_NO_CLIPBOARD
++#ifndef QT_NO_CLIPBOARD
 +        QOpenHarmonyPlatformClipboard::init(env, exports);
-+    #endif
++#endif
 +        qJs::init(env);
 +        inited = true;
 +    }
@@ -6973,7 +6777,7 @@ index 0000000000..39762fdc90
 +#endif // QOPENHARMONYPLATFORMDIALOGHELPERS_H
 diff --git a/src/plugins/platforms/openharmony/qopenharmonyplatformfontdatabase.cpp b/src/plugins/platforms/openharmony/qopenharmonyplatformfontdatabase.cpp
 new file mode 100644
-index 0000000000..ccad7c3358
+index 0000000000..82131d485a
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonyplatformfontdatabase.cpp
 @@ -0,0 +1,36 @@
@@ -6996,7 +6800,7 @@ index 0000000000..ccad7c3358
 +    if (Q_UNLIKELY(!dir.exists())) {
 +        qWarning("QFontDatabase: Cannot find font directory %s - is Qt installed correctly?",
 +               qPrintable(fontpath));
-+        //Todo Qt‰ΩøÁî®_statÂáΩÊï∞Ëé∑ÂèñÁä∂ÊÄÅ‰ø°ÊÅØÊó∂ËøîÂõû-1ÔºåÊùÉÈôêË¢´ÊãíÁªù.‰ΩÜÊòØ‰ΩøÁî®entryInfoListËÉΩÂ§üÂàóÂá∫ÁõÆÂΩï‰∏ãÁöÑÂ≠ó‰Ωì
++        //Todo Qt π”√_stat∫Ø ˝ªÒ»°◊¥Ã¨–≈œ¢ ±∑µªÿ-1£¨»®œﬁ±ªæ‹æ¯.µ´ « π”√entryInfoListƒ‹πª¡–≥ˆƒø¬ºœ¬µƒ◊÷ÃÂ
 +    }
 +
 +    QStringList nameFilters;
@@ -10094,28 +9898,27 @@ index 0000000000..f7edc8475e
 +};
 +#endif // QOPENHARMONYXCOMPONENT_H
 diff --git a/src/plugins/platforms/platforms.pro b/src/plugins/platforms/platforms.pro
-index acc55adf6f..288df4ce01 100644
+index 23f838a7fe..f13ef8b9cd 100644
 --- a/src/plugins/platforms/platforms.pro
 +++ b/src/plugins/platforms/platforms.pro
-@@ -3,9 +3,11 @@ QT_FOR_CONFIG += gui-private
+@@ -7,6 +7,12 @@ android:!android-embedded: SUBDIRS += android
  
- android:!android-embedded: SUBDIRS += android
+ !wasm:!android:qtConfig(freetype): SUBDIRS += offscreen
  
--!android: SUBDIRS += minimal
 +openharmony: SUBDIRS += openharmony
- 
--!android:qtConfig(freetype): SUBDIRS += offscreen
++
 +!android:!openharmony: SUBDIRS += minimal
 +
 +!android:!openharmony:qtConfig(freetype): SUBDIRS += offscreen
- 
++
  qtConfig(xcb) {
      SUBDIRS += xcb
+ }
 diff --git a/src/src.pro b/src/src.pro
-index 1c76a2e46f..18d8903d9b 100644
+index 8990109743..ffa3ca0dcc 100644
 --- a/src/src.pro
 +++ b/src/src.pro
-@@ -147,6 +147,8 @@ src_plugins.target = sub-plugins
+@@ -152,6 +152,8 @@ src_plugins.target = sub-plugins
  
  src_android.subdir = $$PWD/android
  
@@ -10124,17 +9927,17 @@ index 1c76a2e46f..18d8903d9b 100644
  # this order is important
  !qtConfig(system-zlib)|cross_compile {
      SUBDIRS += src_qtzlib
-@@ -238,6 +240,8 @@ nacl: SUBDIRS -= src_network src_testlib
+@@ -250,6 +252,8 @@ nacl: SUBDIRS -= src_network src_testlib
  
  android:!android-embedded: SUBDIRS += src_android src_3rdparty_gradle
  
 +openharmony: SUBDIRS += src_openharmony
 +
- TR_EXCLUDE = \
-     src_tools_bootstrap src_tools_moc src_tools_rcc src_tools_uic src_tools_qlalr \
-     src_tools_bootstrap_dbus src_tools_qdbusxml2cpp src_tools_qdbuscpp2xml \
+ qtConfig(private_tests) {
+      qtConfig(network):qtConfig(gui) {
+         src_network_doc_snippets.subdir = network/doc/snippets
 diff --git a/src/testlib/qplaintestlogger.cpp b/src/testlib/qplaintestlogger.cpp
-index ed53dcdde8..35097057e7 100644
+index 851a284678..2154f97ba7 100644
 --- a/src/testlib/qplaintestlogger.cpp
 +++ b/src/testlib/qplaintestlogger.cpp
 @@ -66,6 +66,10 @@
@@ -10159,13 +9962,15 @@ index ed53dcdde8..35097057e7 100644
      outputString(str);
  }
 diff --git a/src/testlib/qtestlog.cpp b/src/testlib/qtestlog.cpp
-index ff5dbaa44a..2401af425e 100644
+index 8917f0dc0e..7042f00f2d 100644
 --- a/src/testlib/qtestlog.cpp
 +++ b/src/testlib/qtestlog.cpp
-@@ -417,7 +417,9 @@ void QTestLog::startLogging()
+@@ -420,8 +420,10 @@ void QTestLog::startLogging()
+     elapsedTotalTime.start();
      elapsedFunctionTime.start();
      FOREACH_TEST_LOGGER
-         logger->startLogging();
+-        logger->startLogging();
++            logger->startLogging();
 +#ifndef Q_OS_OPENHARMONY
      QTest::oldMessageHandler = qInstallMessageHandler(QTest::messageHandler);
 +#endif
@@ -10173,13 +9978,13 @@ index ff5dbaa44a..2401af425e 100644
  
  void QTestLog::stopLogging()
 diff --git a/src/widgets/dialogs/qfiledialog.cpp b/src/widgets/dialogs/qfiledialog.cpp
-index eb3479b3e0..39cd4c95c8 100644
+index 711effefe2..03ced89c4c 100644
 --- a/src/widgets/dialogs/qfiledialog.cpp
 +++ b/src/widgets/dialogs/qfiledialog.cpp
-@@ -2169,7 +2169,15 @@ QString QFileDialog::getOpenFileName(QWidget *parent,
- {
+@@ -2218,10 +2218,18 @@ QString QFileDialog::getOpenFileName(QWidget *parent,
      const QStringList schemes = QStringList(QStringLiteral("file"));
-     const QUrl selectedUrl = getOpenFileUrl(parent, caption, QUrl::fromLocalFile(dir), filter, selectedFilter, options, schemes);
+     const QUrl selectedUrl = getOpenFileUrl(parent, caption, QUrl::fromLocalFile(dir), filter,
+                                             selectedFilter, options, schemes);
 +#ifdef Q_OS_OPENHARMONY
 +    QString fileName = selectedUrl.toLocalFile();
 +    if (!fileName.isEmpty()) {
@@ -10187,15 +9992,18 @@ index eb3479b3e0..39cd4c95c8 100644
 +    }
 +    return fileName;
 +#else
-     return selectedUrl.toLocalFile();
+     if (selectedUrl.isLocalFile() || selectedUrl.isEmpty())
+         return selectedUrl.toLocalFile();
+     else
+         return selectedUrl.toString();
 +#endif
  }
  
  /*!
-@@ -2400,7 +2408,15 @@ QString QFileDialog::getSaveFileName(QWidget *parent,
- {
+@@ -2581,10 +2589,18 @@ QString QFileDialog::getSaveFileName(QWidget *parent,
      const QStringList schemes = QStringList(QStringLiteral("file"));
-     const QUrl selectedUrl = getSaveFileUrl(parent, caption, QUrl::fromLocalFile(dir), filter, selectedFilter, options, schemes);
+     const QUrl selectedUrl = getSaveFileUrl(parent, caption, QUrl::fromLocalFile(dir), filter,
+                                             selectedFilter, options, schemes);
 +#ifdef Q_OS_OPENHARMONY
 +    QString fileName = selectedUrl.toLocalFile();
 +    if (!fileName.isEmpty()) {
@@ -10203,28 +10011,31 @@ index eb3479b3e0..39cd4c95c8 100644
 +    }
 +    return fileName;
 +#else
-     return selectedUrl.toLocalFile();
+     if (selectedUrl.isLocalFile() || selectedUrl.isEmpty())
+         return selectedUrl.toLocalFile();
+     else
+         return selectedUrl.toString();
 +#endif
  }
  
  /*!
 diff --git a/src/widgets/widgets/qtextbrowser.cpp b/src/widgets/widgets/qtextbrowser.cpp
-index 09541bb53b..a8dda888a4 100644
+index 122a8529e8..138a6a5b4e 100644
 --- a/src/widgets/widgets/qtextbrowser.cpp
 +++ b/src/widgets/widgets/qtextbrowser.cpp
-@@ -161,6 +161,11 @@ QString QTextBrowserPrivate::findFile(const QUrl &name) const
+@@ -177,6 +177,11 @@ QString QTextBrowserPrivate::findFile(const QUrl &name) const
          if (name.scheme() == QLatin1String("assets"))
              fileName = QLatin1String("assets:") + name.path();
          else
 +#endif
 +#if defined(Q_OS_OPENHARMONY)
-+        if (name.scheme() == QLatin1String("rawfile"))
-+            fileName = QLatin1String("rawfile:") + name.path();
-+        else
++            if (name.scheme() == QLatin1String("rawfile"))
++                fileName = QLatin1String("rawfile:") + name.path();
++            else
  #endif
              fileName = name.toLocalFile();
      }
-@@ -231,6 +236,9 @@ void QTextBrowserPrivate::_q_activateAnchor(const QString &href)
+@@ -247,6 +252,9 @@ void QTextBrowserPrivate::_q_activateAnchor(const QString &href)
              url.scheme() == QLatin1String("file")
  #if defined(Q_OS_ANDROID)
              || url.scheme() == QLatin1String("assets")
@@ -10235,260 +10046,22 @@ index 09541bb53b..a8dda888a4 100644
              || url.scheme() == QLatin1String("qrc");
      if ((openExternalLinks && !isFileScheme && !url.isRelative())
 diff --git a/tests/auto/corelib/kernel/qmetatype/tst_qmetatype.cpp b/tests/auto/corelib/kernel/qmetatype/tst_qmetatype.cpp
-index e6fac74ccc..ca6e8f3c45 100644
+index 2e2209ac5d..b6b872fc24 100644
 --- a/tests/auto/corelib/kernel/qmetatype/tst_qmetatype.cpp
 +++ b/tests/auto/corelib/kernel/qmetatype/tst_qmetatype.cpp
-@@ -365,7 +365,7 @@ protected:
+@@ -368,7 +368,7 @@ protected:
              const QByteArray name = "Bar" + QByteArray::number(i) + postFix;
              const char *nm = name.constData();
              int tp = qRegisterMetaType<Bar>(nm);
 -#if defined(Q_OS_LINUX) && !defined(Q_OS_ANDROID)
 +#if defined(Q_OS_LINUX) && !defined(Q_OS_ANDROID) && !defined(Q_OS_OPENHARMONY)
-             pthread_yield();
+             sched_yield();
  #endif
              QMetaType info(tp);
-diff --git a/tests/auto/corelib/plugin/qpluginloader/almostplugin/almostplugin.cpp b/tests/auto/corelib/plugin/qpluginloader/almostplugin/almostplugin.cpp
-index 75806dd285..b4904109ec 100644
---- a/tests/auto/corelib/plugin/qpluginloader/almostplugin/almostplugin.cpp
-+++ b/tests/auto/corelib/plugin/qpluginloader/almostplugin/almostplugin.cpp
-@@ -1,36 +1,41 @@
--/****************************************************************************
--**
--** Copyright (C) 2016 The Qt Company Ltd.
--** Contact: https://www.qt.io/licensing/
--**
--** This file is part of the test suite of the Qt Toolkit.
--**
--** $QT_BEGIN_LICENSE:GPL-EXCEPT$
--** Commercial License Usage
--** Licensees holding valid commercial Qt licenses may use this file in
--** accordance with the commercial license agreement provided with the
--** Software or, alternatively, in accordance with the terms contained in
--** a written agreement between you and The Qt Company. For licensing terms
--** and conditions see https://www.qt.io/terms-conditions. For further
--** information use the contact form at https://www.qt.io/contact-us.
--**
--** GNU General Public License Usage
--** Alternatively, this file may be used under the terms of the GNU
--** General Public License version 3 as published by the Free Software
--** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
--** included in the packaging of this file. Please review the following
--** information to ensure the GNU General Public License requirements will
--** be met: https://www.gnu.org/licenses/gpl-3.0.html.
--**
--** $QT_END_LICENSE$
--**
--****************************************************************************/
--#include <QtCore/QString>
--#include "almostplugin.h"
--#include <QtCore/qplugin.h>
--
--QString AlmostPlugin::pluginName() const
--{
--    unresolvedSymbol();
--    return QLatin1String("Plugin ok");
--}
-+/****************************************************************************
-+**
-+** Copyright (C) 2016 The Qt Company Ltd.
-+** Contact: https://www.qt.io/licensing/
-+**
-+** This file is part of the test suite of the Qt Toolkit.
-+**
-+** $QT_BEGIN_LICENSE:GPL-EXCEPT$
-+** Commercial License Usage
-+** Licensees holding valid commercial Qt licenses may use this file in
-+** accordance with the commercial license agreement provided with the
-+** Software or, alternatively, in accordance with the terms contained in
-+** a written agreement between you and The Qt Company. For licensing terms
-+** and conditions see https://www.qt.io/terms-conditions. For further
-+** information use the contact form at https://www.qt.io/contact-us.
-+**
-+** GNU General Public License Usage
-+** Alternatively, this file may be used under the terms of the GNU
-+** General Public License version 3 as published by the Free Software
-+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
-+** included in the packaging of this file. Please review the following
-+** information to ensure the GNU General Public License requirements will
-+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
-+**
-+** $QT_END_LICENSE$
-+**
-+****************************************************************************/
-+#include <QtCore/QString>
-+#include "almostplugin.h"
-+#include <QtCore/qplugin.h>
-+
-+QString AlmostPlugin::pluginName() const
-+{
-+    unresolvedSymbol();
-+    return QLatin1String("Plugin ok");
-+}
-+
-+void AlmostPlugin::unresolvedSymbol() const
-+{
-+    
-+}
-\ No newline at end of file
-diff --git a/tests/auto/corelib/serialization/serialization.pro b/tests/auto/corelib/serialization/serialization.pro
-index 9638178cdc..f4a5a3c5b1 100644
---- a/tests/auto/corelib/serialization/serialization.pro
-+++ b/tests/auto/corelib/serialization/serialization.pro
-@@ -11,7 +11,8 @@ SUBDIRS = \
-     qxmlstream
- 
- !qtHaveModule(gui): SUBDIRS -= \
--    qdatastream
-+    qdatastream \
-+    qdatastream_core_pixmap
- 
- !qtHaveModule(network): SUBDIRS -= \
-     qtextstream
-diff --git a/tests/auto/corelib/tools/qdatetime/tst_qdatetime.cpp b/tests/auto/corelib/tools/qdatetime/tst_qdatetime.cpp
-index 42347d6788..36a4c29d0a 100644
---- a/tests/auto/corelib/tools/qdatetime/tst_qdatetime.cpp
-+++ b/tests/auto/corelib/tools/qdatetime/tst_qdatetime.cpp
-@@ -656,6 +656,7 @@ void tst_QDateTime::setMSecsSinceEpoch_data()
- 
- void tst_QDateTime::setMSecsSinceEpoch()
- {
-+#if QT_CONFIG(timezone)
-     QFETCH(qint64, msecs);
-     QFETCH(QDateTime, utc);
-     QFETCH(QDateTime, cet);
-@@ -729,6 +730,7 @@ void tst_QDateTime::setMSecsSinceEpoch()
- 
-     QDateTime reference(QDate(1970, 1, 1), QTime(), Qt::UTC);
-     QCOMPARE(dt, reference.addMSecs(msecs));
-+#endif //timezone
- }
- 
- void tst_QDateTime::fromMSecsSinceEpoch_data()
-@@ -914,6 +916,7 @@ void tst_QDateTime::toString_textDate()
- 
- void tst_QDateTime::toString_textDate_extra()
- {
-+#if QT_CONFIG(timezone)
-     QLatin1String GMT("GMT");
-     QDateTime dt = QDateTime::fromMSecsSinceEpoch(0, Qt::LocalTime);
-     QVERIFY(!dt.toString().endsWith(GMT));
-@@ -923,7 +926,6 @@ void tst_QDateTime::toString_textDate_extra()
-         QVERIFY(dt.toString() != QLatin1String("Thu Jan 1 00:00:00 1970"));
-     else
-         QCOMPARE(dt.toString(), QLatin1String("Thu Jan 1 00:00:00 1970"));
--#if QT_CONFIG(timezone)
- # if defined Q_OS_UNIX && !defined Q_OS_DARWIN && !defined Q_OS_ANDROID
- #  define CORRECT_ZONE_ABBREV
- # endif // QTBUG-57320, QTBUG-57298, QTBUG-68833
-@@ -954,9 +956,9 @@ void tst_QDateTime::toString_textDate_extra()
-     } else {
-         qDebug("Missed zone test: no Europe/Berlin zone available");
-     }
--#endif // timezone
-     dt = QDateTime::fromMSecsSinceEpoch(0, Qt::UTC);
-     QVERIFY(dt.toString().endsWith(GMT));
-+#endif // timezone
- }
- 
- void tst_QDateTime::toString_rfcDate_data()
-@@ -2519,6 +2521,7 @@ void tst_QDateTime::fromStringToStringLocale()
- 
- void tst_QDateTime::offsetFromUtc()
- {
-+#if QT_CONFIG(timezone)
-     /* Check default value. */
-     QCOMPARE(QDateTime().offsetFromUtc(), 0);
- 
-@@ -2550,6 +2553,7 @@ void tst_QDateTime::offsetFromUtc()
- 
-     QDateTime dt6(QDate(2013, 6, 1), QTime(0, 0, 0), QTimeZone("Pacific/Auckland"));
-     QCOMPARE(dt6.offsetFromUtc(), 43200);
-+#endif //timezone
- }
- 
- void tst_QDateTime::setOffsetFromUtc()
-@@ -2705,6 +2709,7 @@ void tst_QDateTime::zoneAtTime_data()
- 
- void tst_QDateTime::zoneAtTime()
- {
-+#if QT_CONFIG(timezone)
-     QFETCH(QByteArray, ianaID);
-     QFETCH(QDate, date);
-     QFETCH(int, offset);
-@@ -2717,6 +2722,7 @@ void tst_QDateTime::zoneAtTime()
-         QCOMPARE(zone.standardTimeOffset(QDateTime(date, noon, zone)), offset);
-     else // zone.offsetFromUtc *does* include DST, even before epoch
-         QCOMPARE(zone.offsetFromUtc(QDateTime(date, noon, zone)), offset);
-+#endif //timezone
- }
- 
- void tst_QDateTime::timeZoneAbbreviation()
-@@ -2758,6 +2764,7 @@ void tst_QDateTime::timeZoneAbbreviation()
-     const QString cest(QStringLiteral("CEST"));
- #endif
- 
-+#if QT_CONFIG(timezone)
-     QDateTime dt5(QDate(2013, 1, 1), QTime(0, 0, 0), QTimeZone("Europe/Berlin"));
- #ifdef Q_OS_WIN
-     QEXPECT_FAIL("", "Windows only reports long names (QTBUG-32759)", Continue);
-@@ -2768,6 +2775,7 @@ void tst_QDateTime::timeZoneAbbreviation()
-     QEXPECT_FAIL("", "Windows only reports long names (QTBUG-32759)", Continue);
- #endif
-     QCOMPARE(dt6.timeZoneAbbreviation(), cest);
-+#endif /timezone
- }
- 
- void tst_QDateTime::getDate()
-@@ -3239,6 +3247,7 @@ void tst_QDateTime::daylightTransitions() const
- 
- void tst_QDateTime::timeZones() const
- {
-+#if QT_CONFIG(timezone)
-     QTimeZone invalidTz = QTimeZone("Vulcan/ShiKahr");
-     QCOMPARE(invalidTz.isValid(), false);
-     QDateTime invalidDateTime = QDateTime(QDate(2000, 1, 1), QTime(0, 0, 0), invalidTz);
-@@ -3431,6 +3440,7 @@ void tst_QDateTime::timeZones() const
-     QDateTime future(QDate(2015, 1, 1), QTime(0, 0, 0), sgt);
-     QVERIFY(future.isValid());
-     QCOMPARE(future.offsetFromUtc(), 28800);
-+#endif //timezone
- }
- 
- #if defined(Q_OS_UNIX)
-@@ -3452,6 +3462,7 @@ static void setTimeZone(const QByteArray &tz)
- 
- void tst_QDateTime::systemTimeZoneChange() const
- {
-+#if QT_CONFIG(timezone)
-     struct ResetTZ {
-         QByteArray original;
-         ResetTZ() : original(qgetenv("TZ")) {}
-@@ -3480,11 +3491,13 @@ void tst_QDateTime::systemTimeZoneChange() const
-     QCOMPARE(utcDate.toMSecsSinceEpoch(), utcMsecs);
-     QCOMPARE(tzDate, QDateTime(QDate(2012, 6, 1), QTime(2, 15, 30), QTimeZone("Australia/Brisbane")));
-     QCOMPARE(tzDate.toMSecsSinceEpoch(), tzMsecs);
-+#endif //timezone
- }
- #endif
- 
- void tst_QDateTime::invalid() const
- {
-+#if QT_CONFIG(timezone)
-     QDateTime invalidDate = QDateTime(QDate(0, 0, 0), QTime(-1, -1, -1));
-     QCOMPARE(invalidDate.isValid(), false);
-     QCOMPARE(invalidDate.timeSpec(), Qt::LocalTime);
-@@ -3500,6 +3513,7 @@ void tst_QDateTime::invalid() const
-     QDateTime tzDate = invalidDate.toTimeZone(QTimeZone("Europe/Oslo"));
-     QCOMPARE(tzDate.isValid(), false);
-     QCOMPARE(tzDate.timeSpec(), Qt::TimeZone);
-+#endif //timezone
- }
- 
- void tst_QDateTime::macTypes()
-diff --git a/tests/auto/corelib/tools/qlocale/tst_qlocale.cpp b/tests/auto/corelib/tools/qlocale/tst_qlocale.cpp
-index 230ae4d8aa..33ebc80f00 100644
---- a/tests/auto/corelib/tools/qlocale/tst_qlocale.cpp
-+++ b/tests/auto/corelib/tools/qlocale/tst_qlocale.cpp
+diff --git a/tests/auto/corelib/text/qlocale/tst_qlocale.cpp b/tests/auto/corelib/text/qlocale/tst_qlocale.cpp
+index 4ee6c6df75..552c75b0d1 100644
+--- a/tests/auto/corelib/text/qlocale/tst_qlocale.cpp
++++ b/tests/auto/corelib/text/qlocale/tst_qlocale.cpp
 @@ -46,7 +46,7 @@
  #include <private/qlocale_tools_p.h>
  #include <qnumeric.h>
@@ -10498,353 +10071,3 @@ index 230ae4d8aa..33ebc80f00 100644
  #    define QT_USE_FENV
  #endif
  
-@@ -1726,6 +1726,7 @@ void tst_QLocale::formatDateTime()
- 
- void tst_QLocale::formatTimeZone()
- {
-+#if QT_CONFIG(timezone)
-     QLocale enUS("en_US");
- 
-     QDateTime dt1(QDate(2013, 1, 1), QTime(1, 0, 0), Qt::OffsetFromUTC, 60 * 60);
-@@ -1786,6 +1787,7 @@ void tst_QLocale::formatTimeZone()
-     // Time on its own will always be current local time zone
-     QCOMPARE(enUS.toString(QTime(1, 2, 3), "t"),
-              QDateTime::currentDateTime().timeZoneAbbreviation());
-+#endif //timezone
- }
- 
- void tst_QLocale::toDateTime_data()
-diff --git a/tests/auto/corelib/tools/tools.pro b/tests/auto/corelib/tools/tools.pro
-index f28cf21b8b..1c12619544 100644
---- a/tests/auto/corelib/tools/tools.pro
-+++ b/tests/auto/corelib/tools/tools.pro
-@@ -1,71 +1,71 @@
--TEMPLATE=subdirs
--SUBDIRS=\
--    collections \
--    containerapisymmetry \
--    qalgorithms \
--    qarraydata \
--    qarraydata_strictiterators \
--    qbitarray \
--    qbytearray \
--    qbytearraylist \
--    qbytearraymatcher \
--    qbytedatabuffer \
--    qcache \
--    qchar \
--    qcollator \
--    qcommandlineparser \
--    qcontiguouscache \
--    qcryptographichash \
--    qdate \
--    qdatetime \
--    qeasingcurve \
--    qexplicitlyshareddatapointer \
--    qfreelist \
--    qhash \
--    qhash_strictiterators \
--    qhashfunctions \
--    qlatin1string \
--    qline \
--    qlinkedlist \
--    qlist \
--    qlist_strictiterators \
--    qlocale \
--    qmakearray \
--    qmap \
--    qmap_strictiterators \
--    qmargins \
--    qmessageauthenticationcode \
--    qpair \
--    qpoint \
--    qpointf \
--    qqueue \
--    qrect \
--    qregexp \
--    qregularexpression \
--    qringbuffer \
--    qscopedpointer \
--    qscopedvaluerollback \
--    qset \
--    qsharedpointer \
--    qsize \
--    qsizef \
--    qstl \
--    qstring \
--    qstring_no_cast_from_bytearray \
--    qstringapisymmetry \
--    qstringbuilder \
--    qstringiterator \
--    qstringlist \
--    qstringmatcher \
--    qstringref \
--    qstringview \
--    qtextboundaryfinder \
--    qtime \
--    qtimezone \
--    qtimeline \
--    qvarlengtharray \
--    qvector \
--    qvector_strictiterators \
--    qversionnumber
--
--darwin: SUBDIRS += qmacautoreleasepool
-+TEMPLATE=subdirs
-+SUBDIRS=\
-+    collections \
-+    containerapisymmetry \
-+    qalgorithms \
-+    qarraydata \
-+    qarraydata_strictiterators \
-+    qbitarray \
-+    qbytearray \
-+    qbytearraylist \
-+    qbytearraymatcher \
-+    qbytedatabuffer \
-+    qcache \
-+    qchar \
-+    qcollator \
-+    qcommandlineparser \
-+    qcontiguouscache \
-+    qcryptographichash \
-+    qdate \
-+    qdatetime \
-+    qeasingcurve \
-+    qexplicitlyshareddatapointer \
-+    qfreelist \
-+    qhash \
-+    qhash_strictiterators \
-+    qhashfunctions \
-+    qlatin1string \
-+    qline \
-+    qlinkedlist \
-+    qlist \
-+    qlist_strictiterators \
-+    qlocale \
-+    qmakearray \
-+    qmap \
-+    qmap_strictiterators \
-+    qmargins \
-+    qmessageauthenticationcode \
-+    qpair \
-+    qpoint \
-+    qpointf \
-+    qqueue \
-+    qrect \
-+    qregexp \
-+    qregularexpression \
-+    qringbuffer \
-+    qscopedpointer \
-+    qscopedvaluerollback \
-+    qset \
-+    qsharedpointer \
-+    qsize \
-+    qsizef \
-+    qstl \
-+    qstring \
-+    qstring_no_cast_from_bytearray \
-+    qstringapisymmetry \
-+    qstringbuilder \
-+    qstringiterator \
-+    qstringlist \
-+    qstringmatcher \
-+    qstringref \
-+    qstringview \
-+    qtextboundaryfinder \
-+    qtime \
-+    qtimezone \
-+    qtimeline \
-+    qvarlengtharray \
-+    qvector \
-+    qvector_strictiterators \
-+    qversionnumber
-+
-+darwin: SUBDIRS += qmacautoreleasepool
-\ No newline at end of file
-diff --git a/tests/auto/network/access/access.pro b/tests/auto/network/access/access.pro
-index b140b5e9f2..a0abd994b0 100644
---- a/tests/auto/network/access/access.pro
-+++ b/tests/auto/network/access/access.pro
-@@ -1,25 +1,29 @@
--TEMPLATE=subdirs
--SUBDIRS=\
--   qnetworkdiskcache \
--   qnetworkcookiejar \
--   qnetworkaccessmanager \
--   qnetworkcookie \
--   qnetworkrequest \
--   qhttpnetworkconnection \
--   qnetworkreply \
--   spdy \
--   qnetworkcachemetadata \
--   qftp \
--   qhttpnetworkreply \
--   qabstractnetworkcache \
--   hpack \
--   http2 \
--   hsts
--
--!qtConfig(private_tests): SUBDIRS -= \
--          qhttpnetworkconnection \
--          qhttpnetworkreply \
--          qftp \
--          hpack \
--          http2 \
--          hsts
-+TEMPLATE=subdirs
-+SUBDIRS=\
-+   qnetworkdiskcache \
-+   qnetworkcookiejar \
-+   qnetworkaccessmanager \
-+   qnetworkcookie \
-+   qnetworkrequest \
-+   qhttpnetworkconnection \
-+   qnetworkreply \
-+   spdy \
-+   qnetworkcachemetadata \
-+   qftp \
-+   qhttpnetworkreply \
-+   qabstractnetworkcache \
-+   hpack \
-+   http2 \
-+   hsts
-+
-+!qtConfig(private_tests): SUBDIRS -= \
-+          qhttpnetworkconnection \
-+          qhttpnetworkreply \
-+          qftp \
-+          hpack \
-+          http2 \
-+          hsts
-+
-+#TODO support http
-+SUBDIRS -= qnetworkreply \
-+           spdy
-\ No newline at end of file
-diff --git a/tests/auto/network/kernel/kernel.pro b/tests/auto/network/kernel/kernel.pro
-index 42df80dfa1..c3ef0fa6c7 100644
---- a/tests/auto/network/kernel/kernel.pro
-+++ b/tests/auto/network/kernel/kernel.pro
-@@ -1,24 +1,23 @@
--TEMPLATE=subdirs
--SUBDIRS=\
--   qdnslookup \
--   qdnslookup_appless \
--   qhostinfo \
--   qnetworkproxyfactory \
--   qauthenticator \
--   qnetworkproxy \
--   qnetworkinterface \
--   qnetworkdatagram \
--   qnetworkaddressentry \
--   qhostaddress \
--
--winrt: SUBDIRS -= \
--   qnetworkproxy \
--   qnetworkproxyfactory \
--
--osx: SUBDIRS -= \ # QTBUG-41847
--    qhostinfo \
--
--!qtConfig(private_tests): SUBDIRS -= \
--    qauthenticator \
--    qhostinfo \
--
-+TEMPLATE=subdirs
-+SUBDIRS=\
-+   qdnslookup \
-+   qdnslookup_appless \
-+   qhostinfo \
-+   qnetworkproxyfactory \
-+   qauthenticator \
-+   qnetworkproxy \
-+   qnetworkinterface \
-+   qnetworkdatagram \
-+   qnetworkaddressentry \
-+   qhostaddress \
-+
-+winrt: SUBDIRS -= \
-+   qnetworkproxy \
-+   qnetworkproxyfactory \
-+
-+osx: SUBDIRS -= \ # QTBUG-41847
-+    qhostinfo \
-+
-+!qtConfig(private_tests): SUBDIRS -= \
-+    qauthenticator \
-+    qhostinfo \
-\ No newline at end of file
-diff --git a/tests/auto/network/kernel/qhostaddress/tst_qhostaddress.cpp b/tests/auto/network/kernel/qhostaddress/tst_qhostaddress.cpp
-index 224e4d61a9..12b0fa4f4c 100644
---- a/tests/auto/network/kernel/qhostaddress/tst_qhostaddress.cpp
-+++ b/tests/auto/network/kernel/qhostaddress/tst_qhostaddress.cpp
-@@ -43,7 +43,7 @@
- #  endif
- #endif
- 
--#ifdef Q_OS_ANDROID
-+#if defined(Q_OS_ANDROID) || defined(Q_OS_OPENHARMONY)
- #  include <netinet/in.h>
- #endif
- 
-@@ -382,7 +382,7 @@ void tst_QHostAddress::assignment()
-     QCOMPARE(address, QHostAddress("::1"));
- 
-     // WinRT does not support sockaddr_in
--#ifndef Q_OS_WINRT
-+#if !defined(Q_OS_WINRT)
-     QHostAddress addr("4.2.2.1");
-     sockaddr_in sockAddr;
-     sockAddr.sin_family = AF_INET;
-diff --git a/tests/auto/other/toolsupport/tst_toolsupport.cpp b/tests/auto/other/toolsupport/tst_toolsupport.cpp
-index f31a755f9e..1cb8f94e55 100644
---- a/tests/auto/other/toolsupport/tst_toolsupport.cpp
-+++ b/tests/auto/other/toolsupport/tst_toolsupport.cpp
-@@ -140,8 +140,10 @@ void tst_toolsupport::offsets_data()
-             << pmm_to_offsetof(&QDateTimePrivate::m_status) << 8 << 8;
-         QTest::newRow("QDateTimePrivate::m_offsetFromUtc")
-             << pmm_to_offsetof(&QDateTimePrivate::m_offsetFromUtc) << 12 << 12;
-+#if QT_CONFIG(timezone)
-         QTest::newRow("QDateTimePrivate::m_timeZone")
-             << pmm_to_offsetof(&QDateTimePrivate::m_timeZone) << 20 << 24;
-+#endif //timezone
-     }
- #endif // RUN_MEMBER_OFFSET_TEST
- }
-diff --git a/tests/auto/sql/kernel/qsqlquery/tst_qsqlquery.cpp b/tests/auto/sql/kernel/qsqlquery/tst_qsqlquery.cpp
-index 710f26b72d..d77e95db9e 100644
---- a/tests/auto/sql/kernel/qsqlquery/tst_qsqlquery.cpp
-+++ b/tests/auto/sql/kernel/qsqlquery/tst_qsqlquery.cpp
-@@ -4124,6 +4124,7 @@ void tst_QSqlQuery::QTBUG_2192()
- 
- void tst_QSqlQuery::QTBUG_36211()
- {
-+#if QT_CONFIG(timezone)
-     QFETCH( QString, dbName );
-     QSqlDatabase db = QSqlDatabase::database( dbName );
-     CHECK_DATABASE( db );
-@@ -4159,6 +4160,7 @@ void tst_QSqlQuery::QTBUG_36211()
-             }
-         }
-     }
-+#endif //timezone
- }
- 
- void tst_QSqlQuery::QTBUG_53969()
-@@ -4632,6 +4634,7 @@ void tst_QSqlQuery::QTBUG_57138()
- 
- void tst_QSqlQuery::dateTime_data()
- {
-+#if QT_CONFIG(timezone)
-     QTest::addColumn<QString>("dbName");
-     QTest::addColumn<QString>("tableName");
-     QTest::addColumn<QString>("createTableString");
-@@ -4680,6 +4683,7 @@ void tst_QSqlQuery::dateTime_data()
-                         << dbName << tableNameDate << QStringLiteral(" (dt DATE)")
-                         << dateTimes << expectedDateTimes;
-     }
-+#endif //timezone
- }
- 
- void tst_QSqlQuery::dateTime()
