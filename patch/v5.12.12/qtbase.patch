@@ -3683,14 +3683,13 @@ index 0000000000..0a2a0f6b00
 \ No newline at end of file
 diff --git a/src/openharmony/native/QtCore/JsQtPlatform.ts b/src/openharmony/native/QtCore/JsQtPlatform.ts
 new file mode 100644
-index 0000000000..9bc2c21d25
+index 0000000000..69ae06baec
 --- /dev/null
 +++ b/src/openharmony/native/QtCore/JsQtPlatform.ts
-@@ -0,0 +1,23 @@
+@@ -0,0 +1,21 @@
 +import { JsQtModule } from './JsQtModule'
 +import { JsDialog } from './JsDialog'
 +import { JsPasteBoard } from './JsPasteBoard'
-+import { JsFileManager } from './JsFileManager'
 +import { JsInputMethod } from './JsInputMethod'
 +import { JsWindowManager } from './JsWindowManager'
 +import qpa from 'libplugins_platforms_qopenharmony.so'
@@ -3701,8 +3700,7 @@ index 0000000000..9bc2c21d25
 +    super();
 +    this.moduleJsObjects = {
 +      JsDialog,
-+      JsPasteBoard,
-+      JsFileManager,
++      JsPasteBoard,      
 +      JsInputMethod,
 +      JsWindowManager
 +    };
