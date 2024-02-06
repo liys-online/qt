@@ -3086,29 +3086,6 @@ index 0000000000..a840215671
 +    }
 +  }
 +}
-diff --git a/src/openharmony/native/QtCore/JsFileManager.ts b/src/openharmony/native/QtCore/JsFileManager.ts
-new file mode 100644
-index 0000000000..36eb550f60
---- /dev/null
-+++ b/src/openharmony/native/QtCore/JsFileManager.ts
-@@ -0,0 +1,17 @@
-+import { JsFile } from './JsFile';
-+import JSLogger from './JsLogger'
-+import JsDataStore from './JsDataStore'
-+
-+export class JsFileManager {
-+
-+  async createFile(fileHandler: string, fileName: string) : Promise<string> {
-+    let file = new JsFile(fileName);
-+    JSLogger.info("create js file object for file: %{public}s %{public}s", fileHandler, fileName)
-+    return fileHandler;
-+  }
-+
-+  async deleteFile(fileHandler: string) : Promise<boolean> {
-+    JSLogger.info("delete js file object for: %{public}s", fileHandler)
-+    return true;
-+  }
-+}
 diff --git a/src/openharmony/native/QtCore/JsInputMethod.ts b/src/openharmony/native/QtCore/JsInputMethod.ts
 new file mode 100644
 index 0000000000..205a6d9685
@@ -3548,14 +3525,13 @@ index 0000000000..0a2a0f6b00
 \ No newline at end of file
 diff --git a/src/openharmony/native/QtCore/JsQtPlatform.ts b/src/openharmony/native/QtCore/JsQtPlatform.ts
 new file mode 100644
-index 0000000000..9bc2c21d25
+index 0000000000..69ae06baec
 --- /dev/null
 +++ b/src/openharmony/native/QtCore/JsQtPlatform.ts
-@@ -0,0 +1,23 @@
+@@ -0,0 +1,21 @@
 +import { JsQtModule } from './JsQtModule'
 +import { JsDialog } from './JsDialog'
 +import { JsPasteBoard } from './JsPasteBoard'
-+import { JsFileManager } from './JsFileManager'
 +import { JsInputMethod } from './JsInputMethod'
 +import { JsWindowManager } from './JsWindowManager'
 +import qpa from 'libplugins_platforms_qopenharmony.so'
@@ -3566,8 +3542,7 @@ index 0000000000..9bc2c21d25
 +    super();
 +    this.moduleJsObjects = {
 +      JsDialog,
-+      JsPasteBoard,
-+      JsFileManager,
++      JsPasteBoard,      
 +      JsInputMethod,
 +      JsWindowManager
 +    };
