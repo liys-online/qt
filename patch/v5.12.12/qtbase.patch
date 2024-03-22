@@ -1700,10 +1700,10 @@ index 0000000000..4c982d1784
 +#endif // QOPENHARMONYJSFUNCTION_H
 diff --git a/src/corelib/kernel/qopenharmonyjsobject.cpp b/src/corelib/kernel/qopenharmonyjsobject.cpp
 new file mode 100644
-index 0000000000..f97073cd90
+index 0000000000..1680e85b69
 --- /dev/null
 +++ b/src/corelib/kernel/qopenharmonyjsobject.cpp
-@@ -0,0 +1,95 @@
+@@ -0,0 +1,99 @@
 +#include "qopenharmonyjsobject.h"
 +#include "qopenharmonydefines.h"
 +#include "qopenharmonyjsfunction.h"
@@ -1742,7 +1742,6 @@ index 0000000000..f97073cd90
 +QOpenHarmonyJsObject::~QOpenHarmonyJsObject()
 +{
 +    napi_delete_reference(qJs::env(), d_ptr->m_jsObject);
-+    Q_D(QOpenHarmonyJsObject);
 +}
 +
 +bool QOpenHarmonyJsObject::isValid() const
@@ -1761,6 +1760,11 @@ index 0000000000..f97073cd90
 +    QOpenHarmonyJsFunction *function = new QOpenHarmonyJsFunction(this, name);
 +    const_cast<QOpenHarmonyJsObjectPrivate *>(d)->m_functions.insert(name, function);
 +    return function;
++}
++
++QString QOpenHarmonyJsObject::uniqueName() const
++{
++    return objectType() + "_" + objectName();
 +}
 +
 +QString QOpenHarmonyJsObject::objectType() const
@@ -1801,10 +1805,10 @@ index 0000000000..f97073cd90
 +
 diff --git a/src/corelib/kernel/qopenharmonyjsobject.h b/src/corelib/kernel/qopenharmonyjsobject.h
 new file mode 100644
-index 0000000000..c6c69a6ea1
+index 0000000000..5c6ab59c0d
 --- /dev/null
 +++ b/src/corelib/kernel/qopenharmonyjsobject.h
-@@ -0,0 +1,66 @@
+@@ -0,0 +1,68 @@
 +#ifndef QOPENHARMONYJSOBJECT_H
 +#define QOPENHARMONYJSOBJECT_H
 +
@@ -1848,6 +1852,8 @@ index 0000000000..c6c69a6ea1
 +    QString objectName() const;
 +    QString objectType() const;
 +
++    QString uniqueName() const;
++
 +private:
 +    Q_DISABLE_COPY(QOpenHarmonyJsObject)
 +    QOpenHarmonyJsObject(const QString &objectType, const QString &objectName, napi_value jsObject);
@@ -1873,14 +1879,15 @@ index 0000000000..c6c69a6ea1
 +#endif // QOPENHARMONYEGLCORE_H
 diff --git a/src/corelib/kernel/qopenharmonyjsobjectloader.cpp b/src/corelib/kernel/qopenharmonyjsobjectloader.cpp
 new file mode 100644
-index 0000000000..d2b86a87fd
+index 0000000000..f5db262643
 --- /dev/null
 +++ b/src/corelib/kernel/qopenharmonyjsobjectloader.cpp
-@@ -0,0 +1,169 @@
+@@ -0,0 +1,170 @@
 +#include "qopenharmonyjsobjectloader.h"
 +#include "qopenharmonyjsobject.h"
 +#include "qopenharmonyjsobjectpool.h"
 +#include "qopenharmonyhelpers_p.h"
++#include "qopenharmonydefines.h"
 +
 +#include <QtCore/qelapsedtimer.h>
 +#include <QtCore/qscopedpointer.h>
@@ -1993,7 +2000,7 @@ index 0000000000..d2b86a87fd
 +
 +QSharedPointer<QOpenHarmonyJsObject> QOpenHarmonyJsObjectLoader::create(const QString &objectType, const QString &objectName, const QVariantList &constructArgs)
 +{
-+    qDebug() << "request js object: " << objectType << objectName;
++    LOGI("request js object: %{public}s %{public}s", qPrintable(objectType), qPrintable(objectName));
 +    if (objectType.isEmpty())
 +        return QSharedPointer<QOpenHarmonyJsObject>();
 +
@@ -2090,10 +2097,10 @@ index 0000000000..6ef2855374
 +#endif // QOPENHARMONYEGLCORE_H
 diff --git a/src/corelib/kernel/qopenharmonyjsobjectpool.cpp b/src/corelib/kernel/qopenharmonyjsobjectpool.cpp
 new file mode 100644
-index 0000000000..3f2c85d689
+index 0000000000..5812add919
 --- /dev/null
 +++ b/src/corelib/kernel/qopenharmonyjsobjectpool.cpp
-@@ -0,0 +1,71 @@
+@@ -0,0 +1,72 @@
 +#include "qopenharmonyjsobjectpool.h"
 +#include "qopenharmonydefines.h"
 +#include "qopenharmonyjsfunction.h"
@@ -2135,13 +2142,13 @@ index 0000000000..3f2c85d689
 +QSharedPointer<QOpenHarmonyJsObject> QOpenHarmonyJsObjectPoolPrivate::add(const QString &objectType, const QString &objectName, napi_value jsObject)
 +{
 +    QSharedPointer<QOpenHarmonyJsObject> object = QSharedPointer<QOpenHarmonyJsObject>::create(objectType, objectName, jsObject);
-+    m_jsObjects.insert(uniqueName(objectName, objectType), object);
++    m_jsObjects.insert(object->uniqueName(), object);
 +    return object;
 +}
 +
 +QString QOpenHarmonyJsObjectPoolPrivate::uniqueName(const QString &objectType, const QString &objectName) const
 +{
-+    return objectName+ "_" + objectType;
++    return objectType + "_" + objectName;
 +}
 +
 +bool QOpenHarmonyJsObjectPool::remove(const QString &name)
@@ -2150,12 +2157,13 @@ index 0000000000..3f2c85d689
 +    if (d->m_jsObjects.contains(name)) {
 +         QSharedPointer<QOpenHarmonyJsObject> object = d->m_jsObjects.take(name);
 +    }
++    return true;
 +}
 +
 +QSharedPointer<QOpenHarmonyJsObject> QOpenHarmonyJsObjectPool::find(const QString &objectType, const QString &objectName)
 +{
 +    Q_D(QOpenHarmonyJsObjectPool);
-+    return  d->m_jsObjects.value(d->uniqueName(objectName, objectType));
++    return  d->m_jsObjects.value(d->uniqueName(objectType, objectName));
 +}
 +
 +void QOpenHarmonyJsObjectPool::create(const QString &objectType, const QString &objectName, napi_value jsObject)
@@ -3683,15 +3691,16 @@ index 0000000000..0a2a0f6b00
 \ No newline at end of file
 diff --git a/src/openharmony/native/QtCore/JsQtPlatform.ts b/src/openharmony/native/QtCore/JsQtPlatform.ts
 new file mode 100644
-index 0000000000..69ae06baec
+index 0000000000..c3396b5886
 --- /dev/null
 +++ b/src/openharmony/native/QtCore/JsQtPlatform.ts
-@@ -0,0 +1,21 @@
+@@ -0,0 +1,23 @@
 +import { JsQtModule } from './JsQtModule'
 +import { JsDialog } from './JsDialog'
 +import { JsPasteBoard } from './JsPasteBoard'
 +import { JsInputMethod } from './JsInputMethod'
 +import { JsWindowManager } from './JsWindowManager'
++import { JsFile } from './JsFile'
 +import qpa from 'libplugins_platforms_qopenharmony.so'
 +
 +class JsQtPlatform extends JsQtModule {
@@ -3702,7 +3711,8 @@ index 0000000000..69ae06baec
 +      JsDialog,
 +      JsPasteBoard,      
 +      JsInputMethod,
-+      JsWindowManager
++      JsWindowManager,
++      JsFile
 +    };
 +  }
 +}
@@ -4778,7 +4788,7 @@ index 0000000000..51fe72e96e
 +#endif // QOPENHARMONYEVENTDISPATCHER_H
 diff --git a/src/plugins/platforms/openharmony/qopenharmonyfileenginehandler.cpp b/src/plugins/platforms/openharmony/qopenharmonyfileenginehandler.cpp
 new file mode 100644
-index 0000000000..b3e4fd2f07
+index 0000000000..a2a7dec9d4
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qopenharmonyfileenginehandler.cpp
 @@ -0,0 +1,466 @@
@@ -5020,7 +5030,7 @@ index 0000000000..b3e4fd2f07
 +    {
 +        close();
 +        if (!m_jsFile.isNull()) {
-+            qJsObjectLoader->remove(m_fileHandler);
++            qJsObjectLoader->remove(m_jsFile->uniqueName());
 +        }
 +    }
 +
