@@ -163,7 +163,7 @@ index 00000000..5a2d24cf
 +#endif // BLUETOOTHDATARECEIVER_P_H
 diff --git a/src/bluetooth/openharmony/lowenergynotificationhub.cpp b/src/bluetooth/openharmony/lowenergynotificationhub.cpp
 new file mode 100644
-index 00000000..ded1be45
+index 00000000..e757d324
 --- /dev/null
 +++ b/src/bluetooth/openharmony/lowenergynotificationhub.cpp
 @@ -0,0 +1,367 @@
@@ -216,7 +216,7 @@ index 00000000..ded1be45
 +    }
 +
 +    hubMap()->insert(jsToCtoken, this);
-+    m_jsBluetoothLe->call("setQtObject", jsToCtoken);
++    m_jsBluetoothLe->callWithoutReturn("setQtObject", jsToCtoken);
 +    lock.unlock();
 +}
 +
@@ -1075,7 +1075,7 @@ index 00000000..5ddd0e36
 +#endif // OPENHARMONYSERVICEDISCOVERYRECEIVER_H
 diff --git a/src/bluetooth/openharmony/serveracceptancethread.cpp b/src/bluetooth/openharmony/serveracceptancethread.cpp
 new file mode 100644
-index 00000000..193f8371
+index 00000000..d9e11afe
 --- /dev/null
 +++ b/src/bluetooth/openharmony/serveracceptancethread.cpp
 @@ -0,0 +1,201 @@
@@ -1228,14 +1228,14 @@ index 00000000..193f8371
 +    tempUuid.remove(0,1); //remove first '{'
 +
 +    bool isSecure = !(secFlags == QBluetooth::NoSecurity);
-+    jsThread->call("listen", tempUuid, m_serviceName, isSecure);
++    jsThread->callWithoutReturn("listen", tempUuid, m_serviceName, isSecure);
 +}
 +
 +void ServerAcceptanceThread::stop()
 +{
 +    if (jsThread->isValid()) {
 +        qCDebug(QT_BT_OPENHARMONY) << "Closing server socket";
-+        jsThread->call("close");
++        jsThread->callWithoutReturn("close");
 +    }
 +}
 +
@@ -1277,7 +1277,7 @@ index 00000000..193f8371
 +{
 +    while (!pendingSockets.isEmpty()) {
 +        int socket = pendingSockets.takeFirst();
-+        jsThread->call("closeClient", socket);
++        jsThread->callWithoutReturn("closeClient", socket);
 +    }
 +}
 diff --git a/src/bluetooth/openharmony/serveracceptancethread_p.h b/src/bluetooth/openharmony/serveracceptancethread_p.h
@@ -1352,7 +1352,7 @@ index 1e8ce0b8..5e9cf19b 100644
  QT_END_NAMESPACE
 diff --git a/src/bluetooth/qbluetoothdevicediscoveryagent_ohos.cpp b/src/bluetooth/qbluetoothdevicediscoveryagent_ohos.cpp
 new file mode 100644
-index 00000000..060c8aef
+index 00000000..6cf0e437
 --- /dev/null
 +++ b/src/bluetooth/qbluetoothdevicediscoveryagent_ohos.cpp
 @@ -0,0 +1,276 @@
@@ -1596,7 +1596,7 @@ index 00000000..060c8aef
 +    m_active = BtleScanActive;
 +
 +
-+    m_jsBluetoothManager->call("startBLEScan");
++    m_jsBluetoothManager->callWithoutReturn("startBLEScan");
 +
 +         // wait interval and sum up what was found
 +    if (!leScanTimeout) {
@@ -1617,7 +1617,7 @@ index 00000000..060c8aef
 +
 +void QBluetoothDeviceDiscoveryAgentPrivate::stopLowEnergyScan()
 +{
-+    m_jsBluetoothManager->call("stopBLEScan");
++    m_jsBluetoothManager->callWithoutReturn("stopBLEScan");
 +
 +    m_active = NoScanActive;
 +
@@ -1702,7 +1702,7 @@ index 9f6d1e1b..59bdd36b 100644
  
 diff --git a/src/bluetooth/qbluetoothlocaldevice_ohos.cpp b/src/bluetooth/qbluetoothlocaldevice_ohos.cpp
 new file mode 100644
-index 00000000..dfe5f7b2
+index 00000000..d3d3869d
 --- /dev/null
 +++ b/src/bluetooth/qbluetoothlocaldevice_ohos.cpp
 @@ -0,0 +1,332 @@
@@ -1911,12 +1911,12 @@ index 00000000..dfe5f7b2
 +            setHostMode(QBluetoothLocalDevice::HostPoweredOff);
 +            d_ptr->pendingHostModeTransition = true;
 +        } else {
-+            d_ptr->m_jsBluetoothManager->call("setScanMode", 1);
++            d_ptr->m_jsBluetoothManager->callWithoutReturn("setScanMode", 1);
 +        }
 +    } else if (mode == QBluetoothLocalDevice::HostDiscoverable) {
-+            d_ptr->m_jsBluetoothManager->call("setScanMode", 2);
++            d_ptr->m_jsBluetoothManager->callWithoutReturn("setScanMode", 2);
 +    } else if (mode == QBluetoothLocalDevice::HostDiscoverableLimitedInquiry) {
-+        d_ptr->m_jsBluetoothManager->call("setScanMode", 3);
++        d_ptr->m_jsBluetoothManager->callWithoutReturn("setScanMode", 3);
 +    }
 +}
 +
@@ -2411,10 +2411,10 @@ index e76c2311..74e78b2b 100644
  /*!
 diff --git a/src/bluetooth/qbluetoothservicediscoveryagent_ohos.cpp b/src/bluetooth/qbluetoothservicediscoveryagent_ohos.cpp
 new file mode 100644
-index 00000000..ffc400d6
+index 00000000..2b6af890
 --- /dev/null
 +++ b/src/bluetooth/qbluetoothservicediscoveryagent_ohos.cpp
-@@ -0,0 +1,445 @@
+@@ -0,0 +1,436 @@
 +#include <QtCore/QTimer>
 +#include <QtCore/QLoggingCategory>
 +#include <QtCore/qcoreapplication.h>
@@ -2495,7 +2495,6 @@ index 00000000..ffc400d6
 +void QBluetoothServiceDiscoveryAgentPrivate::start(const QBluetoothAddress &address)
 +{
 +    Q_Q(QBluetoothServiceDiscoveryAgent);
-+    qWarning() << "<<<<<<<<------000" << address.toString();
 +
 +    if (!m_jsBtMgr->isValid()) {
 +        if (m_deviceAdapterAddress.isNull()) {
@@ -2531,7 +2530,6 @@ index 00000000..ffc400d6
 +//        _q_serviceDiscoveryFinished();
 +//        return;
 +//    }
-+    qWarning() << "<<<<<<<<------222" << address.toString();
 +    if (mode == QBluetoothServiceDiscoveryAgent::MinimalDiscovery) {
 +        qCDebug(QT_BT_OPENHARMONY) << "Minimal discovery on (" << discoveredDevices.at(0).name()
 +                                   << ")" << address.toString();
@@ -2545,18 +2543,14 @@ index 00000000..ffc400d6
 +        _q_serviceDiscoveryFinished();
 +        return;
 +    } else {
-+        qWarning() << "<<<<<<<<------333" << address.toString();
-+//        qCDebug(QT_BT_OPENHARMONY) << "Full discovery on (" << discoveredDevices.at(0).name()
-+//                                   << ")" << address.toString();
++       qCDebug(QT_BT_OPENHARMONY) << "Full discovery on (" << discoveredDevices.at(0).name()
++                                  << ")" << address.toString();
 +
-+        qWarning() << "<<<<<<<<------333--222" << address.toString();
 +        //Full discovery uses BluetoothDevice.fetchUuidsWithSdp()
 +        if (!receiver) {            
 +            receiver = new OPenHarmonyServiceDiscoveryReceiver();
-+            QString name = QString("QBluetoothServiceDiscoveryAgent_%1").arg(++gi_count);
-+            qWarning() << "<<<<<<<<------444" << address.toString();
-+            m_jsBtMgr->call<bool>("createServiceAdapter", name, QVariant(qlonglong(static_cast<QObject*>(receiver))));
-+            qWarning() << "<<<<<<<<------555" << address.toString();
++            QString name = QString("QBluetoothServiceDiscoveryAgent_%1").arg(++gi_count);            
++            m_jsBtMgr->call<bool>("createServiceAdapter", name, QVariant(qlonglong(static_cast<QObject*>(receiver))));            
 +            m_jsAdapter = qJsObjectLoader->create(name);
 +            QObject::connect(receiver, &OPenHarmonyServiceDiscoveryReceiver::uuidFetchFinished,
 +                             q, [this](const QBluetoothAddress &address, const QList<QBluetoothUuid>& uuids) {
@@ -2575,18 +2569,15 @@ index 00000000..ffc400d6
 +        if (!m_jsAdapter->isValid())
 +            return;
 +
-+        qWarning() << "<<<<<<<<------666" << address.toString();
++
 +        bool ok = m_jsAdapter->call<bool>("createAdapter", address.toString());
-+        qWarning() << "<<<<<<<<------777" << address.toString() << ok;
 +        if (!ok) {
 +            receiver->deleteLater();
 +            receiver = nullptr;
 +            qCWarning(QT_BT_OPENHARMONY) << "Cannot start dynamic fetch.";
 +            _q_serviceDiscoveryFinished();
-+        }
-+        qWarning() << "<===============LLLLL---";
-+        m_jsAdapter->call("fetchService");
-+        qWarning() << "<===============LLLLL---222";
++        }        
++        m_jsAdapter->callWithoutReturn("fetchService");
 +    }
 +}
 +
@@ -3700,7 +3691,7 @@ index b065555c..df1f09e3 100644
  #if QT_CONFIG(winrt_btle_no_pairing)
 diff --git a/src/bluetooth/qlowenergycontroller_ohos.cpp b/src/bluetooth/qlowenergycontroller_ohos.cpp
 new file mode 100644
-index 00000000..73fb98eb
+index 00000000..efca9358
 --- /dev/null
 +++ b/src/bluetooth/qlowenergycontroller_ohos.cpp
 @@ -0,0 +1,871 @@
@@ -3741,7 +3732,7 @@ index 00000000..73fb98eb
 +{
 +    if (role == QLowEnergyController::PeripheralRole) {
 +        if (hub)
-+            hub->jsObject()->call("disconnectServer");
++            hub->jsObject()->callWithoutReturn("disconnectServer");
 +    }
 +}
 +
@@ -3820,9 +3811,9 @@ index 00000000..73fb98eb
 +
 +    if (hub) {
 +        if (role == QLowEnergyController::PeripheralRole)
-+            hub->jsObject()->call("disconnectServer");
++            hub->jsObject()->callWithoutReturn("disconnectServer");
 +        else
-+            hub->jsObject()->call("disconnect");
++            hub->jsObject()->callWithoutReturn("disconnect");
 +    }
 +
 +    if (oldState == QLowEnergyController::ConnectingState)
@@ -4500,7 +4491,7 @@ index 00000000..73fb98eb
 +void QLowEnergyControllerPrivateOpenHarmony::stopAdvertising()
 +{
 +    setState(QLowEnergyController::UnconnectedState);
-+    hub->jsObject()->call("stopAdvertising");
++    hub->jsObject()->callWithoutReturn("stopAdvertising");
 +}
 +
 +void QLowEnergyControllerPrivateOpenHarmony::requestConnectionUpdate(const QLowEnergyConnectionParameters &params)
@@ -6017,7 +6008,7 @@ index 00000000..bd9cc9a5
 +#endif // QNEARFIELDMANAGER_OPENHARMONY_P_H
 diff --git a/src/nfc/qnearfieldtarget_openharmony.cpp b/src/nfc/qnearfieldtarget_openharmony.cpp
 new file mode 100644
-index 00000000..fa9533e2
+index 00000000..6de0a783
 --- /dev/null
 +++ b/src/nfc/qnearfieldtarget_openharmony.cpp
 @@ -0,0 +1,366 @@
@@ -6239,7 +6230,7 @@ index 00000000..fa9533e2
 +
 +    const QNdefMessage &message = messages.first();
 +    QByteArray ba = message.toByteArray();
-+    m_jsTag->call(writeMethod, ba);
++    m_jsTag->callWithoutReturn(writeMethod, ba);
 +
 +    if (!m_keepConnection)
 +        disconnect();   // IOException at this point does not matter anymore.
