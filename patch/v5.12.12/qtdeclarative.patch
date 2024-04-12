@@ -90,6 +90,50 @@ index 99031e1e74..dcfc473da2 100644
  
      return toLocalFile(url);
  }
+diff --git a/src/qml/qml/qqmlimport.cpp b/src/qml/qml/qqmlimport.cpp
+index ba8dce4b6e..aece49ed34 100644
+--- a/src/qml/qml/qqmlimport.cpp
++++ b/src/qml/qml/qqmlimport.cpp
+@@ -1823,6 +1823,19 @@ QQmlImportDatabase::QQmlImportDatabase(QQmlEngine *e)
+ 
+     addImportPath(QStringLiteral("qrc:/qt-project.org/imports"));
+     addImportPath(QCoreApplication::applicationDirPath());
++/* FIXME 因为鸿蒙权限限制
++ * 将QML插件的加载和qml脚本的加载进行了区分
++ */
++#if defined(Q_OS_OPENHARMONY)
++    addImportPath(QStringLiteral("qrc:/harmony_rcc_bundle/qml"));
++    if (Q_UNLIKELY(!qEnvironmentVariableIsEmpty("QT_HARMONY_BUNDLED_LIBS_PATH"))) {
++        const QString envImportPath = qEnvironmentVariable("QT_HARMONY_BUNDLED_LIBS_PATH");
++        QLatin1Char pathSep(':');
++        QStringList paths = envImportPath.split(pathSep, QString::SkipEmptyParts);
++        for (int ii = paths.count() - 1; ii >= 0; --ii)
++            addPluginPath(paths.at(ii));
++    }
++#endif
+ }
+ 
+ QQmlImportDatabase::~QQmlImportDatabase()
+@@ -1862,8 +1875,17 @@ QString QQmlImportDatabase::resolvePlugin(QQmlTypeLoader *typeLoader,
+             else
+                 resolvedPath = pluginPath;
+         }
+-
+-        // hack for resources, should probably go away
++/* FIXME 因为鸿蒙安全限制,QML脚本和扩展插件加载路径有区别
++ * 使用环境变量QT_HARMONY_BUNDLED_LIBS_PATH的值替换鸿蒙rawfile资源文件的路径
++ * 用以qml扩展插件的加载
++ */
++#if defined(Q_OS_OPENHARMONY)
++        if (Q_UNLIKELY(!qEnvironmentVariableIsEmpty("QT_HARMONY_CACHE_DIR"))) {
++            QString cacheQmlStr = qEnvironmentVariable("QT_HARMONY_CACHE_DIR");
++            resolvedPath = QString(qmldirPath).replace(cacheQmlStr, pluginPath);
++        }
++#endif
++       // hack for resources, should probably go away
+         if (resolvedPath.startsWith(Colon))
+             resolvedPath = QCoreApplication::applicationDirPath();
+ 
 diff --git a/src/qml/qml/qqmlplatform.cpp b/src/qml/qml/qqmlplatform.cpp
 index 0acf20bbb4..27f22c19a3 100644
 --- a/src/qml/qml/qqmlplatform.cpp

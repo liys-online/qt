@@ -163,7 +163,7 @@ index 00000000..5a2d24cf
 +#endif // BLUETOOTHDATARECEIVER_P_H
 diff --git a/src/bluetooth/openharmony/lowenergynotificationhub.cpp b/src/bluetooth/openharmony/lowenergynotificationhub.cpp
 new file mode 100644
-index 00000000..ded1be45
+index 00000000..e757d324
 --- /dev/null
 +++ b/src/bluetooth/openharmony/lowenergynotificationhub.cpp
 @@ -0,0 +1,367 @@
@@ -216,7 +216,7 @@ index 00000000..ded1be45
 +    }
 +
 +    hubMap()->insert(jsToCtoken, this);
-+    m_jsBluetoothLe->call("setQtObject", jsToCtoken);
++    m_jsBluetoothLe->callWithoutReturn("setQtObject", jsToCtoken);
 +    lock.unlock();
 +}
 +
@@ -1075,7 +1075,7 @@ index 00000000..5ddd0e36
 +#endif // OPENHARMONYSERVICEDISCOVERYRECEIVER_H
 diff --git a/src/bluetooth/openharmony/serveracceptancethread.cpp b/src/bluetooth/openharmony/serveracceptancethread.cpp
 new file mode 100644
-index 00000000..193f8371
+index 00000000..d9e11afe
 --- /dev/null
 +++ b/src/bluetooth/openharmony/serveracceptancethread.cpp
 @@ -0,0 +1,201 @@
@@ -1228,14 +1228,14 @@ index 00000000..193f8371
 +    tempUuid.remove(0,1); //remove first '{'
 +
 +    bool isSecure = !(secFlags == QBluetooth::NoSecurity);
-+    jsThread->call("listen", tempUuid, m_serviceName, isSecure);
++    jsThread->callWithoutReturn("listen", tempUuid, m_serviceName, isSecure);
 +}
 +
 +void ServerAcceptanceThread::stop()
 +{
 +    if (jsThread->isValid()) {
 +        qCDebug(QT_BT_OPENHARMONY) << "Closing server socket";
-+        jsThread->call("close");
++        jsThread->callWithoutReturn("close");
 +    }
 +}
 +
@@ -1277,7 +1277,7 @@ index 00000000..193f8371
 +{
 +    while (!pendingSockets.isEmpty()) {
 +        int socket = pendingSockets.takeFirst();
-+        jsThread->call("closeClient", socket);
++        jsThread->callWithoutReturn("closeClient", socket);
 +    }
 +}
 diff --git a/src/bluetooth/openharmony/serveracceptancethread_p.h b/src/bluetooth/openharmony/serveracceptancethread_p.h
@@ -1351,7 +1351,7 @@ index 6eab11fb..49d27923 100644
  QT_END_NAMESPACE
 diff --git a/src/bluetooth/qbluetoothdevicediscoveryagent_ohos.cpp b/src/bluetooth/qbluetoothdevicediscoveryagent_ohos.cpp
 new file mode 100644
-index 00000000..060c8aef
+index 00000000..6cf0e437
 --- /dev/null
 +++ b/src/bluetooth/qbluetoothdevicediscoveryagent_ohos.cpp
 @@ -0,0 +1,276 @@
@@ -1595,7 +1595,7 @@ index 00000000..060c8aef
 +    m_active = BtleScanActive;
 +
 +
-+    m_jsBluetoothManager->call("startBLEScan");
++    m_jsBluetoothManager->callWithoutReturn("startBLEScan");
 +
 +         // wait interval and sum up what was found
 +    if (!leScanTimeout) {
@@ -1616,7 +1616,7 @@ index 00000000..060c8aef
 +
 +void QBluetoothDeviceDiscoveryAgentPrivate::stopLowEnergyScan()
 +{
-+    m_jsBluetoothManager->call("stopBLEScan");
++    m_jsBluetoothManager->callWithoutReturn("stopBLEScan");
 +
 +    m_active = NoScanActive;
 +
@@ -1701,7 +1701,7 @@ index 9f6d1e1b..59bdd36b 100644
  
 diff --git a/src/bluetooth/qbluetoothlocaldevice_ohos.cpp b/src/bluetooth/qbluetoothlocaldevice_ohos.cpp
 new file mode 100644
-index 00000000..dfe5f7b2
+index 00000000..d3d3869d
 --- /dev/null
 +++ b/src/bluetooth/qbluetoothlocaldevice_ohos.cpp
 @@ -0,0 +1,332 @@
@@ -1910,12 +1910,12 @@ index 00000000..dfe5f7b2
 +            setHostMode(QBluetoothLocalDevice::HostPoweredOff);
 +            d_ptr->pendingHostModeTransition = true;
 +        } else {
-+            d_ptr->m_jsBluetoothManager->call("setScanMode", 1);
++            d_ptr->m_jsBluetoothManager->callWithoutReturn("setScanMode", 1);
 +        }
 +    } else if (mode == QBluetoothLocalDevice::HostDiscoverable) {
-+            d_ptr->m_jsBluetoothManager->call("setScanMode", 2);
++            d_ptr->m_jsBluetoothManager->callWithoutReturn("setScanMode", 2);
 +    } else if (mode == QBluetoothLocalDevice::HostDiscoverableLimitedInquiry) {
-+        d_ptr->m_jsBluetoothManager->call("setScanMode", 3);
++        d_ptr->m_jsBluetoothManager->callWithoutReturn("setScanMode", 3);
 +    }
 +}
 +
@@ -2473,7 +2473,7 @@ index 53ce98e5..d9c9a9b8 100644
  }
 diff --git a/src/bluetooth/qbluetoothservicediscoveryagent_ohos.cpp b/src/bluetooth/qbluetoothservicediscoveryagent_ohos.cpp
 new file mode 100644
-index 00000000..ffc400d6
+index 00000000..ae6c7cfc
 --- /dev/null
 +++ b/src/bluetooth/qbluetoothservicediscoveryagent_ohos.cpp
 @@ -0,0 +1,445 @@
@@ -2647,7 +2647,7 @@ index 00000000..ffc400d6
 +            _q_serviceDiscoveryFinished();
 +        }
 +        qWarning() << "<===============LLLLL---";
-+        m_jsAdapter->call("fetchService");
++        m_jsAdapter->callWithoutReturn("fetchService");
 +        qWarning() << "<===============LLLLL---222";
 +    }
 +}
@@ -3785,7 +3785,7 @@ index 6b4c17d6..0115700f 100644
          return;
 diff --git a/src/bluetooth/qlowenergycontroller_ohos.cpp b/src/bluetooth/qlowenergycontroller_ohos.cpp
 new file mode 100644
-index 00000000..73fb98eb
+index 00000000..efca9358
 --- /dev/null
 +++ b/src/bluetooth/qlowenergycontroller_ohos.cpp
 @@ -0,0 +1,871 @@
@@ -3826,7 +3826,7 @@ index 00000000..73fb98eb
 +{
 +    if (role == QLowEnergyController::PeripheralRole) {
 +        if (hub)
-+            hub->jsObject()->call("disconnectServer");
++            hub->jsObject()->callWithoutReturn("disconnectServer");
 +    }
 +}
 +
@@ -3905,9 +3905,9 @@ index 00000000..73fb98eb
 +
 +    if (hub) {
 +        if (role == QLowEnergyController::PeripheralRole)
-+            hub->jsObject()->call("disconnectServer");
++            hub->jsObject()->callWithoutReturn("disconnectServer");
 +        else
-+            hub->jsObject()->call("disconnect");
++            hub->jsObject()->callWithoutReturn("disconnect");
 +    }
 +
 +    if (oldState == QLowEnergyController::ConnectingState)
@@ -4585,7 +4585,7 @@ index 00000000..73fb98eb
 +void QLowEnergyControllerPrivateOpenHarmony::stopAdvertising()
 +{
 +    setState(QLowEnergyController::UnconnectedState);
-+    hub->jsObject()->call("stopAdvertising");
++    hub->jsObject()->callWithoutReturn("stopAdvertising");
 +}
 +
 +void QLowEnergyControllerPrivateOpenHarmony::requestConnectionUpdate(const QLowEnergyConnectionParameters &params)
@@ -6102,7 +6102,7 @@ index 00000000..bd9cc9a5
 +#endif // QNEARFIELDMANAGER_OPENHARMONY_P_H
 diff --git a/src/nfc/qnearfieldtarget_openharmony.cpp b/src/nfc/qnearfieldtarget_openharmony.cpp
 new file mode 100644
-index 00000000..fa9533e2
+index 00000000..6de0a783
 --- /dev/null
 +++ b/src/nfc/qnearfieldtarget_openharmony.cpp
 @@ -0,0 +1,366 @@
@@ -6324,7 +6324,7 @@ index 00000000..fa9533e2
 +
 +    const QNdefMessage &message = messages.first();
 +    QByteArray ba = message.toByteArray();
-+    m_jsTag->call(writeMethod, ba);
++    m_jsTag->callWithoutReturn(writeMethod, ba);
 +
 +    if (!m_keepConnection)
 +        disconnect();   // IOException at this point does not matter anymore.
@@ -6586,7 +6586,7 @@ index 00000000..cb8a815b
 +#endif // QNEARFIELDTARGET_OPENHARMONY_P_H
 diff --git a/src/openharmony/bluetooth/bluetooth.pro b/src/openharmony/bluetooth/bluetooth.pro
 new file mode 100644
-index 00000000..fa4a2436
+index 00000000..f063639d
 --- /dev/null
 +++ b/src/openharmony/bluetooth/bluetooth.pro
 @@ -0,0 +1,9 @@
@@ -6594,7 +6594,7 @@ index 00000000..fa4a2436
 +
 +CONFIG -= qt
 +
-+templates.files += $$files($$PWD/native/QtBluetooth/*.ts, true)
++templates.files += $$files($$PWD/native/QtBluetooth/*, true)
 +templates.path = $$[QT_INSTALL_PREFIX]/openharmony/qtconnectivity
 +templates.base = $$PWD
 +
@@ -8282,10 +8282,10 @@ index 00000000..be9b65ab
 \ No newline at end of file
 diff --git a/src/openharmony/nfc/native/QtNfc/JsNfc.ts b/src/openharmony/nfc/native/QtNfc/JsNfc.ts
 new file mode 100644
-index 00000000..cf7558d8
+index 00000000..baf23923
 --- /dev/null
 +++ b/src/openharmony/nfc/native/QtNfc/JsNfc.ts
-@@ -0,0 +1,63 @@
+@@ -0,0 +1,60 @@
 +import controller from '@ohos.nfc.controller';
 +import tag from '@ohos.nfc.tag';
 +import HashMap from '@ohos.util.HashMap';
@@ -8296,10 +8296,9 @@ index 00000000..cf7558d8
 +
 +export class JsNfc {
 +    private tagsIndex: number = 0;
-+    private tags: HashMap<number, JsNfcTag> = null;
 +
 +    constructor() {
-+        this.tags = new HashMap;
++
 +    }
 +
 +    createTag(tagInfo: tag.TagInfo) {
@@ -8307,11 +8306,9 @@ index 00000000..cf7558d8
 +            JsLogger.info("no TagInfo to be created, ignore it.");
 +            return;
 +        }
-+        let nfcTag = new JsNfcTag(tagInfo);
 +        this.tagsIndex++;
-+        this.tags.set(this.tagsIndex, nfcTag);
 +        let name = "tagInfo" + this.tagsIndex;
-+        JsDataStore.initObject(name, nfcTag);
++        JsDataStore.getJsObjectLoader().createObject("JsNfcTag", name, tagInfo);
 +        JsDataStore.getQtNativeModule("QtNfc").nfcTargetDetected(name)
 +    }
 +
@@ -8325,7 +8322,7 @@ index 00000000..cf7558d8
 +            let discTech = [tag.NFC_A, tag.NFC_B];
 +            tag.registerForegroundDispatch(JsDataStore.getElementName(), discTech, (err : BusinessError, tagInfo : tag.TagInfo) =>{
 +                JsLogger.info("foreground callback: tag found tagInfo = %{public}s", JSON.stringify(tagInfo));
-+                JsDataStore.getQtNativeModule("QtNfc").createTag(tagInfo);
++                this.createTag(tagInfo);
 +            });
 +        } catch (e) {
 +            JsLogger.error("registerForegroundDispatch error: " + e.message);
@@ -8352,24 +8349,27 @@ index 00000000..cf7558d8
 \ No newline at end of file
 diff --git a/src/openharmony/nfc/native/QtNfc/JsNfcModule.ts b/src/openharmony/nfc/native/QtNfc/JsNfcModule.ts
 new file mode 100644
-index 00000000..83474c74
+index 00000000..f2f58169
 --- /dev/null
 +++ b/src/openharmony/nfc/native/QtNfc/JsNfcModule.ts
-@@ -0,0 +1,34 @@
-+import { JsQtModule } from '../QtCore/JsQtModule';
+@@ -0,0 +1,37 @@
++import { JsQtModule, ObjectBuilder } from '../QtCore/JsQtModule';
 +import JsDataStore from '../QtCore/JsDataStore';
 +import JsLogger from '../QtCore/JsLogger';
 +import { JsNfc } from './JsNfc';
 +import { JsNfcTag } from './JsNfcTag';
++import tag from '@ohos.nfc.tag';
 +
 +class JsNfcModule extends JsQtModule {
 +
 +  public constructor() {
 +    super()
-+    this.moduleJsObjects = {
-+      JsNfc,
-+      JsNfcTag
-+    };
++    this.moduleJsObjects.set("JsNfc", new ObjectBuilder<[]>(() =>{
++      return new JsNfc();
++    }));
++    this.moduleJsObjects.set("JsNfc", new ObjectBuilder<[tag.TagInfo]>((tagInfo: tag.TagInfo) =>{
++      return new JsNfcTag(tagInfo);
++    }));
 +    this.loadQtModule();
 +  }
 +
@@ -8571,7 +8571,7 @@ index 00000000..ed1834b7
 \ No newline at end of file
 diff --git a/src/openharmony/nfc/nfc.pro b/src/openharmony/nfc/nfc.pro
 new file mode 100644
-index 00000000..00614707
+index 00000000..cbbfd2f8
 --- /dev/null
 +++ b/src/openharmony/nfc/nfc.pro
 @@ -0,0 +1,11 @@
@@ -8579,7 +8579,7 @@ index 00000000..00614707
 +
 +CONFIG -= qt
 +
-+templates.files += $$files($$PWD/native/QtNfc/*.ts, true)
++templates.files += $$files($$PWD/native/QtNfc/*, true)
 +templates.path = $$[QT_INSTALL_PREFIX]/openharmony/qtconnectivity
 +templates.base = $$PWD
 +

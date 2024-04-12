@@ -137,11 +137,11 @@ index 00000000..51919095
 \ No newline at end of file
 diff --git a/src/openharmony/native/QtSensors/JsSensorsModule.ts b/src/openharmony/native/QtSensors/JsSensorsModule.ts
 new file mode 100644
-index 00000000..1d426bcf
+index 00000000..8e328f10
 --- /dev/null
 +++ b/src/openharmony/native/QtSensors/JsSensorsModule.ts
-@@ -0,0 +1,24 @@
-+import { JsQtModule } from '../QtCore/JsQtModule';
+@@ -0,0 +1,26 @@
++import { JsQtModule, ObjectBuilder } from '../QtCore/JsQtModule';
 +import JsDataStore from '../QtCore/JsDataStore';
 +import JsSensor from './JsSensor';
 +import JsSensorManager from './JsSensorManager';
@@ -150,10 +150,12 @@ index 00000000..1d426bcf
 +
 +  public constructor() {
 +    super()
-+    this.moduleJsObjects = {
-+      JsSensor,
-+      JsSensorManager
-+    };
++    this.moduleJsObjects.set("JsSensor", new ObjectBuilder<[number]>((id: number) =>{
++      return new JsSensor(id);
++    }));
++    this.moduleJsObjects.set("JsSensorManager", new ObjectBuilder<[]>(() =>{
++      return new JsSensorManager();
++    }));
 +    this.loadQtModule();
 +  }
 +
@@ -1132,7 +1134,7 @@ index 00000000..aa0907df
 +#endif // SENSORBACKEND_H
 diff --git a/src/plugins/sensors/openharmony/sensormanager.cpp b/src/plugins/sensors/openharmony/sensormanager.cpp
 new file mode 100644
-index 00000000..cfa50cb0
+index 00000000..b368d556
 --- /dev/null
 +++ b/src/plugins/sensors/openharmony/sensormanager.cpp
 @@ -0,0 +1,114 @@
@@ -1209,12 +1211,12 @@ index 00000000..cfa50cb0
 +
 +void JsSensor::stop(int id)
 +{
-+    m_jsSensor->call("stop", id);
++    m_jsSensor->callWithoutReturn("stop", id);
 +}
 +
 +void JsSensor::start(int id, int rate)
 +{
-+    m_jsSensor->call("start", id, rate);
++    m_jsSensor->callWithoutReturn("start", id, rate);
 +}
 +
 +QString JsSensor::hardwareVersion(int id) const

@@ -287,11 +287,11 @@ index 000000000..7a3fc0e63
 +
 diff --git a/src/openharmony/native/QtMultiMedia/JsMultiMediaModule.ts b/src/openharmony/native/QtMultiMedia/JsMultiMediaModule.ts
 new file mode 100644
-index 000000000..851ab4432
+index 000000000..cd08a2070
 --- /dev/null
 +++ b/src/openharmony/native/QtMultiMedia/JsMultiMediaModule.ts
-@@ -0,0 +1,38 @@
-+import { JsQtModule } from '../QtCore/JsQtModule';
+@@ -0,0 +1,44 @@
++import { JsQtModule, ObjectBuilder } from '../QtCore/JsQtModule';
 +import JsDataStore from '../QtCore/JsDataStore';
 +import JsLogger from '../QtCore/JsLogger';
 +import { JsAudioManager } from './JsAudioManager'
@@ -303,12 +303,18 @@ index 000000000..851ab4432
 +
 +  public constructor() {
 +    super()
-+    this.moduleJsObjects = {
-+      JsAudioManager,
-+      JsMediaRecorder,
-+      JsMultimediaUtils,
-+      JsCameraManager
-+    };
++    this.moduleJsObjects.set("JsAudioManager", new ObjectBuilder<[]>(() =>{
++      return new JsAudioManager();
++    }));
++    this.moduleJsObjects.set("JsMediaRecorder", new ObjectBuilder<[]>(() =>{
++      return new JsMediaRecorder();
++    }));
++    this.moduleJsObjects.set("JsMultimediaUtils", new ObjectBuilder<[]>(() =>{
++      return new JsMultimediaUtils();
++    }));
++    this.moduleJsObjects.set("JsCameraManager", new ObjectBuilder<[]>(() =>{
++      return new JsCameraManager();
++    }));
 +    this.loadQtModule();
 +  }
 +
@@ -358,7 +364,7 @@ index 000000000..3adf5fe55
 +}
 diff --git a/src/openharmony/openharmony.pro b/src/openharmony/openharmony.pro
 new file mode 100644
-index 000000000..966d9dcf0
+index 000000000..6f97b7df9
 --- /dev/null
 +++ b/src/openharmony/openharmony.pro
 @@ -0,0 +1,9 @@
@@ -366,7 +372,7 @@ index 000000000..966d9dcf0
 +
 +CONFIG -= qt
 +
-+templates.files += $$files($$PWD/native/QtMultiMedia/*.ts, true)
++templates.files += $$files($$PWD/native/QtMultiMedia/*, true)
 +templates.path = $$[QT_INSTALL_PREFIX]/openharmony/qtmultimedia
 +templates.base = $$PWD
 +
