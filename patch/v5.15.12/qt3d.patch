@@ -1,0 +1,28 @@
+diff --git a/src/plugins/renderers/opengl/debug/imguirenderer.cpp b/src/plugins/renderers/opengl/debug/imguirenderer.cpp
+index c4b1cf5f6..3d31fd218 100644
+--- a/src/plugins/renderers/opengl/debug/imguirenderer.cpp
++++ b/src/plugins/renderers/opengl/debug/imguirenderer.cpp
+@@ -663,9 +663,11 @@ void ImGuiRenderer::onMouseChange(QMouseEvent *event)
+ 
+ void ImGuiRenderer::onWheel(QWheelEvent *event)
+ {
++#if QT_CONFIG(wheelevent)
+     // 5 lines per unit
+     m_mouseWheelH += event->pixelDelta().x() / (ImGui::GetTextLineHeight());
+     m_mouseWheel += event->pixelDelta().y() / (5.f * ImGui::GetTextLineHeight());
++#endif
+ }
+ 
+ void ImGuiRenderer::onKeyPressRelease(QKeyEvent *event)
+@@ -701,9 +703,11 @@ void ImGuiRenderer::processEvent(QEvent *event)
+     case QEvent::MouseButtonRelease:
+         this->onMouseChange(static_cast<QMouseEvent *>(event));
+         break;
++#if QT_CONFIG(wheelevent)
+     case QEvent::Wheel:
+         this->onWheel(static_cast<QWheelEvent *>(event));
+         break;
++#endif
+     case QEvent::KeyPress:
+     case QEvent::KeyRelease:
+         this->onKeyPressRelease(static_cast<QKeyEvent *>(event));

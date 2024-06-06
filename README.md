@@ -6,30 +6,24 @@
 
 使用"git diff"命令生成代码补丁，提交补丁到对应的Patch目录下。
 
-> 各子库使用"submodulename.patch"的命名方式对子库适配代码补丁进行管理，例如在qtbase子仓库目录下执行"git diff v5.12.12 > qtbase.patch"可生成对应的qtbase子模块代码补丁，生成代码补丁后，遵循OpenHarmony社区要求提交到主仓库分支。
+> 各子库使用"submodulename.patch"的命名方式对子库适配代码补丁进行管理，例如在qtbase子仓库目录下执行"git diff v5.15.12 > qtbase.patch"可生成对应的qtbase子模块代码补丁，生成代码补丁后，遵循OpenHarmony社区要求提交到主仓库分支。
 
 # 目录说明
 
 ```
 OpenHarmony - Qt
 │
+|__tests - 单元测试代码
 └───patch - 源码补丁
-|____v5.12.12
-│   	│ qtbase.patch - qtbase子模块代码补丁
-|		| qtsensors.patch - qtsensors子模块补丁
-|		| qtdeclarative.patch qtdeclarative子模块补丁
-|		| qtmultimedia.patch - qtmultimedia子模块补丁
-|		| qtconnectivity.patch - qtconnectivity子模块补丁		
-|		| qtremoteobjects.patch - qtremoteobjects子模块代码补丁
-|____v5.15.11
-│   	│ qtbase.patch - qtbase子模块代码补丁
-|		| qtsensors.patch - qtsensors子模块补丁
-|		| qtdeclarative.patch qtdeclarative子模块补丁
-|		| qtmultimedia.patch - qtmultimedia子模块补丁
-|		| qtconnectivity.patch - qtconnectivity子模块补丁		
-|		| qtremoteobjects.patch - qtremoteobjects子模块代码补丁
-└───windows_build.bat - windows环境下的交叉编译脚本
-└───linux_build.sh - Linux环境下的交叉编译脚本
+|____v5.15.12
+│   	│ qt3d - qt3d子模块代码补丁
+│   	│ qtbase - qtbase子模块代码补丁
+│   	│ qtwebview - qtwebview子模块代码补丁
+│   	│ qtsensors - qtsensors子模块代码补丁
+│   	│ qtmultimedia - qtmultimedia子模块代码补丁
+│   	│ qtdeclarative - qtdeclarative子模块代码补丁
+│   	│ qtconnectivity - qtconnectivity子模块代码补丁
+│   	│ qtquickcontrols - qtquickcontrols子模块代码补丁
 └───LICENSE.FDL - GNU Free Documentation License
 └───LICENSE.GPLv2 - GNU GENERAL PUBLIC LICENSE Version 2
 └───LICENSE.GPLv3 - GNU GENERAL PUBLIC LICENSE Version 3
@@ -43,3 +37,4 @@ OpenHarmony - Qt
 # Qt For OpenHarmony使用
 
 参见仓库wiki说明：https://gitee.com/openharmony-sig/qt/wikis
+

@@ -1,45 +1,39 @@
-# Contribution Note
+# Contribution Instructions
 
-Since the Qt source code contains multiple Qt sub-libraries, following the requirements of community management, Qt For OpenHarmony contributes in the form of code patches and independent adaptation modules.
+Since the Qt source code includes multiple Qt sub-libraries, and in accordance with community management requirements, Qt For OpenHarmony contributes through code patches and independent adaptation modules.
 
-## Code Patch Genearate
+## Generating Code Patches
 
-Use the "git diff" command to generate a code patch, and submit the patch to the corresponding Patch directory.
+Use the “git diff” command to generate code patches and submit them to the corresponding Patch directory.
 
-> Each sub-module uses the naming method of "submodulename.patch" to manage sub-module adaptation code patches. For example, execute "git diff v5.12.12 > qtbase.patch" in the qtbase sub-submodule directory to generate the corresponding qtbase sub-module code patch , after generating the code patch, follow the requirements of the OpenHarmony community and submit it to the main repository branch.
+> Each sub-library manages adaptation code patches using the naming convention “submodulename.patch”. For example, executing “git diff v5.15.12 > qtbase.patch” in the qtbase sub-repository directory generates the corresponding qtbase sub-module code patch. After generating the code patch, follow the OpenHarmony community requirements to submit it to the main repository branch.
 
-# Catalog Description
+# Directory Description
 
 ```
 OpenHarmony - Qt
 │
-└───patch - Source patch folder
-|____v5.12.12
-│   	│ qtbase.patch - qtbase submodule patch
-|		| qtsensors.patch - qtsensors submodule patch
-|		| qtdeclarative.patch qtdeclarative submodule patch
-|		| qtmultimedia.patch - qtmultimedia submodule patch
-|		| qtconnectivity.patch - qtconnectivity submodule patch		
-|		| qtremoteobjects.patch - qtremoteobjects submodule patch
-|____v5.15.11
-│   	│ qtbase.patch - qtbase submodule patch
-|		| qtsensors.patch - qtsensors submodule patch
-|		| qtdeclarative.patch qtdeclarative submodule patch
-|		| qtmultimedia.patch - qtmultimedia submodule patch
-|		| qtconnectivity.patch - qtconnectivity submodule patch		
-|		| qtremoteobjects.patch - qtremoteobjects submodule patch
-└───windows_build.bat - windows cross compile script
-└───linux_build.sh - Linux cross compile script
+|__tests - Unit test code
+└───patch - Source code patches
+|____v5.15.12
+│   	│ qt3d - qt3d sub-module code patch
+│   	│ qtbase - qtbase sub-module code patch
+│   	│ qtwebview - qtwebview sub-module code patch
+│   	│ qtsensors - qtsensors sub-module code patch
+│   	│ qtmultimedia - qtmultimedia sub-module code patch
+│   	│ qtdeclarative - qtdeclarative sub-module code patch
+│   	│ qtconnectivity - qtconnectivity sub-module code patch
+│   	│ qtquickcontrols - qtquickcontrols sub-module code patch
 └───LICENSE.FDL - GNU Free Documentation License
 └───LICENSE.GPLv2 - GNU GENERAL PUBLIC LICENSE Version 2
 └───LICENSE.GPLv3 - GNU GENERAL PUBLIC LICENSE Version 3
 └───LICENSE.LGPLv3 - GNU LESSER GENERAL PUBLIC LICENSE Version 3
 └───LICENSE.LGPLv21 - GNU LESSER GENERAL PUBLIC LICENSE Version 2.1
 └───LICENSE.QT-LICENSE-AGREEMENT - QT LICENSE AGREEMENT Agreement
-└───README.md - Chinese readme
-└───README.en.md - English readme
+└───README.md - Chinese version readme
+└───README.en.md - English version readme
 ```
 
 # Using Qt For OpenHarmony
 
-See the repository wiki for instructions:https://gitee.com/openharmony-sig/qt/wikis
+Refer to the repository wiki instructions: https://gitee.com/openharmony-sig/qt/wikis
