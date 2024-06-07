@@ -1,0 +1,865 @@
+diff --git a/src/openharmony/native/QtWebView/JsWebView.ets b/src/openharmony/native/QtWebView/JsWebView.ets
+new file mode 100644
+index 0000000..a503613
+--- /dev/null
++++ b/src/openharmony/native/QtWebView/JsWebView.ets
+@@ -0,0 +1,179 @@
++import { UIContext } from '@kit.ArkUI';
++import { NodeParams } from 'adapter_ts'
++import web_webview from '@ohos.web.webview'
++import JsDataStore from '../QtCore/JsDataStore';
++import { ViewNodeController } from 'adapter_ts'
++import { BuilderNode, FrameNode } from '@ohos.arkui.node';
++import qtwebview from 'libplugins_webview_qtwebview_harmony.so'
++
++class WebParams extends NodeParams {
++  url: string = ""
++  controller: web_webview.WebviewController | undefined = undefined;
++
++  constructor(url: string, controller: web_webview.WebviewController) {
++    super()
++    this.url = url;
++    this.controller = this.controller;
++  }
++}
++
++@Builder
++function webBuilder(params: WebParams) {
++  Column() {
++    Web({ src: params.url, controller: params.controller })
++  }
++}
++
++class WebViewNodeController extends ViewNodeController {
++  private webParams: WebParams | undefined = undefined;
++  private buildWebNode: BuilderNode<[WebParams]> | null = null;
++  private webBuilder = new WrappedBuilder<[WebParams]>(webBuilder);
++  public webViewController: web_webview.WebviewController | null = null;
++
++  constructor(uiContextP: UIContext, params?: WebParams) {
++    super(uiContextP)
++    this.webParams = params;
++    if (null == this.buildWebNode) {
++      this.buildWebNode = new BuilderNode(uiContextP);
++    }
++
++    if (null != params?.controller) {
++      this.webViewController = params?.controller;
++    } else {
++      this.webViewController = new web_webview.WebviewController();
++    }
++  }
++
++  public getCurNode(): BuilderNode<[WebParams]> | null {
++    return this.buildWebNode;
++  }
++
++  makeNode(uiContext: UIContext): FrameNode | null {
++    if (this.buildWebNode != null) {
++      this.buildWebNode.build(this.webBuilder, this.webParams);
++      return this.buildWebNode.getFrameNode();
++    }
++    return null;
++  }
++
++  delete() {
++    for (let i = 0; i < super.params.node_list.length; i++) {
++      super.params.node_list[i].delete();
++    }
++    this.buildWebNode?.build(this.webBuilder, new NodeParams)
++    this.buildWebNode = null;
++  }
++
++  update() {
++    if (this.buildWebNode != null) {
++      this.buildWebNode.update(this.webParams);
++    }
++  }
++}
++
++const gWebControllers = new Map<number, WebViewNodeController>();
++
++export class JsWebView {
++  constructor() {
++  }
++
++  async getWebView(pointerId: number): Promise<WebViewNodeController | undefined> {
++    if (gWebControllers.has(pointerId)) {
++      return gWebControllers.get(pointerId);
++    }
++
++    let webNode: WebViewNodeController = new WebViewNodeController(JsDataStore.getUiContext() as UIContext);
++    gWebControllers.set(pointerId, webNode);
++    return webNode;
++  }
++
++  destroy(pointerId: number) {
++    let ct: WebViewNodeController | undefined = gWebControllers.get(pointerId);
++    if (undefined != ct) {
++      gWebControllers.delete(pointerId);
++      ct.delete();
++    }
++  }
++
++  getUserAgent(pointerId: number): string {
++    let ct: WebViewNodeController | undefined = gWebControllers.get(pointerId);
++    if (undefined != ct) {
++      return ct.webViewController?.getUserAgent() as string;
++    }
++    return '';
++  }
++
++  setCustomUserAgent(pointerId: number, userAgent: string) {
++    let ct: WebViewNodeController | undefined = gWebControllers.get(pointerId);
++    if (undefined != ct) {
++      ct.webViewController?.setCustomUserAgent(userAgent);
++    }
++  }
++
++  getUrl(pointerId: number): string {
++    let ct: WebViewNodeController | undefined = gWebControllers.get(pointerId);
++    if (undefined != ct) {
++      return ct.webViewController?.getUrl() as string;
++    }
++    return '';
++  }
++
++  loadUrl(pointerId: number, url: string) {
++    let ct: WebViewNodeController | undefined = gWebControllers.get(pointerId);
++    if (undefined != ct) {
++      ct.webViewController?.loadUrl(url);
++    }
++  }
++
++  accessBackward(pointerId: number): boolean {
++    let ct: WebViewNodeController | undefined = gWebControllers.get(pointerId);
++    if (undefined != ct) {
++      return ct.webViewController?.accessBackward() as boolean;
++    }
++    return false;
++  }
++
++  backward(pointerId: number) {
++    let ct: WebViewNodeController | undefined = gWebControllers.get(pointerId);
++    if (undefined != ct) {
++      return ct.webViewController?.backward();
++    }
++  }
++
++  accessForward(pointerId: number): boolean {
++    let ct: WebViewNodeController | undefined = gWebControllers.get(pointerId);
++    if (undefined != ct) {
++      return ct.webViewController?.accessForward() as boolean;
++    }
++    return false;
++  }
++
++  forward(pointerId: number) {
++    let ct: WebViewNodeController | undefined = gWebControllers.get(pointerId);
++    if (undefined != ct) {
++      return ct.webViewController?.forward();
++    }
++  }
++
++  refresh(pointerId: number) {
++    let ct: WebViewNodeController | undefined = gWebControllers.get(pointerId);
++    if (undefined != ct) {
++      ct.webViewController?.refresh();
++    }
++  }
++
++  getTitle(pointerId: number): string {
++    let ct: WebViewNodeController | undefined = gWebControllers.get(pointerId);
++    if (undefined != ct) {
++      return ct.webViewController?.getTitle() as string;
++    }
++    return '';
++  }
++
++  stop(pointerId: number) {
++    let ct: WebViewNodeController | undefined = gWebControllers.get(pointerId);
++    if (undefined != ct) {
++      ct.webViewController?.stop();
++    }
++  }
++}
+\ No newline at end of file
+diff --git a/src/openharmony/openharmony.pro b/src/openharmony/openharmony.pro
+new file mode 100644
+index 0000000..a94bf94
+--- /dev/null
++++ b/src/openharmony/openharmony.pro
+@@ -0,0 +1,10 @@
++TEMPLATE = aux
++
++CONFIG -= qt
++
++templates.files += $$files($$PWD/native/QtWebView/*.ts, true)
++templates.files += $$files($$PWD/native/QtWebView/*.ets, true)
++templates.path = $$[QT_INSTALL_PREFIX]/openharmony/qtwebview
++templates.base = $$PWD
++
++INSTALLS += templates
+diff --git a/src/plugins/harmony/harmony.json b/src/plugins/harmony/harmony.json
+new file mode 100644
+index 0000000..9f65fd4
+--- /dev/null
++++ b/src/plugins/harmony/harmony.json
+@@ -0,0 +1,3 @@
++{
++    "Keys": ["native"]
++}
+diff --git a/src/plugins/harmony/harmony.pro b/src/plugins/harmony/harmony.pro
+new file mode 100644
+index 0000000..6c93b4f
+--- /dev/null
++++ b/src/plugins/harmony/harmony.pro
+@@ -0,0 +1,20 @@
++TARGET = qtwebview_harmony
++
++PLUGIN_TYPE = webview
++PLUGIN_CLASS_NAME = QHarmonyWebViewPlugin
++load(qt_plugin)
++
++QT += core gui webview-private
++
++HEADERS += \
++    qharmonywebview_p.h
++
++SOURCES += \
++    qharmonywebviewplugin.cpp \
++    qharmonywebview.cpp
++
++OTHER_FILES +=
++
++DISTFILES += \
++    harmony.json
++
+diff --git a/src/plugins/harmony/qharmonywebview.cpp b/src/plugins/harmony/qharmonywebview.cpp
+new file mode 100644
+index 0000000..21f20d4
+--- /dev/null
++++ b/src/plugins/harmony/qharmonywebview.cpp
+@@ -0,0 +1,420 @@
++#include <QtCore/qmap.h>
++#include <QtCore/qurl.h>
++#include <QtCore/qdebug.h>
++#include <napi/native_api.h>
++#include <private/qwebview_p.h>
++#include <QtCore/qjsonobject.h>
++#include <QtCore/qjsondocument.h>
++#include <QtGui/qguiapplication.h>
++#include <private/qwebviewloadrequest_p.h>
++
++#include "qharmonywebview_p.h"
++#include "QtCore/qopenharmonydefines.h"
++#include "QtCore/qopenharmonyjsobjectloader.h"
++
++QT_BEGIN_NAMESPACE
++
++typedef QMap<quintptr, QHarmonyWebViewPrivate *> WebViews;
++Q_GLOBAL_STATIC(WebViews, g_webViews)
++
++QHarmonyWebViewPrivate::QHarmonyWebViewPrivate(QObject *p)
++    : QAbstractWebView(p)
++      , m_id(reinterpret_cast<quintptr>(this))
++      , m_callbackId(0)
++      , m_window(0)
++{
++    m_jsWebView = qJsObjectLoader->create("JsWebView");
++
++           // m_viewController = QJNIObjectPrivate(qtAndroidWebViewControllerClass,
++           //                                      "(Landroid/app/Activity;J)V",
++           //                                      QtAndroidPrivate::activity(),
++           //                                      m_id);
++           // m_webView = m_viewController.callObjectMethod("getWebView",
++           //                                               "()Landroid/webkit/WebView;");
++
++           // m_window = QWindow::fromWinId(reinterpret_cast<WId>(m_webView.object()));
++
++    napi_ref webController = m_jsWebView->callReturnRef("getWebView", m_id);
++    WId webViewId = reinterpret_cast<WId>(webController);
++    m_window = QWindow::fromWinId(webViewId);
++
++    g_webViews->insert(m_id, this);
++    connect(qApp, &QGuiApplication::applicationStateChanged,
++            this, &QHarmonyWebViewPrivate::onApplicationStateChanged);
++    qWarning() << m_window << "<+++++++++++++++++++++:::" << webViewId;
++}
++
++QHarmonyWebViewPrivate::~QHarmonyWebViewPrivate()
++{
++    g_webViews->take(m_id);
++    if (m_window != Q_NULLPTR) {
++        m_window->setVisible(false);
++        m_window->setParent(Q_NULLPTR);
++        delete m_window;
++    }
++    m_jsWebView->callWithoutReturn("destroy", m_id);
++}
++
++QString QHarmonyWebViewPrivate::httpUserAgent() const
++{
++    return QString(m_jsWebView->call<QString>("getUserAgent", m_id));
++}
++
++void QHarmonyWebViewPrivate::setHttpUserAgent(const QString &userAgent)
++{
++    m_jsWebView->callWithoutReturn("setCustomUserAgent", m_id, userAgent);
++    Q_EMIT httpUserAgentChanged(userAgent);
++}
++
++QUrl QHarmonyWebViewPrivate::url() const
++{
++    return QUrl::fromUserInput(m_jsWebView->call<QString>("getUrl", m_id));
++}
++
++void QHarmonyWebViewPrivate::setUrl(const QUrl &url)
++{
++    m_jsWebView->callWithoutReturn("loadUrl", m_id, url);
++}
++
++void QHarmonyWebViewPrivate::loadHtml(const QString &html, const QUrl &baseUrl)
++{
++  // const QJNIObjectPrivate &htmlString = QJNIObjectPrivate::fromString(html);
++  // const QJNIObjectPrivate &mimeTypeString = QJNIObjectPrivate::fromString(QLatin1String("text/html;charset=UTF-8"));
++
++           // baseUrl.isEmpty() ? m_viewController.callMethod<void>("loadData",
++           //                                                       "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V",
++           //                                                       htmlString.object(),
++           //                                                       mimeTypeString.object(),
++           //                                                       0)
++
++           //                   : m_viewController.callMethod<void>("loadDataWithBaseURL",
++           //                                                       "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V",
++           //                                                       QJNIObjectPrivate::fromString(baseUrl.toString()).object(),
++           //                                                       htmlString.object(),
++           //                                                       mimeTypeString.object(),
++           //                                                       0,
++           //                                                       0);
++}
++
++bool QHarmonyWebViewPrivate::canGoBack() const
++{
++    return m_jsWebView->call<bool>("accessBackward", m_id);
++}
++
++void QHarmonyWebViewPrivate::goBack()
++{
++    return m_jsWebView->callWithoutReturn("backward", m_id);
++}
++
++bool QHarmonyWebViewPrivate::canGoForward() const
++{
++    return m_jsWebView->call<bool>("accessForward", m_id);
++}
++
++void QHarmonyWebViewPrivate::goForward()
++{
++    return m_jsWebView->callWithoutReturn("forward", m_id);
++}
++
++void QHarmonyWebViewPrivate::reload()
++{
++    m_jsWebView->callWithoutReturn("refresh", m_id);
++}
++
++QString QHarmonyWebViewPrivate::title() const
++{
++    return QString(m_jsWebView->call<QString>("getTitle", m_id));
++}
++
++void QHarmonyWebViewPrivate::setGeometry(const QRect &geometry)
++{
++    if (m_window == 0)
++        return;
++
++    m_window->setGeometry(geometry);
++}
++
++void QHarmonyWebViewPrivate::setVisibility(QWindow::Visibility visibility)
++{
++    m_window->setVisibility(visibility);
++}
++
++void QHarmonyWebViewPrivate::runJavaScriptPrivate(const QString &script,
++                                                  int callbackId)
++{
++#if 0
++    if (QtAndroidPrivate::androidSdkVersion() < 19) {
++        qWarning("runJavaScript() requires API level 19 or higher.");
++        if (callbackId == -1)
++            return;
++
++        // Emit signal here to remove the callback.
++        Q_EMIT javaScriptResult(callbackId, QVariant());
++    }
++
++    m_viewController.callMethod<void>("runJavaScript",
++                                      "(Ljava/lang/String;J)V",
++                                      static_cast<jstring>(QJNIObjectPrivate::fromString(script).object()),
++                                      callbackId);
++#endif
++}
++
++void QHarmonyWebViewPrivate::setVisible(bool visible)
++{
++    if (nullptr == m_window)
++        return;
++
++    m_window->setVisible(visible);
++}
++
++int QHarmonyWebViewPrivate::loadProgress() const
++{
++    return 100;
++    // return m_viewController.callMethod<jint>("getProgress");
++}
++
++bool QHarmonyWebViewPrivate::isLoading() const
++{
++    return true;
++    // return m_viewController.callMethod<jboolean>("isLoading");
++}
++
++void QHarmonyWebViewPrivate::setParentView(QObject *view)
++{
++    if (nullptr == m_window)
++        return;
++
++    m_window->setParent(qobject_cast<QWindow *>(view));
++}
++
++QObject *QHarmonyWebViewPrivate::parentView() const
++{
++    if (m_window)
++        return m_window->parent();
++
++    return nullptr;
++}
++
++void QHarmonyWebViewPrivate::stop()
++{
++    m_jsWebView->callWithoutReturn("stop", m_id);
++}
++
++//void QHarmonyWebViewPrivate::initialize()
++//{
++//    // TODO:
++//}
++
++void QHarmonyWebViewPrivate::onApplicationStateChanged(Qt::ApplicationState state)
++{
++#if 0
++    if (QtAndroidPrivate::androidSdkVersion() < 11)
++        return;
++
++    if (state == Qt::ApplicationActive)
++        m_viewController.callMethod<void>("onResume");
++    else
++        m_viewController.callMethod<void>("onPause");
++#endif
++}
++
++QT_END_NAMESPACE
++#if 0
++static void c_onRunJavaScriptResult(JNIEnv *env,
++                                    jobject thiz,
++                                    jlong id,
++                                    jlong callbackId,
++                                    jstring result)
++{
++    Q_UNUSED(env)
++    Q_UNUSED(thiz)
++
++    const WebViews &wv = (*g_webViews);
++    QHarmonyWebViewPrivate *wc = static_cast<QHarmonyWebViewPrivate *>(wv[id]);
++    if (!wc)
++        return;
++
++    const QString &resultString = QJNIObjectPrivate(result).toString();
++
++    // The result string is in JSON format, lets parse it to see what we got.
++    QJsonValue jsonValue;
++    const QByteArray &jsonData = "{ \"data\": " + resultString.toUtf8() + " }";
++    QJsonParseError error;
++    const QJsonDocument &jsonDoc = QJsonDocument::fromJson(jsonData, &error);
++    if (error.error == QJsonParseError::NoError && jsonDoc.isObject()) {
++        const QJsonObject &object = jsonDoc.object();
++        jsonValue = object.value(QStringLiteral("data"));
++    }
++
++    Q_EMIT wc->javaScriptResult(int(callbackId),
++                                jsonValue.isNull() ? resultString
++                                                   : jsonValue.toVariant());
++}
++
++static void c_onPageFinished(JNIEnv *env,
++                             jobject thiz,
++                             jlong id,
++                             jstring url)
++{
++    Q_UNUSED(env)
++    Q_UNUSED(thiz)
++    const WebViews &wv = (*g_webViews);
++    QHarmonyWebViewPrivate *wc = wv[id];
++    if (!wc)
++        return;
++
++    QWebViewLoadRequestPrivate loadRequest(QUrl(QJNIObjectPrivate(url).toString()),
++                                           QWebView::LoadSucceededStatus,
++                                           QString());
++    Q_EMIT wc->loadingChanged(loadRequest);
++}
++
++static void c_onPageStarted(JNIEnv *env,
++                            jobject thiz,
++                            jlong id,
++                            jstring url,
++                            jobject icon)
++{
++    Q_UNUSED(env)
++    Q_UNUSED(thiz)
++    Q_UNUSED(icon)
++    const WebViews &wv = (*g_webViews);
++    QHarmonyWebViewPrivate *wc = wv[id];
++    if (!wc)
++        return;
++    QWebViewLoadRequestPrivate loadRequest(QUrl(QJNIObjectPrivate(url).toString()),
++                                           QWebView::LoadStartedStatus,
++                                           QString());
++    Q_EMIT wc->loadingChanged(loadRequest);
++
++//    if (!icon)
++//        return;
++
++//    QImage image;
++//    if (favIcon(env, icon, &image))
++//        Q_EMIT wc->iconChanged(image);
++}
++
++static void c_onProgressChanged(JNIEnv *env,
++                                jobject thiz,
++                                jlong id,
++                                jint newProgress)
++{
++    Q_UNUSED(env)
++    Q_UNUSED(thiz)
++    const WebViews &wv = (*g_webViews);
++    QHarmonyWebViewPrivate *wc = wv[id];
++    if (!wc)
++        return;
++
++    Q_EMIT wc->loadProgressChanged(newProgress);
++}
++
++static void c_onReceivedIcon(JNIEnv *env,
++                             jobject thiz,
++                             jlong id,
++                             jobject icon)
++{
++    Q_UNUSED(env)
++    Q_UNUSED(thiz)
++    Q_UNUSED(id)
++    Q_UNUSED(icon)
++
++    const WebViews &wv = (*g_webViews);
++    QHarmonyWebViewPrivate *wc = wv[id];
++    if (!wc)
++        return;
++
++    if (!icon)
++        return;
++
++//    QImage image;
++//    if (favIcon(env, icon, &image))
++//        Q_EMIT wc->iconChanged(image);
++}
++
++static void c_onReceivedTitle(JNIEnv *env,
++                              jobject thiz,
++                              jlong id,
++                              jstring title)
++{
++    Q_UNUSED(env)
++    Q_UNUSED(thiz)
++    const WebViews &wv = (*g_webViews);
++    QHarmonyWebViewPrivate *wc = wv[id];
++    if (!wc)
++        return;
++
++    const QString &qTitle = QJNIObjectPrivate(title).toString();
++    Q_EMIT wc->titleChanged(qTitle);
++}
++
++static void c_onReceivedError(JNIEnv *env,
++                              jobject thiz,
++                              jlong id,
++                              jint errorCode,
++                              jstring description,
++                              jstring url)
++{
++    Q_UNUSED(env)
++    Q_UNUSED(thiz)
++    Q_UNUSED(errorCode)
++
++    const WebViews &wv = (*g_webViews);
++    QHarmonyWebViewPrivate *wc = wv[id];
++    if (!wc)
++        return;
++    QWebViewLoadRequestPrivate loadRequest(QUrl(QJNIObjectPrivate(url).toString()),
++                                           QWebView::LoadFailedStatus,
++                                           QJNIObjectPrivate(description).toString());
++    Q_EMIT wc->loadingChanged(loadRequest);
++}
++#endif
++
++/*
++ * function for module exports
++ */
++EXTERN_C_START
++static napi_value Init(napi_env env, napi_value exports)
++{
++    static bool inited = false;
++
++    if (!inited) {
++        napi_property_descriptor desc[] ={
++            // DECLARE_NAPI_FUNCTION("startQtApplication", startQtApplication),
++            // DECLARE_NAPI_FUNCTION("setDisplayMetrics", setDisplayMetrics),
++            // DECLARE_NAPI_FUNCTION("updateApplicationState", updateApplicationState),
++            // DECLARE_NAPI_FUNCTION("setResourceManager", setResourceManager),
++            // DECLARE_NAPI_FUNCTION("quitQtApplication", quitQtApplication),
++            // DECLARE_NAPI_FUNCTION("qtMajorVersion", qtMajorVersion),
++            // DECLARE_NAPI_FUNCTION("setDeviceType", setDeviceType),
++            // DECLARE_NAPI_FUNCTION("setDisplayVersion", setDisplayVersion),
++        };
++        NAPI_CALL(env, napi_define_properties(env, exports, sizeof(desc) / sizeof(desc[0]), desc));
++
++        qJs::init(env);
++        inited = true;
++    }
++    return exports;
++}
++EXTERN_C_END
++
++/*
++ * Napi Module define
++ */
++static napi_module webviewPluginModule = {
++    .nm_version = 1,
++    .nm_flags = 0,
++    .nm_filename = nullptr,
++    .nm_register_func = Init,
++    .nm_modname = "plugins_webview_qtwebview_harmony",
++    .nm_priv = ((void*)0),
++    .reserved = { 0 },
++};
++/*
++ * Module register function
++ */
++extern "C" __attribute__((constructor)) void RegisterModule(void)
++{
++    napi_module_register(&webviewPluginModule);
++}
+diff --git a/src/plugins/harmony/qharmonywebview_p.h b/src/plugins/harmony/qharmonywebview_p.h
+new file mode 100644
+index 0000000..5238dc8
+--- /dev/null
++++ b/src/plugins/harmony/qharmonywebview_p.h
+@@ -0,0 +1,109 @@
++/****************************************************************************
++**
++** Copyright (C) 2015 The Qt Company Ltd.
++** Contact: http://www.qt.io/licensing/
++**
++** This file is part of the QtWebView module of the Qt Toolkit.
++**
++** $QT_BEGIN_LICENSE:LGPL3$
++** Commercial License Usage
++** Licensees holding valid commercial Qt licenses may use this file in
++** accordance with the commercial license agreement provided with the
++** Software or, alternatively, in accordance with the terms contained in
++** a written agreement between you and The Qt Company. For licensing terms
++** and conditions see http://www.qt.io/terms-conditions. For further
++** information use the contact form at http://www.qt.io/contact-us.
++**
++** GNU Lesser General Public License Usage
++** Alternatively, this file may be used under the terms of the GNU Lesser
++** General Public License version 3 as published by the Free Software
++** Foundation and appearing in the file LICENSE.LGPLv3 included in the
++** packaging of this file. Please review the following information to
++** ensure the GNU Lesser General Public License version 3 requirements
++** will be met: https://www.gnu.org/licenses/lgpl.html.
++**
++** GNU General Public License Usage
++** Alternatively, this file may be used under the terms of the GNU
++** General Public License version 2.0 or later as published by the Free
++** Software Foundation and appearing in the file LICENSE.GPL included in
++** the packaging of this file. Please review the following information to
++** ensure the GNU General Public License version 2.0 requirements will be
++** met: http://www.gnu.org/licenses/gpl-2.0.html.
++**
++** $QT_END_LICENSE$
++**
++****************************************************************************/
++
++#ifndef QHARMONYWEBVIEW_P_H
++#define QHARMONYWEBVIEW_P_H
++
++//
++//  W A R N I N G
++//  -------------
++//
++// This file is not part of the Qt API.  It exists purely as an
++// implementation detail.  This header file may change from version to
++// version without notice, or even be removed.
++//
++// We mean it.
++//
++
++#include <QSharedPointer>
++#include <QtCore/qurl.h>
++#include <QtGui/qwindow.h>
++#include <QtCore/qobject.h>
++#include <private/qabstractwebview_p.h>
++
++#include "QtCore/qopenharmonyjsobject.h"
++
++QT_BEGIN_NAMESPACE
++
++class QHarmonyWebViewPrivate : public QAbstractWebView
++{
++    Q_OBJECT
++public:
++    explicit QHarmonyWebViewPrivate(QObject *p = 0);
++    ~QHarmonyWebViewPrivate() Q_DECL_OVERRIDE;
++
++    QString httpUserAgent() const Q_DECL_OVERRIDE;
++    void setHttpUserAgent(const QString &httpUserAgent) Q_DECL_OVERRIDE;
++    QUrl url() const Q_DECL_OVERRIDE;
++    void setUrl(const QUrl &url) Q_DECL_OVERRIDE;
++    bool canGoBack() const Q_DECL_OVERRIDE;
++    bool canGoForward() const Q_DECL_OVERRIDE;
++    QString title() const Q_DECL_OVERRIDE;
++    int loadProgress() const Q_DECL_OVERRIDE;
++    bool isLoading() const Q_DECL_OVERRIDE;
++
++    void setParentView(QObject *view) Q_DECL_OVERRIDE;
++    QObject *parentView() const Q_DECL_OVERRIDE;
++    void setGeometry(const QRect &geometry) Q_DECL_OVERRIDE;
++    void setVisibility(QWindow::Visibility visibility) Q_DECL_OVERRIDE;
++    void setVisible(bool visible) Q_DECL_OVERRIDE;
++
++public Q_SLOTS:
++    void goBack() Q_DECL_OVERRIDE;
++    void goForward() Q_DECL_OVERRIDE;
++    void reload() Q_DECL_OVERRIDE;
++    void stop() Q_DECL_OVERRIDE;
++    void loadHtml(const QString &html, const QUrl &baseUrl = QUrl()) Q_DECL_OVERRIDE;
++
++protected:
++    void runJavaScriptPrivate(const QString& script,
++                              int callbackId) Q_DECL_OVERRIDE;
++
++private Q_SLOTS:
++    void onApplicationStateChanged(Qt::ApplicationState state);
++
++private:
++    quintptr m_id;
++    quint64 m_callbackId;
++    QWindow *m_window;
++    QSharedPointer<QOpenHarmonyJsObject> m_jsWebView;
++    // QJNIObjectPrivate m_viewController;
++    // QJNIObjectPrivate m_webView;
++};
++
++QT_END_NAMESPACE
++
++#endif // QHARMONYWEBVIEW_P_H
+diff --git a/src/plugins/harmony/qharmonywebviewplugin.cpp b/src/plugins/harmony/qharmonywebviewplugin.cpp
+new file mode 100644
+index 0000000..e9bfdc1
+--- /dev/null
++++ b/src/plugins/harmony/qharmonywebviewplugin.cpp
+@@ -0,0 +1,56 @@
++/****************************************************************************
++**
++** Copyright (C) 2016 The Qt Company Ltd.
++** Contact: http://www.qt.io/licensing/
++**
++** This file is part of the QtWebView module of the Qt Toolkit.
++**
++** $QT_BEGIN_LICENSE:LGPL3$
++** Commercial License Usage
++** Licensees holding valid commercial Qt licenses may use this file in
++** accordance with the commercial license agreement provided with the
++** Software or, alternatively, in accordance with the terms contained in
++** a written agreement between you and The Qt Company. For licensing terms
++** and conditions see http://www.qt.io/terms-conditions. For further
++** information use the contact form at http://www.qt.io/contact-us.
++**
++** GNU Lesser General Public License Usage
++** Alternatively, this file may be used under the terms of the GNU Lesser
++** General Public License version 3 as published by the Free Software
++** Foundation and appearing in the file LICENSE.LGPLv3 included in the
++** packaging of this file. Please review the following information to
++** ensure the GNU Lesser General Public License version 3 requirements
++** will be met: https://www.gnu.org/licenses/lgpl.html.
++**
++** GNU General Public License Usage
++** Alternatively, this file may be used under the terms of the GNU
++** General Public License version 2.0 or later as published by the Free
++** Software Foundation and appearing in the file LICENSE.GPL included in
++** the packaging of this file. Please review the following information to
++** ensure the GNU General Public License version 2.0 requirements will be
++** met: http://www.gnu.org/licenses/gpl-2.0.html.
++**
++** $QT_END_LICENSE$
++**
++****************************************************************************/
++
++#include "qharmonywebview_p.h"
++#include <private/qwebviewplugin_p.h>
++
++QT_BEGIN_NAMESPACE
++
++class QAndroidWebViewPlugin : public QWebViewPlugin
++{
++    Q_OBJECT
++    Q_PLUGIN_METADATA(IID QWebViewPluginInterface_iid FILE "harmony.json")
++
++public:
++    QAbstractWebView *create(const QString &key) const override
++    {
++        return (key == QLatin1String("webview")) ? new QHarmonyWebViewPrivate() : nullptr;
++    }
++};
++
++QT_END_NAMESPACE
++
++#include "qharmonywebviewplugin.moc"
+diff --git a/src/plugins/plugins.pro b/src/plugins/plugins.pro
+index 60c5078..c3a8fae 100644
+--- a/src/plugins/plugins.pro
++++ b/src/plugins/plugins.pro
+@@ -4,6 +4,8 @@ android {
+     SUBDIRS += android
+ } else:if(ios|macos) {
+     SUBDIRS += darwin
++} else:if(openharmony) {
++    SUBDIRS += harmony
+ } else:winrt {
+     SUBDIRS += winrt
+ }
+diff --git a/src/src.pro b/src/src.pro
+index 7bc2ef7..62580d4 100644
+--- a/src/src.pro
++++ b/src/src.pro
+@@ -5,3 +5,7 @@ plugins.depends = webview
+ imports.depends = webview
+ 
+ android: SUBDIRS += jar
++
++openharmony {
++    SUBDIRS += openharmony
++}

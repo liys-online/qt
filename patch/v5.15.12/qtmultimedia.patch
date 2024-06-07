@@ -253,19 +253,19 @@ index 000000000..7a3fc0e63
 +    }
 +}
 +
-diff --git a/src/openharmony/native/QtMultiMedia/JsMultiMediaModule.ts b/src/openharmony/native/QtMultiMedia/JsMultiMediaModule.ts
+diff --git a/src/openharmony/native/QtMultiMedia/JsMultiMediaModule.ets b/src/openharmony/native/QtMultiMedia/JsMultiMediaModule.ets
 new file mode 100644
-index 000000000..cd08a2070
+index 000000000..b8c8618cd
 --- /dev/null
-+++ b/src/openharmony/native/QtMultiMedia/JsMultiMediaModule.ts
-@@ -0,0 +1,44 @@
++++ b/src/openharmony/native/QtMultiMedia/JsMultiMediaModule.ets
+@@ -0,0 +1,33 @@
 +import { JsQtModule, ObjectBuilder } from '../QtCore/JsQtModule';
 +import JsDataStore from '../QtCore/JsDataStore';
-+import JsLogger from '../QtCore/JsLogger';
 +import { JsAudioManager } from './JsAudioManager'
 +import { JsMediaRecorder } from './JsMediaRecorder'
 +import { JsMultimediaUtils } from './JsMultimediaUtils'
 +import { JsCameraManager } from './JsCameraManager'
++import QtMultimedia from 'libplugins_mediaservice_qtmedia_openharmony.so'
 +
 +class JsMultiMediaModule extends JsQtModule {
 +
@@ -283,22 +283,11 @@ index 000000000..cd08a2070
 +    this.moduleJsObjects.set("JsCameraManager", new ObjectBuilder<[]>(() =>{
 +      return new JsCameraManager();
 +    }));
-+    this.loadQtModule();
 +  }
 +
 +  async loadQtModule(): Promise<void> {
-+    let qtMajorVersion = JsDataStore.getQtMajorVersion();
-+    let QtMultimediaModule: any = null;
-+    if (qtMajorVersion == 5)
-+      QtMultimediaModule = await import ("libQt5Multimedia.so");
-+    else if (qtMajorVersion == 6)
-+      QtMultimediaModule = await import ("libQt5Multimedia.so");
-+    if (QtMultimediaModule == null) {
-+      JsLogger.fatal("Cannot load QtMultimedia module");
-+      return;
-+    }
-+    let QtMultimedia = QtMultimediaModule.default;
 +    JsDataStore.addQtNativeModule("QtMultimedia", QtMultimedia);
++    JsDataStore.getQtNativeModule("QtMultimedia").setResourceManager(JsDataStore.getResourceManager());
 +  }
 +}
 +
@@ -332,15 +321,16 @@ index 000000000..3adf5fe55
 +}
 diff --git a/src/openharmony/openharmony.pro b/src/openharmony/openharmony.pro
 new file mode 100644
-index 000000000..6f97b7df9
+index 000000000..597a116d0
 --- /dev/null
 +++ b/src/openharmony/openharmony.pro
-@@ -0,0 +1,9 @@
+@@ -0,0 +1,10 @@
 +TEMPLATE = aux
 +
 +CONFIG -= qt
 +
-+templates.files += $$files($$PWD/native/QtMultiMedia/*, true)
++templates.files += $$files($$PWD/native/QtMultiMedia/*.ts, true)
++templates.files += $$files($$PWD/native/QtMultiMedia/*.ets, true)
 +templates.path = $$[QT_INSTALL_PREFIX]/openharmony/qtmultimedia
 +templates.base = $$PWD
 +
@@ -1180,12 +1170,1328 @@ index 000000000..9f188ebfb
 +    "Keys": ["openharmonymultimedia"],
 +    "Services": ["org.qt-project.qt.camera", "org.qt-project.qt.mediaplayer", "org.qt-project.qt.audiosource"]
 +}
+diff --git a/src/plugins/openharmony/src/player/player.pri b/src/plugins/openharmony/src/player/player.pri
+new file mode 100644
+index 000000000..0abf1d2b5
+--- /dev/null
++++ b/src/plugins/openharmony/src/player/player.pri
+@@ -0,0 +1,15 @@
++INCLUDEPATH += $$PWD
++
++qtHaveModule(widgets): QT += widgets
++
++HEADERS += \
++    $$PWD/qopenharmonyplayerservice.h \
++    $$PWD/qopenharmonyplayercontrol.h \
++    $$PWD/qopenharmonywindowcontrol.h \
++    $$PWD/qopenharmonyplayer.h
++
++SOURCES += \
++    $$PWD/qopenharmonyplayerservice.cpp \
++    $$PWD/qopenharmonyplayercontrol.cpp \
++    $$PWD/qopenharmonywindowcontrol.cpp \
++    $$PWD/qopenharmonyplayer.cpp
+diff --git a/src/plugins/openharmony/src/player/qopenharmonyplayer.cpp b/src/plugins/openharmony/src/player/qopenharmonyplayer.cpp
+new file mode 100644
+index 000000000..21a50b78d
+--- /dev/null
++++ b/src/plugins/openharmony/src/player/qopenharmonyplayer.cpp
+@@ -0,0 +1,378 @@
++#include "qopenharmonyplayer.h"
++#include <rawfile/raw_file_manager.h>
++
++#include <QString>
++#include <QHash>
++#include <QReadWriteLock>
++#include <QNetworkRequest>
++#include <QUrl>
++#include <QFile>
++#include <QDebug>
++
++typedef QHash<OH_AVPlayer *, QOpenHarmonyPlayer *> MediaPlayers;
++Q_GLOBAL_STATIC(MediaPlayers, mediaPlayers)
++Q_GLOBAL_STATIC(QReadWriteLock, rwLock)
++
++QT_BEGIN_NAMESPACE
++
++NativeResourceManager *QOpenHarmonyPlayer::m_resourceManager = nullptr;
++
++QOpenHarmonyPlayer::QOpenHarmonyPlayer()
++    : QObject()
++{
++    QWriteLocker locker(rwLock);
++    m_player = OH_AVPlayer_Create();
++    if (m_player != nullptr) {
++        m_playerCallback.onInfo = &QOpenHarmonyPlayer::onPlayerInfo;
++        m_playerCallback.onError = &QOpenHarmonyPlayer::onPlayerError;
++        OH_AVPlayer_SetPlayerCallback(m_player, m_playerCallback);
++        mediaPlayers->insert(m_player, this);
++    }
++}
++
++QOpenHarmonyPlayer::~QOpenHarmonyPlayer()
++{
++    if (m_player != nullptr) {
++        QWriteLocker locker(rwLock);
++        mediaPlayers->remove(m_player);
++        OH_AVPlayer_Release(m_player);
++    }
++}
++
++void QOpenHarmonyPlayer::release()
++{
++    OH_AVPlayer_Release(m_player);
++}
++
++void QOpenHarmonyPlayer::reset()
++{
++    OH_AVPlayer_Reset(m_player);
++}
++
++int QOpenHarmonyPlayer::getCurrentPosition()
++{
++    if ((m_state == AV_PLAYING)
++            || (m_state == AV_PAUSED)
++            || (m_state == AV_COMPLETED)) {
++        int time = 0;
++        OH_AVPlayer_GetCurrentTime(m_player, &time);
++        return time;
++    }
++    return 0;
++}
++
++int QOpenHarmonyPlayer::getDuration()
++{
++    if (m_state < AV_PREPARED)
++        return 0;
++    int duration = 0;
++    OH_AVPlayer_GetDuration(m_player, &duration);
++    return duration;
++}
++
++bool QOpenHarmonyPlayer::isPlaying()
++{
++    return m_state == AV_PLAYING;
++}
++
++int QOpenHarmonyPlayer::volume()
++{
++    return m_volume * 100;
++}
++
++bool QOpenHarmonyPlayer::isMuted()
++{
++    return qFuzzyCompare(m_volume, 0.0);
++}
++
++qreal QOpenHarmonyPlayer::playbackRate()
++{
++    qreal rate(1.0);
++
++    AVPlaybackSpeed speed;
++    OH_AVPlayer_GetPlaybackSpeed(m_player, &speed);
++    switch (speed) {
++    case AV_SPEED_FORWARD_0_75_X:
++        rate = 0.75;
++        break;
++    case AV_SPEED_FORWARD_1_00_X:
++        rate = 1.0;
++        break;
++    case AV_SPEED_FORWARD_1_25_X:
++        rate = 1.25;
++        break;
++    case AV_SPEED_FORWARD_1_75_X:
++        rate = 1.75;
++        break;
++    case AV_SPEED_FORWARD_2_00_X:
++        rate = 2.0;
++        break;
++    }
++    return rate;
++}
++
++void QOpenHarmonyPlayer::play()
++{
++    if (m_state == AV_PLAYING)
++        return;
++    if ((m_state == AV_PREPARED)
++            || (m_state == AV_PAUSED)
++            || (m_state == AV_COMPLETED)) {
++        OH_AVPlayer_Play(m_player);
++    } else if (m_state == AV_STOPPED) {
++        m_isPendingPlaying = true;
++        prepare();
++    }
++    else {
++        m_isPendingPlaying = true;
++    }
++}
++
++void QOpenHarmonyPlayer::pause()
++{
++    if (m_state == AV_PLAYING)
++        OH_AVPlayer_Pause(m_player);
++}
++
++void QOpenHarmonyPlayer::stop()
++{
++    if ((m_state == AV_PLAYING) ||
++            (m_state == AV_COMPLETED) ||
++            (m_state == AV_PREPARED) ||
++            (m_state == AV_PAUSED)) {
++        OH_AVPlayer_Stop(m_player);
++    }
++}
++
++void QOpenHarmonyPlayer::seekTo(qint32 msec)
++{
++    if ((m_state == AV_PLAYING) ||
++            (m_state == AV_PAUSED) ||
++            (m_state == AV_COMPLETED)) {
++        OH_AVPlayer_Seek(m_player, msec, AV_SEEK_NEXT_SYNC);
++    }
++}
++
++void QOpenHarmonyPlayer::setMuted(bool mute)
++{
++    if (mute) {
++        m_volumeBeforeMute = m_volume;
++        setVolume(0);
++    } else {
++        setVolume(m_volumeBeforeMute);
++    }
++}
++
++void QOpenHarmonyPlayer::setDataSource(const QNetworkRequest &request)
++{
++    if (m_state != AV_IDLE)
++        reset();
++
++    QUrl url = request.url();
++    if (url.isEmpty())
++        return;
++    QString scheme = url.scheme();
++    if (scheme == "rawfile") {
++        QString _fileName = url.path();
++        if (_fileName.startsWith("/"))
++            _fileName.remove(0, 1);
++        QByteArray byteArray = _fileName.toLatin1();
++        RawFile *file = OH_ResourceManager_OpenRawFile(m_resourceManager, byteArray.constData());
++        if (file != nullptr) {
++            RawFileDescriptor desc;
++            if (OH_ResourceManager_GetRawFileDescriptor(file, desc)) {
++                OH_AVPlayer_SetFDSource(m_player, desc.fd, desc.start, desc.length);
++                OH_ResourceManager_ReleaseRawFileDescriptor(desc);
++            }
++            OH_ResourceManager_CloseRawFile(file);
++        }
++    } else if (scheme == "file") {
++        QFile file(url.path());
++        if (file.open(QFile::ReadOnly)) {
++            int length = file.size();
++            int fd = file.handle();
++            OH_AVPlayer_SetFDSource(m_player, fd, 0, length);
++            file.close();
++        } else {
++            qWarning() << "Could not open media:" << file.errorString();
++            emit mediaStatusChanged(QMediaPlayer::InvalidMedia);
++        }
++    } else {
++        QString urlString = url.toString();
++        QByteArray dataArray = urlString.toLatin1();
++        OH_AVPlayer_SetURLSource(m_player, dataArray.constData());
++    }
++}
++
++void QOpenHarmonyPlayer::prepare()
++{
++    OH_AVPlayer_Prepare(m_player);
++}
++
++void QOpenHarmonyPlayer::setVolume(int volume)
++{
++    m_volume = volume;
++    OH_AVPlayer_SetVolume(m_player, m_volume / 100.0, m_volume / 100.0);
++}
++
++bool QOpenHarmonyPlayer::setPlaybackRate(qreal rate)
++{
++    AVPlaybackSpeed speed;
++    if (rate < 0.75)
++        speed = AV_SPEED_FORWARD_0_75_X;
++    else if (rate < 1.0)
++        speed = AV_SPEED_FORWARD_1_00_X;
++    else if (rate < 1.25)
++        speed = AV_SPEED_FORWARD_1_25_X;
++    else if (rate < 1.75)
++        speed = AV_SPEED_FORWARD_1_75_X;
++    else
++        speed = AV_SPEED_FORWARD_2_00_X;
++    return OH_AVPlayer_SetPlaybackSpeed(m_player, speed) == AV_ERR_OK;
++}
++
++void QOpenHarmonyPlayer::setDisplay(OHNativeWindow *window)
++{
++    if (window == nullptr)
++        return;
++    m_window = window;
++    if (m_state == AV_INITIALIZED) {
++        OH_AVPlayer_SetVideoSurface(m_player, m_window);
++        m_surfaceSetted = true;
++        OH_AVPlayer_Prepare(m_player);
++    }
++}
++
++OHNativeWindow *QOpenHarmonyPlayer::display() const
++{
++    return m_window;
++}
++
++void QOpenHarmonyPlayer::setErrorString(int code, const QString &errorString)
++{
++    emit error(code, errorString);
++}
++
++void QOpenHarmonyPlayer::setPlayerInfo(AVPlayerOnInfoType type, int32_t extra)
++{
++    switch(type) {
++    case AV_INFO_TYPE_STATE_CHANGE:
++        setState(extra);
++        break;
++    case AV_INFO_TYPE_RESOLUTION_CHANGE:
++        obtainVideoSize();
++        emit videoAvailableChanged(true);
++        break;
++    case AV_INFO_TYPE_DURATION_UPDATE:
++        emit durationChanged(extra);
++        break;
++    case AV_INFO_TYPE_POSITION_UPDATE:
++        emit progressChanged(extra);
++        break;
++    case AV_INFO_TYPE_BUFFERING_UPDATE:
++        emit bufferingChanged(extra);
++        break;
++    default:
++        break;
++    }
++}
++
++void QOpenHarmonyPlayer::setState(int32_t state)
++{
++    m_state = AVPlayerState (state);
++    switch(state) {
++    case AV_IDLE:
++        release();
++        break;
++    case AV_INITIALIZED: // avplayer 设置播放源后触发该状态上报
++        if (!m_surfaceSetted && m_window != nullptr) {
++             OH_AVPlayer_SetVideoSurface(m_player, m_window);
++             m_surfaceSetted = true;
++             prepare();
++        }
++        break;
++    case AV_PREPARED: // prepare调用成功后上报该状态机
++        obtainVideoSize();
++        mediaStatusChanged(QMediaPlayer::LoadedMedia);
++        if (m_isPendingPlaying) {
++            OH_AVPlayer_Play(m_player);
++        }
++        emit audioAvailableChanged(true);
++        emit seekableChanged(true);
++        break;
++    case AV_STOPPED:
++        emit seekableChanged(false);
++        break;
++    case AV_COMPLETED:
++        emit mediaStatusChanged(QMediaPlayer::EndOfMedia);
++        break;
++    case AV_RELEASED:
++        emit durationChanged(0);
++        emit progressChanged(0);
++
++        emit audioAvailableChanged(false);
++        emit videoAvailableChanged(false);
++        emit seekableChanged(true);
++        break;
++    default:
++        break;
++   }
++   stateChanged(state);
++}
++
++static napi_value setResourceManager(napi_env env, napi_callback_info info)
++{
++    size_t argc = 1;
++    napi_value args[1];
++    napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
++    if (argc != 1) {
++        return nullptr;
++    }
++    napi_valuetype type;
++    napi_typeof(env, args[0], &type);
++    QOpenHarmonyPlayer::m_resourceManager = OH_ResourceManager_InitNativeResourceManager(env, args[0]);
++    return nullptr;
++}
++
++void QOpenHarmonyPlayer::init(napi_env env, napi_value exports)
++{
++    napi_property_descriptor desc[] ={
++        {"setResourceManager", nullptr, setResourceManager, nullptr, nullptr, nullptr, napi_default, nullptr}
++    };
++    napi_define_properties(env, exports, sizeof(desc) / sizeof(desc[0]), desc);
++}
++
++void QOpenHarmonyPlayer::obtainVideoSize()
++{
++    int32_t w, h = 0;
++    OH_AVErrCode result = OH_AVPlayer_GetVideoWidth(m_player, &w);
++    if (result != AV_ERR_OK)
++        return;
++    result = OH_AVPlayer_GetVideoHeight(m_player, &h);
++    if (result != AV_ERR_OK)
++        return;
++    emit videoSizeChanged(w, h);
++}
++
++void QOpenHarmonyPlayer::onPlayerInfo(OH_AVPlayer *player, AVPlayerOnInfoType type, int32_t extra)
++{
++    QOpenHarmonyPlayer *p = mediaPlayers->value(player);
++    if (p == nullptr)
++        return;
++    p->setPlayerInfo(type, extra);
++}
++
++void QOpenHarmonyPlayer::onPlayerError(OH_AVPlayer *player, int32_t errorCode, const char *errorMsg)
++{
++    QOpenHarmonyPlayer *p = mediaPlayers->value(player);
++    if (p == nullptr)
++        return;
++    p->setErrorString(errorCode, QString::fromLatin1(errorMsg));
++}
++
++AVPlayerState QOpenHarmonyPlayer::state() const
++{
++    return m_state;
++}
++
++QT_END_NAMESPACE
+diff --git a/src/plugins/openharmony/src/player/qopenharmonyplayer.h b/src/plugins/openharmony/src/player/qopenharmonyplayer.h
+new file mode 100644
+index 000000000..39257ea80
+--- /dev/null
++++ b/src/plugins/openharmony/src/player/qopenharmonyplayer.h
+@@ -0,0 +1,78 @@
++#ifndef QOPENHARMONYPLAYER_H
++#define QOPENHARMONYPLAYER_H
++
++#include <multimedia/player_framework/avplayer.h>
++#include <napi/native_api.h>
++#include <QObject>
++#include <QtMultimedia/qmediaplayer.h>
++
++class QNetworkRequest;
++struct NativeResourceManager;
++
++class QOpenHarmonyPlayer : public QObject
++{
++    Q_OBJECT
++public:
++    QOpenHarmonyPlayer();
++    ~QOpenHarmonyPlayer();
++
++    void release();
++    void reset();
++
++    int getCurrentPosition();
++    int getDuration();
++    bool isPlaying();
++    int volume();
++    bool isMuted();
++    qreal playbackRate();
++
++    void play();
++    void pause();
++    void stop();
++    void seekTo(qint32 msec);
++    void setMuted(bool mute);
++    void setDataSource(const QNetworkRequest &request);
++    void prepare();
++    void setVolume(int volume);
++    bool setPlaybackRate(qreal rate);
++    void setDisplay(OHNativeWindow *window);
++    OHNativeWindow *display() const;
++
++
++    void setErrorString(int code, const QString &errorString);
++    void setPlayerInfo(AVPlayerOnInfoType type, int32_t extra);
++
++    AVPlayerState state() const;
++    void setState(int32_t state);
++
++    static void init(napi_env env, napi_value exports);
++    static NativeResourceManager *m_resourceManager;
++
++Q_SIGNALS:
++    void error(int code, const QString &errorString);
++    void bufferingChanged(qint32 percent);
++    void durationChanged(qint64 duration);
++    void progressChanged(qint64 progress);
++    void stateChanged(qint32 state);
++    void videoSizeChanged(qint32 width, qint32 height);
++    void audioAvailableChanged(bool available);
++    void videoAvailableChanged(bool available);
++    void seekableChanged(bool seekable);
++    void mediaStatusChanged(QMediaPlayer::MediaStatus status);
++private:
++    void obtainVideoSize();
++private:
++    static void onPlayerInfo(OH_AVPlayer *player, AVPlayerOnInfoType type, int32_t extra);
++    static void onPlayerError(OH_AVPlayer *player, int32_t errorCode, const char *errorMsg);
++private:
++    OH_AVPlayer *m_player = nullptr;
++    AVPlayerCallback m_playerCallback;
++    int m_volume = 0;
++    int m_volumeBeforeMute = 0;
++    OHNativeWindow *m_window = nullptr;
++    bool m_surfaceSetted = false;
++    AVPlayerState m_state;
++    bool m_isPendingPlaying = false;
++};
++
++#endif // QOPENHARMONYPLAYER_H
+diff --git a/src/plugins/openharmony/src/player/qopenharmonyplayercontrol.cpp b/src/plugins/openharmony/src/player/qopenharmonyplayercontrol.cpp
+new file mode 100644
+index 000000000..4b043e2da
+--- /dev/null
++++ b/src/plugins/openharmony/src/player/qopenharmonyplayercontrol.cpp
+@@ -0,0 +1,339 @@
++#include "qopenharmonyplayercontrol.h"
++#include "qopenharmonyplayerservice.h"
++#include "qopenharmonyplayer.h"
++#include "qopenharmonywindowcontrol.h"
++
++#include <QtCore/qcoreapplication.h>
++#include <QtCore/qmath.h>
++#include <qaudio.h>
++
++
++QOpenHarmonyPlayerControl::QOpenHarmonyPlayerControl(QObject *parent)
++    : QMediaPlayerControl(parent)
++{
++    m_player = new QOpenHarmonyPlayer();
++    connect(m_player,SIGNAL(bufferingChanged(qint32)),
++            this,SLOT(onBufferingChanged(qint32)));
++    connect(m_player,SIGNAL(error(int,QString)),
++            this,SLOT(onError(int,QString)));
++    connect(m_player,SIGNAL(stateChanged(qint32)),
++            this,SLOT(onStateChanged(qint32)));
++    connect(m_player,SIGNAL(videoSizeChanged(qint32,qint32)),
++            this,SLOT(onVideoSizeChanged(qint32,qint32)));
++    connect(m_player,SIGNAL(progressChanged(qint64)),
++            this,SIGNAL(positionChanged(qint64)));
++    connect(m_player,SIGNAL(durationChanged(qint64)),
++            this,SIGNAL(durationChanged(qint64)));
++    connect(m_player,SIGNAL(audioAvailableChanged(bool)),
++            this,SLOT(setAudioAvailable(bool)));
++    connect(m_player,SIGNAL(videoAvailableChanged(bool)),
++            this,SLOT(setVideoAvailable(bool)));
++    connect(m_player,SIGNAL(seekableChanged(bool)),
++            this,SLOT(setSeekable(bool)));
++    connect(m_player,SIGNAL(mediaStatusChanged(QMediaPlayer::MediaStatus)),
++            this,SLOT(setMediaStatus(QMediaPlayer::MediaStatus)));
++
++}
++
++QOpenHarmonyPlayerControl::~QOpenHarmonyPlayerControl()
++{
++    m_player->release();
++    delete m_player;
++}
++
++void QOpenHarmonyPlayerControl::setVideoOutput(QOpenHarmonyWindowControl *control)
++{
++    if (control == nullptr)
++        return;
++    m_control = control;
++    connect(m_control, &QOpenHarmonyWindowControl::windowCreated, this, &QOpenHarmonyPlayerControl::onWindowCreated);
++}
++
++QMediaPlayer::State QOpenHarmonyPlayerControl::state() const
++{
++     AVPlayerState state = m_player->state();
++     if (state == AV_PLAYING)
++         return QMediaPlayer::PlayingState;
++     else if (state == AV_PAUSED)
++         return QMediaPlayer::PausedState;
++     else
++         return QMediaPlayer::StoppedState;
++}
++
++QMediaPlayer::MediaStatus QOpenHarmonyPlayerControl::mediaStatus() const
++{
++    return m_status;
++}
++
++qint64 QOpenHarmonyPlayerControl::duration() const
++{
++    return m_player->getDuration();
++}
++
++qint64 QOpenHarmonyPlayerControl::position() const
++{
++    if (m_status == QMediaPlayer::EndOfMedia)
++        return duration();
++    return m_player->getCurrentPosition();
++}
++
++void QOpenHarmonyPlayerControl::setPosition(qint64 position)
++{
++    if (m_status == QMediaPlayer::EndOfMedia) {
++        m_status = QMediaPlayer::LoadedMedia;
++        emit mediaStatusChanged(m_status);
++    }
++    const int seekPosition = (position > INT_MAX) ? INT_MAX : position;
++
++    if (seekPosition == this->position())
++        return;
++
++    m_player->seekTo(seekPosition);
++
++    Q_EMIT positionChanged(seekPosition);
++}
++
++int QOpenHarmonyPlayerControl::volume() const
++{
++    return m_volume;
++}
++
++void QOpenHarmonyPlayerControl::setVolume(int volume)
++{
++    if (m_volume == volume)
++        return;
++    m_player->setVolume(volume);
++
++    Q_EMIT volumeChanged(volume);
++}
++
++bool QOpenHarmonyPlayerControl::isMuted() const
++{
++    return m_muted;
++}
++
++void QOpenHarmonyPlayerControl::setMuted(bool muted)
++{
++    if (m_muted == muted)
++        return;
++
++    m_player->setMuted(muted);
++
++    Q_EMIT mutedChanged(muted);
++}
++
++int QOpenHarmonyPlayerControl::bufferStatus() const
++{
++    return m_bufferFilled ? 100 : 0;
++}
++
++bool QOpenHarmonyPlayerControl::isAudioAvailable() const
++{
++    return m_audioAvailable;
++}
++
++bool QOpenHarmonyPlayerControl::isVideoAvailable() const
++{
++    return m_videoAvailable;
++}
++
++bool QOpenHarmonyPlayerControl::isSeekable() const
++{
++    return m_seekable;
++}
++
++QMediaTimeRange QOpenHarmonyPlayerControl::availablePlaybackRanges() const
++{
++    return m_availablePlaybackRange;
++}
++
++void QOpenHarmonyPlayerControl::updateAvailablePlaybackRanges()
++{
++    if (m_buffering) {
++        const qint64 pos = position();
++        const qint64 end = (duration() / 100) * m_bufferPercent;
++        m_availablePlaybackRange.addInterval(pos, end);
++    } else if (m_seekable) {
++        m_availablePlaybackRange = QMediaTimeRange(0, duration());
++    } else {
++        m_availablePlaybackRange = QMediaTimeRange();
++    }
++
++    Q_EMIT availablePlaybackRangesChanged(m_availablePlaybackRange);
++}
++
++qreal QOpenHarmonyPlayerControl::playbackRate() const
++{
++    return m_player->playbackRate();
++}
++
++void QOpenHarmonyPlayerControl::setPlaybackRate(qreal rate)
++{
++    if (m_player->setPlaybackRate(rate)) {
++        emit playbackRateChanged(rate);
++    }
++}
++
++QMediaContent QOpenHarmonyPlayerControl::media() const
++{
++    return m_media;
++}
++
++const QIODevice *QOpenHarmonyPlayerControl::mediaStream() const
++{
++    return m_stream;
++}
++
++void QOpenHarmonyPlayerControl::setMedia(const QMediaContent &media, QIODevice *stream)
++{
++    if (m_media == media && m_stream == stream)
++        return;
++
++    m_media = media;
++    m_stream = stream;
++    if (media.isNull()) {
++        m_status = QMediaPlayer::NoMedia;
++    } else {
++        m_status = QMediaPlayer::LoadingMedia;
++        m_player->setDataSource(media.request());
++        m_status = QMediaPlayer::LoadedMedia;
++    }
++
++    Q_EMIT mediaChanged(media);
++}
++
++void QOpenHarmonyPlayerControl::play()
++{
++    playOrPause(QMediaPlayer::PlayingState);
++}
++
++void QOpenHarmonyPlayerControl::pause()
++{
++    playOrPause(QMediaPlayer::PausedState);
++}
++
++void QOpenHarmonyPlayerControl::playOrPause(QMediaPlayer::State state)
++{
++    if (m_status == QMediaPlayer::NoMedia || state == QMediaPlayer::StoppedState)
++        return;
++    if (m_status == QMediaPlayer::InvalidMedia) {
++        setMedia(m_media, m_stream);
++        if (m_error != QMediaPlayer::NoError)
++            return;
++    }
++
++    if (state == QMediaPlayer::PausedState)
++        m_player->pause();
++    else
++        m_player->play();
++
++    emit stateChanged(state);
++}
++
++void QOpenHarmonyPlayerControl::stop()
++{
++    m_player->stop();
++    emit stateChanged(QMediaPlayer::StoppedState);
++}
++
++void QOpenHarmonyPlayerControl::setDisplay()
++{
++    m_player->setDisplay(m_control->nativeWindow());
++}
++
++QSize QOpenHarmonyPlayerControl::videoSize() const
++{
++    return m_videoSize;
++}
++
++void QOpenHarmonyPlayerControl::setSeekable(bool seekable)
++{
++    if (m_seekable == seekable)
++        return;
++
++    m_seekable = seekable;
++    Q_EMIT seekableChanged(m_seekable);
++}
++
++void QOpenHarmonyPlayerControl::setAudioAvailable(bool available)
++{
++    if (m_audioAvailable == available)
++        return;
++
++    m_audioAvailable = available;
++    Q_EMIT videoAvailableChanged(m_audioAvailable);
++}
++
++void QOpenHarmonyPlayerControl::setVideoAvailable(bool available)
++{
++    if (m_videoAvailable == available)
++        return;
++
++    m_videoAvailable = available;
++    Q_EMIT videoAvailableChanged(m_videoAvailable);
++}
++
++void QOpenHarmonyPlayerControl::onWindowCreated()
++{
++    setDisplay();
++}
++
++void QOpenHarmonyPlayerControl::onStateChanged(qint32)
++{
++    emit stateChanged(state());
++}
++
++void QOpenHarmonyPlayerControl::onVideoSizeChanged(qint32 width, qint32 height)
++{
++    QSize newSize(width, height);
++
++    if (width == 0 || height == 0 || newSize == m_videoSize)
++        return;
++
++    m_videoSize = newSize;
++}
++
++void QOpenHarmonyPlayerControl::setMediaStatus(QMediaPlayer::MediaStatus status)
++{
++    if (m_status == status)
++        return;
++
++    m_status = status;
++
++    if (status == QMediaPlayer::NoMedia || status == QMediaPlayer::InvalidMedia)
++        Q_EMIT durationChanged(0);
++
++    if (status == QMediaPlayer::EndOfMedia)
++        Q_EMIT positionChanged(position());
++
++    updateBufferStatus();
++}
++
++void QOpenHarmonyPlayerControl::updateBufferStatus()
++{
++    bool bufferFilled = (m_status == QMediaPlayer::BufferedMedia
++                         || m_status == QMediaPlayer::BufferingMedia);
++
++    if (m_bufferFilled != bufferFilled) {
++        m_bufferFilled = bufferFilled;
++        Q_EMIT bufferStatusChanged(bufferStatus());
++    }
++}
++
++void QOpenHarmonyPlayerControl::onBufferingChanged(qint32 percent)
++{
++    m_buffering = percent != 100;
++    m_bufferPercent = percent;
++
++    updateAvailablePlaybackRanges();
++
++    if (state() != QMediaPlayer::StoppedState)
++        setMediaStatus(m_buffering ? QMediaPlayer::BufferingMedia : QMediaPlayer::BufferedMedia);
++}
++
++void QOpenHarmonyPlayerControl::onError(int code, const QString &errorString)
++{
++    qWarning() <<"open harmony player error: " << code << errorString;
++    // Todo 鸿蒙errorCode和QMediaPlayer::Error对应
++    emit error(code, errorString);
++}
+diff --git a/src/plugins/openharmony/src/player/qopenharmonyplayercontrol.h b/src/plugins/openharmony/src/player/qopenharmonyplayercontrol.h
+new file mode 100644
+index 000000000..dedee7a0d
+--- /dev/null
++++ b/src/plugins/openharmony/src/player/qopenharmonyplayercontrol.h
+@@ -0,0 +1,97 @@
++#ifndef QOPENHARMONYPLAYERCONTROL_H
++#define QOPENHARMONYPLAYERCONTROL_H
++
++#include "qmediacontent.h"
++#include "qmediaplayercontrol.h"
++
++#include <QSize>
++#include <QtCore/qcoreevent.h>
++
++QT_BEGIN_NAMESPACE
++class QOpenHarmonyWindowControl;
++class QOpenHarmonyPlayer;
++
++class QOpenHarmonyPlayerControl : public QMediaPlayerControl
++{
++    Q_OBJECT
++public:
++    QOpenHarmonyPlayerControl(QObject *parent = nullptr);
++    ~QOpenHarmonyPlayerControl() override;
++
++    void setVideoOutput(QOpenHarmonyWindowControl *control);
++
++    QMediaPlayer::State state() const override;
++
++    QMediaPlayer::MediaStatus mediaStatus() const override;
++
++    qint64 duration() const override;
++
++    qint64 position() const override;
++    void setPosition(qint64 position) override;
++
++    int volume() const override;
++    void setVolume(int volume) override;
++
++    bool isMuted() const override;
++    void setMuted(bool muted) override;
++
++    int bufferStatus() const override;
++
++    bool isAudioAvailable() const override;
++    bool isVideoAvailable() const override;
++
++    bool isSeekable() const override;
++
++    QMediaTimeRange availablePlaybackRanges() const override;
++
++    qreal playbackRate() const override;
++    void setPlaybackRate(qreal rate) override;
++
++    QMediaContent media() const override;
++    const QIODevice *mediaStream() const override;
++    void setMedia(const QMediaContent &media, QIODevice *stream) override;
++
++    void play() override;
++    void pause() override;
++    void stop() override;
++
++    void setDisplay();
++
++    QSize videoSize() const;
++
++private slots:
++    void setSeekable(bool seekable);
++    void setAudioAvailable(bool available);
++    void setVideoAvailable(bool available);
++    void onWindowCreated();
++    void onStateChanged(qint32);
++    void onVideoSizeChanged(qint32, qint32 height);
++    void setMediaStatus(QMediaPlayer::MediaStatus status);
++    void onBufferingChanged(qint32 percent);
++    void onError(int code, const QString &errorString);
++private:
++    void updateAvailablePlaybackRanges();
++    void updateBufferStatus();
++    void playOrPause(QMediaPlayer::State state);
++    QOpenHarmonyWindowControl *m_control = nullptr;
++    QOpenHarmonyPlayer *m_player = nullptr;
++    QMediaPlayer::MediaStatus m_status = QMediaPlayer::NoMedia;
++    QMediaPlayer::Error m_error = QMediaPlayer::NoError;
++    QMediaTimeRange m_availablePlaybackRange;
++    QIODevice *m_stream = nullptr;
++    int m_volume = 100;
++    bool m_muted = false;
++    QMediaContent m_media;
++    QString m_errorString;
++    QSize m_videoSize;
++    bool m_seekable = true;
++    bool m_audioAvailable = false;
++    bool m_videoAvailable = false;
++    bool m_buffering = false;
++    bool m_bufferPercent = 0;
++    bool m_bufferFilled = false;
++};
++
++QT_END_NAMESPACE
++
++#endif
+diff --git a/src/plugins/openharmony/src/player/qopenharmonyplayerservice.cpp b/src/plugins/openharmony/src/player/qopenharmonyplayerservice.cpp
+new file mode 100644
+index 000000000..f2d1ed621
+--- /dev/null
++++ b/src/plugins/openharmony/src/player/qopenharmonyplayerservice.cpp
+@@ -0,0 +1,44 @@
++#include "qopenharmonyplayerservice.h"
++#include "qopenharmonyplayercontrol.h"
++#include "qopenharmonywindowcontrol.h"
++
++
++QT_BEGIN_NAMESPACE
++
++QOpenHarmonyPlayerService::QOpenHarmonyPlayerService(QObject *parent)
++    : QMediaService(parent)
++{
++    m_playerControl = new QOpenHarmonyPlayerControl(this);
++    m_videoWindowControl = new QOpenHarmonyWindowControl(this);
++    m_playerControl->setVideoOutput(m_videoWindowControl);
++    m_videoWindowControl->setPlayerControl(m_playerControl);
++}
++
++QOpenHarmonyPlayerService::~QOpenHarmonyPlayerService()
++{
++    delete m_playerControl;
++}
++
++QMediaControl *QOpenHarmonyPlayerService::requestControl(const char *name)
++{
++    if (qstrcmp(name, QMediaPlayerControl_iid) == 0)
++        return m_playerControl;
++    if (qstrcmp(name, QVideoWindowControl_iid) == 0) {
++        return m_videoWindowControl;
++    }
++    return nullptr;
++}
++
++void QOpenHarmonyPlayerService::releaseControl(QMediaControl *control)
++{
++    if (!control) {
++        qWarning("QMediaService::releaseControl():"
++                " Attempted release of null control");
++    } else if (control == m_videoWindowControl) {
++        delete m_videoWindowControl;
++
++        m_videoWindowControl = nullptr;
++    }
++}
++
++QT_END_NAMESPACE
+diff --git a/src/plugins/openharmony/src/player/qopenharmonyplayerservice.h b/src/plugins/openharmony/src/player/qopenharmonyplayerservice.h
+new file mode 100644
+index 000000000..ba322d56e
+--- /dev/null
++++ b/src/plugins/openharmony/src/player/qopenharmonyplayerservice.h
+@@ -0,0 +1,28 @@
++#ifndef QOPENHARMONYPLAYERSERVICE_H
++#define QOPENHARMONYPLAYERSERVICE_H
++
++#include "qmediaservice.h"
++
++QT_BEGIN_NAMESPACE
++
++class QOpenHarmonyPlayerControl;
++class QOpenHarmonyWindowControl;
++
++class QOpenHarmonyPlayerService : public QMediaService
++{
++    Q_OBJECT
++public:
++    QOpenHarmonyPlayerService(QObject *parent = nullptr);
++    ~QOpenHarmonyPlayerService() override;
++
++    QMediaControl *requestControl(const char *name) override;
++    void releaseControl(QMediaControl *control) override;
++
++private:
++    QOpenHarmonyPlayerControl *m_playerControl = nullptr;
++    QOpenHarmonyWindowControl *m_videoWindowControl = nullptr;
++};
++
++QT_END_NAMESPACE
++
++#endif
+diff --git a/src/plugins/openharmony/src/player/qopenharmonywindowcontrol.cpp b/src/plugins/openharmony/src/player/qopenharmonywindowcontrol.cpp
+new file mode 100644
+index 000000000..b2c998e61
+--- /dev/null
++++ b/src/plugins/openharmony/src/player/qopenharmonywindowcontrol.cpp
+@@ -0,0 +1,208 @@
++#include "qopenharmonywindowcontrol.h"
++#include <qopenharmonydefines.h>
++#include <QHash>
++#include "qopenharmonyplayercontrol.h"
++#include "qopenharmonywindowadapter.h"
++
++#ifndef QT_NO_WIDGETS
++#include <QtGui/QPalette>
++#include <QtWidgets/QWidget>
++#endif
++typedef QHash<QString, QOpenHarmonyWindowControl *> PlayerControls;
++Q_GLOBAL_STATIC(PlayerControls, g_controls)
++
++static QOpenHarmonyWindowControl *getControl(OH_NativeXComponent *component)
++{
++    char id[OH_XCOMPONENT_ID_LEN_MAX + 1] = { };
++    uint64_t id_length = OH_XCOMPONENT_ID_LEN_MAX + 1;
++
++    int32_t ret = OH_NativeXComponent_GetXComponentId(component, id, &id_length);
++    if (ret != OH_NATIVEXCOMPONENT_RESULT_SUCCESS) {
++        return nullptr;
++    }
++    LOGI("get player xcomponent succeded %{public}s", id);
++    QString name = QString::fromUtf8(id);
++    return g_controls->value(name);
++}
++
++QOpenHarmonyWindowControl::QOpenHarmonyWindowControl(QObject *parent)
++    : QVideoWindowControl(parent)
++{
++
++}
++
++QOpenHarmonyWindowControl::~QOpenHarmonyWindowControl()
++{
++    if (m_callback != nullptr)
++        delete m_callback;
++    g_controls->remove(m_name);
++}
++
++
++WId QOpenHarmonyWindowControl::winId() const
++{
++    return m_windowId;
++}
++
++void QOpenHarmonyWindowControl::setWinId(WId id)
++{
++    if (m_windowId == id)
++        return;
++    m_windowId = id;
++
++    static int componentId = 0;
++    QString componentIdStr = QString("player_component_id%1").arg(componentId++);
++    QString libName = "plugins_mediaservice_qtmedia_openharmony";
++    XComponentModel *model = new XComponentModel(componentIdStr.toStdString(), XComponentType::SURFACE, libName.toStdString());
++    NodeParams nodeParams("100%", "100%", "0", "0", NodeType::XComponent, model);
++    QOpenHarmonyWindowAdapter::AddChildNode(id, &nodeParams);
++    g_controls->insert(componentIdStr, this);
++    m_name = componentIdStr;
++}
++
++QRect QOpenHarmonyWindowControl::displayRect() const
++{
++    return m_displayRect;
++}
++
++void QOpenHarmonyWindowControl::setDisplayRect(const QRect &rect)
++{
++    m_displayRect = rect;
++}
++
++bool QOpenHarmonyWindowControl::isFullScreen() const
++{
++    return m_fullScreen;
++}
++
++void QOpenHarmonyWindowControl::setFullScreen(bool fullScreen)
++{
++    emit fullScreenChanged(m_fullScreen = fullScreen);
++}
++
++void QOpenHarmonyWindowControl::repaint()
++{
++
++}
++
++QSize QOpenHarmonyWindowControl::nativeSize() const
++{
++    return m_playerControl == nullptr ? QSize() : m_playerControl->videoSize();
++}
++
++Qt::AspectRatioMode QOpenHarmonyWindowControl::aspectRatioMode() const
++{
++    return m_aspectRatioMode;
++}
++
++void QOpenHarmonyWindowControl::setAspectRatioMode(Qt::AspectRatioMode mode)
++{
++    m_aspectRatioMode = mode;
++}
++
++int QOpenHarmonyWindowControl::brightness() const
++{
++    return m_brightness;
++}
++
++void QOpenHarmonyWindowControl::setBrightness(int brightness)
++{
++    m_brightness = brightness;
++
++    emit brightnessChanged(brightness);
++}
++
++int QOpenHarmonyWindowControl::contrast() const
++{
++    return m_contrast;
++}
++
++void QOpenHarmonyWindowControl::setContrast(int contrast)
++{
++    m_contrast = contrast;
++
++    emit contrastChanged(contrast);
++}
++
++int QOpenHarmonyWindowControl::hue() const
++{
++    return m_hue;
++}
++
++void QOpenHarmonyWindowControl::setHue(int hue)
++{
++    m_hue = hue;
++
++    emit hueChanged(hue);
++}
++
++int QOpenHarmonyWindowControl::saturation() const
++{
++    return m_saturation;
++}
++
++void QOpenHarmonyWindowControl::setSaturation(int saturation)
++{
++    m_saturation = saturation;
++
++    emit saturationChanged(saturation);
++}
++
++void QOpenHarmonyWindowControl::setNativeXComponent(OH_NativeXComponent *nativeXComponent)
++{
++    m_callback = new OH_NativeXComponent_Callback;
++    m_callback->OnSurfaceCreated = &QOpenHarmonyWindowControl::onSurfaceCreated;
++    int32_t ret = OH_NativeXComponent_RegisterCallback(nativeXComponent, m_callback);
++    if (ret != OH_NATIVEXCOMPONENT_RESULT_SUCCESS) {
++        LOGI("set surface touch callback failed");
++    }
++}
++
++void QOpenHarmonyWindowControl::setNativeWindow(OHNativeWindow *nativeWindow)
++{
++    m_nativeWindow = nativeWindow;
++    QMetaObject::invokeMethod(this, "windowCreated");
++}
++
++OHNativeWindow *QOpenHarmonyWindowControl::nativeWindow() const
++{
++    return m_nativeWindow;
++}
++
++void QOpenHarmonyWindowControl::setPlayerControl(QOpenHarmonyPlayerControl *control)
++{
++    if (control == nullptr)
++        return;
++    m_playerControl = control;
++}
++
++void QOpenHarmonyWindowControl::onSurfaceCreated(OH_NativeXComponent *component, void *window)
++{
++    if (component != nullptr) {
++        QOpenHarmonyWindowControl *control = getControl(component);
++        if (control == nullptr)
++            return;
++        OHNativeWindow *nativeWindow = static_cast<OHNativeWindow *>(window);
++        control->setNativeWindow(nativeWindow);
++    }
++}
++
++void QOpenHarmonyWindowControl::init(napi_env env, napi_value exports)
++{
++    napi_value exportInstance = nullptr;
++    OH_NativeXComponent *nativeXComponent = nullptr;
++    int32_t ret;
++    char idStr[OH_XCOMPONENT_ID_LEN_MAX + 1] = { };
++    uint64_t idSize = OH_XCOMPONENT_ID_LEN_MAX + 1;
++
++    if (napi_ok != napi_get_named_property(env, exports, OH_NATIVE_XCOMPONENT_OBJ, &exportInstance))
++        return;
++    if (napi_ok != napi_unwrap(env, exportInstance, reinterpret_cast<void**>(&nativeXComponent)))
++        return;
++    if (nativeXComponent != nullptr) {
++        QOpenHarmonyWindowControl *control = getControl(nativeXComponent);
++        if (control == nullptr)
++            return;
++        control->setNativeXComponent(nativeXComponent);
++    }
++}
+diff --git a/src/plugins/openharmony/src/player/qopenharmonywindowcontrol.h b/src/plugins/openharmony/src/player/qopenharmonywindowcontrol.h
+new file mode 100644
+index 000000000..cf1bfbadd
+--- /dev/null
++++ b/src/plugins/openharmony/src/player/qopenharmonywindowcontrol.h
+@@ -0,0 +1,75 @@
++#ifndef QOPENHARMONYWINDOWCONTROL_H
++#define QOPENHARMONYWINDOWCONTROL_H
++
++#include "qvideowindowcontrol.h"
++#include <napi/native_api.h>
++#include <multimedia/player_framework/avplayer.h>
++#include <ace/xcomponent/native_interface_xcomponent.h>
++
++struct OH_NativeXComponent;
++struct OH_NativeXComponent_Callback;
++QT_BEGIN_NAMESPACE
++class QOpenHarmonyPlayerControl;
++class QOpenHarmonyWindowControl : public QVideoWindowControl
++{
++    Q_OBJECT
++public:
++    QOpenHarmonyWindowControl(QObject *parent = nullptr);
++    ~QOpenHarmonyWindowControl() override;
++
++    WId winId() const override;
++    void setWinId(WId id) override;
++
++    QRect displayRect() const override;
++    void setDisplayRect(const QRect &rect) override;
++
++    bool isFullScreen() const override;
++    void setFullScreen(bool fullScreen) override;
++
++    void repaint() override;
++
++    QSize nativeSize() const override;
++
++    Qt::AspectRatioMode aspectRatioMode() const override;
++    void setAspectRatioMode(Qt::AspectRatioMode mode) override;
++
++    int brightness() const override;
++    void setBrightness(int brightness) override;
++
++    int contrast() const override;
++    void setContrast(int contrast) override;
++
++    int hue() const override;
++    void setHue(int hue) override;
++
++    int saturation() const override;
++    void setSaturation(int saturation) override;
++
++    void setNativeXComponent(OH_NativeXComponent *nativeXComponent);
++    void setNativeWindow(OHNativeWindow *nativeWindow);
++    OHNativeWindow *nativeWindow() const;
++
++    void setPlayerControl(QOpenHarmonyPlayerControl *control);
++    static void onSurfaceCreated(OH_NativeXComponent* component, void* window);
++    static void init(napi_env env, napi_value exports);
++
++signals:
++    void windowCreated();
++private:
++    WId m_windowId = 0;
++    OH_NativeXComponent_Callback *m_callback;
++    OHNativeWindow *m_nativeWindow = nullptr;
++    QString m_name;
++    Qt::AspectRatioMode m_aspectRatioMode = Qt::KeepAspectRatio;
++    QRect m_displayRect;
++    int m_brightness = 0;
++    int m_contrast = 0;
++    int m_hue = 0;
++    int m_saturation = 0;
++    bool m_fullScreen = false;
++    QOpenHarmonyPlayerControl *m_playerControl;
++};
++
++QT_END_NAMESPACE
++
++#endif
 diff --git a/src/plugins/openharmony/src/qopenharmonymediaserviceplugin.cpp b/src/plugins/openharmony/src/qopenharmonymediaserviceplugin.cpp
 new file mode 100644
-index 000000000..f7cc1314d
+index 000000000..e164db15b
 --- /dev/null
 +++ b/src/plugins/openharmony/src/qopenharmonymediaserviceplugin.cpp
-@@ -0,0 +1,101 @@
+@@ -0,0 +1,128 @@
 +#include <QLoggingCategory>
 +
 +#include "qcamera.h"
@@ -1194,6 +2500,9 @@ index 000000000..f7cc1314d
 +#include "mediacapture/qopenharmonycamerasession.h"
 +#include "mediacapture/qopenharmonycaptureservice.h"
 +#include "mediacapture/qopenharmonycamerainfocontrol.h"
++#include "qopenharmonyplayerservice.h"
++#include "player/qopenharmonyplayer.h"
++#include "player/qopenharmonywindowcontrol.h"
 +
 +QT_BEGIN_NAMESPACE
 +
@@ -1210,7 +2519,7 @@ index 000000000..f7cc1314d
 +QMediaService *QOPenHarmonyMediaServicePlugin::create(const QString &key)
 +{
 +    if (key == QLatin1String(Q_MEDIASERVICE_MEDIAPLAYER))
-+        return nullptr;
++        return new QOpenHarmonyPlayerService;
 +
 +    if (key == QLatin1String(Q_MEDIASERVICE_CAMERA)
 +            || key == QLatin1String(Q_MEDIASERVICE_AUDIOSOURCE)) {
@@ -1278,7 +2587,7 @@ index 000000000..f7cc1314d
 +
 +QCamera::Position QOPenHarmonyMediaServicePlugin::cameraPosition(const QByteArray &device) const
 +{
-+return QOPenHarmonyCameraInfoControl::position(device);
++    return QOPenHarmonyCameraInfoControl::position(device);
 +}
 +
 +int QOPenHarmonyMediaServicePlugin::cameraOrientation(const QByteArray &device) const
@@ -1287,6 +2596,30 @@ index 000000000..f7cc1314d
 +}
 +
 +QT_END_NAMESPACE
++
++
++EXTERN_C_START static napi_value Init(napi_env env, napi_value exports) {
++    static bool inited = false;
++    if (!inited) {
++        inited = true;
++        QOpenHarmonyPlayer::init(env, exports);
++    }
++    QOpenHarmonyWindowControl::init(env, exports);
++    return exports;
++}
++EXTERN_C_END
++
++static napi_module multiMediaModule = {
++    .nm_version = 1,
++    .nm_flags = 0,
++    .nm_filename = nullptr,
++    .nm_register_func = Init,
++    .nm_modname = "plugins_mediaservice_qtmedia_openharmony",
++    .nm_priv = ((void *)0),
++    .reserved = {0},
++};
++
++extern "C" __attribute__((constructor)) void RegisterModule(void) { napi_module_register(&multiMediaModule); }
 diff --git a/src/plugins/openharmony/src/qopenharmonymediaserviceplugin.h b/src/plugins/openharmony/src/qopenharmonymediaserviceplugin.h
 new file mode 100644
 index 000000000..340e0b7ba
@@ -1337,14 +2670,17 @@ index 000000000..340e0b7ba
 +#endif // QOPENHARMONYMEDIASERVICEPLUGIN_H
 diff --git a/src/plugins/openharmony/src/src.pro b/src/plugins/openharmony/src/src.pro
 new file mode 100644
-index 000000000..2ff2a0020
+index 000000000..fe23c3c9d
 --- /dev/null
 +++ b/src/plugins/openharmony/src/src.pro
-@@ -0,0 +1,20 @@
+@@ -0,0 +1,23 @@
 +include (wrappers/napi/napi.pri)
 +include (mediacapture/mediacapture.pri)
++include (player/player.pri)
 +
 +TARGET = qtmedia_openharmony
++
++LIBS += -lace_ndk.z -lavplayer -lrawfile.z
 +
 +QT += multimedia-private core-private network
 +
