@@ -16,14 +16,14 @@ OpenHarmony - Qt
 |__tests - 单元测试代码
 └───patch - 源码补丁
 |____v5.15.12
-│   	│ qt3d - qt3d子模块代码补丁
 │   	│ qtbase - qtbase子模块代码补丁
-│   	│ qtwebview - qtwebview子模块代码补丁
 │   	│ qtsensors - qtsensors子模块代码补丁
 │   	│ qtmultimedia - qtmultimedia子模块代码补丁
 │   	│ qtdeclarative - qtdeclarative子模块代码补丁
 │   	│ qtconnectivity - qtconnectivity子模块代码补丁
 │   	│ qtquickcontrols - qtquickcontrols子模块代码补丁
+└───apply-patch.bat Qt Patch应用脚本工具
+└───window_build.bat Qt for OpenHarmony 交叉编译脚本工具
 └───LICENSE.FDL - GNU Free Documentation License
 └───LICENSE.GPLv2 - GNU GENERAL PUBLIC LICENSE Version 2
 └───LICENSE.GPLv3 - GNU GENERAL PUBLIC LICENSE Version 3
