@@ -16,14 +16,14 @@ OpenHarmony - Qt
 |__tests - Unit test code
 └───patch - Source code patches
 |____v5.15.12
-│   	│ qt3d - qt3d sub-module code patch
 │   	│ qtbase - qtbase sub-module code patch
-│   	│ qtwebview - qtwebview sub-module code patch
 │   	│ qtsensors - qtsensors sub-module code patch
 │   	│ qtmultimedia - qtmultimedia sub-module code patch
 │   	│ qtdeclarative - qtdeclarative sub-module code patch
 │   	│ qtconnectivity - qtconnectivity sub-module code patch
 │   	│ qtquickcontrols - qtquickcontrols sub-module code patch
+└───apply-patch.bat Qt Patch Application Script Tool
+└───window_build.bat Qt for OpenHarmony Cross-Compilation Script Tool
 └───LICENSE.FDL - GNU Free Documentation License
 └───LICENSE.GPLv2 - GNU GENERAL PUBLIC LICENSE Version 2
 └───LICENSE.GPLv3 - GNU GENERAL PUBLIC LICENSE Version 3
