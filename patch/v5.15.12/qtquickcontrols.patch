@@ -1,5 +1,5 @@
 diff --git a/src/controls/plugin.cpp b/src/controls/plugin.cpp
-index 446357aa..94e7298a 100644
+index 446357aa..520f0645 100644
 --- a/src/controls/plugin.cpp
 +++ b/src/controls/plugin.cpp
 @@ -241,6 +241,11 @@ QString QtQuickControls1Plugin::fileLocation() const
@@ -7,9 +7,9 @@ index 446357aa..94e7298a 100644
  #ifdef Q_OS_ANDROID
      return "qrc:/android_rcc_bundle/qml/QtQuick/Controls";
 +#elif defined(Q_OS_OPENHARMONY) /* FIXME 鸿蒙对文件读取的路径做了限制 */
-+    if (Q_UNLIKELY(!qEnvironmentVariableIsEmpty("QT_HARMONY_CACHE_DIR"))) {
-+        const QString envImportPath = qEnvironmentVariable("QT_HARMONY_CACHE_DIR");
-+        return "file:" + envImportPath + "/Qt/qml/QtQuick/Controls";
++    if (Q_UNLIKELY(!qEnvironmentVariableIsEmpty("QT_HARMONY_QML_FILE_DIR"))) {
++        const QString envImportPath = qEnvironmentVariable("QT_HARMONY_QML_FILE_DIR");
++        return "file:" + envImportPath + "/QtQuick/Controls";
 +    }
  #else
  # ifndef QT_STATIC
@@ -37,7 +37,7 @@ index ef0878ce..5302d154 100644
  }
  
 diff --git a/src/dialogs/plugin.cpp b/src/dialogs/plugin.cpp
-index 4bc7d386..60c65ab9 100644
+index 4bc7d386..4f074ca0 100644
 --- a/src/dialogs/plugin.cpp
 +++ b/src/dialogs/plugin.cpp
 @@ -98,7 +98,7 @@ public:
@@ -64,7 +64,7 @@ index 4bc7d386..60c65ab9 100644
 +#ifdef Q_OS_OPENHARMONY
 +
 +        QString temp = baseUrl().toLocalFile();
-+        temp.replace(qEnvironmentVariable("QT_PLUGIN_PATH"), qEnvironmentVariable("QT_HARMONY_CACHE_DIR"));
++        temp.replace(qEnvironmentVariable("QT_PLUGIN_PATH") + "/qml", qEnvironmentVariable("QT_HARMONY_QML_FILE_DIR"));
 +#endif
          return m_useResources ?
  #ifdef Q_OS_ANDROID
