@@ -187,10 +187,10 @@ index 00000000..3fdb3db8
 +OTHER_FILES += $$templates.files
 diff --git a/src/plugins/sensors/openharmony/main.cpp b/src/plugins/sensors/openharmony/main.cpp
 new file mode 100644
-index 00000000..c14f6520
+index 00000000..b6507cde
 --- /dev/null
 +++ b/src/plugins/sensors/openharmony/main.cpp
-@@ -0,0 +1,222 @@
+@@ -0,0 +1,143 @@
 +#include <QDebug>
 +#include <QObject>
 +#include <qcompass.h>
@@ -225,45 +225,6 @@ index 00000000..c14f6520
 +#include "openharmonymagnetometer.h"
 +#include "openharmonyaccelerometer.h"
 +#include "QtCore/qopenharmonydefines.h"
-+#include "QtCore/qopenharmonyjsenvironment.h"
-+
-+
-+static napi_value DataAcception(napi_env env, napi_callback_info info)
-+{    
-+    size_t argc = 2;
-+    napi_value args[2] = { Q_NULLPTR };
-+    napi_get_cb_info(env, info, &argc, args , nullptr, nullptr);
-+
-+    if (argc != 2) {
-+        napi_throw_type_error(env, NULL, "Wrong number of arguments in DataAcception");
-+        return nullptr;
-+    }
-+    int64_t value0 = qJs::getInt64(args[0]);
-+    SensorBackendBase *backend = reinterpret_cast<SensorBackendBase *>(value0);
-+    if (backend == nullptr)
-+        return Q_NULLPTR;
-+
-+
-+    SensorBackendBase *sensor = reinterpret_cast<SensorBackendBase *>(value0);
-+    if (Q_NULLPTR == sensor)
-+        return Q_NULLPTR;
-+
-+    QByteArray data = qJs::getString(args[1]).toLocal8Bit();
-+    if (data.isEmpty())
-+        return Q_NULLPTR;
-+
-+    QJsonParseError err;
-+    const QJsonDocument &doc = QJsonDocument::fromJson(data, &err);
-+    if (QJsonParseError::NoError != err.error)
-+        return Q_NULLPTR;
-+
-+
-+    //sensor->dataReceived(doc.object());
-+    QMetaObject::invokeMethod(sensor, "dataReceived",
-+                              Qt::QueuedConnection,
-+                              Q_ARG(QJsonObject, doc.object()));
-+    return Q_NULLPTR;
-+}
 +
 +namespace {
 +const char OPenHarmonyCompassId[] = "openharmony.synthetic.compass";
@@ -372,55 +333,17 @@ index 00000000..c14f6520
 +    int m_accelerationModes = 0;
 +};
 +
-+/*
-+ * function for module exports
-+ */
-+EXTERN_C_START
-+static napi_value Init(napi_env env, napi_value exports)
-+{
-+    static bool inited = false;
-+    if (!inited) {
-+
-+        LOGI("init sensors module");
-+        napi_property_descriptor desc[] ={
-+            DECLARE_NAPI_FUNCTION("DataAcception", DataAcception),
-+        };
-+        NAPI_CALL(env, napi_define_properties(env, exports, sizeof(desc) / sizeof(desc[0]), desc));
-+        inited = true;
-+    }
-+    return exports;
-+}
-+EXTERN_C_END
-+
-+/*
-+ * Napi Module define
-+ */
-+static napi_module openharmonyQtSensorsModule = {
-+    .nm_version = 1,
-+    .nm_flags = 0,
-+    .nm_filename = nullptr,
-+    .nm_register_func = Init,
-+    .nm_modname = "openharmony_qt_sensors",
-+    .nm_priv = ((void*)0),
-+    .reserved = { 0 },
-+};
-+/*
-+ * Module register function
-+ */
-+extern "C" __attribute__((constructor)) void RegisterModule(void)
-+{
-+    napi_module_register(&openharmonyQtSensorsModule);
-+}
-+
 +#include "main.moc"
 diff --git a/src/plugins/sensors/openharmony/openharmony.pro b/src/plugins/sensors/openharmony/openharmony.pro
 new file mode 100644
-index 00000000..390e904c
+index 00000000..c6478994
 --- /dev/null
 +++ b/src/plugins/sensors/openharmony/openharmony.pro
-@@ -0,0 +1,36 @@
+@@ -0,0 +1,38 @@
 +TARGET = qtsensors_openharmony
-+QT = core sensors
++QT = core-private sensors
++
++LIBS += -lohsensor
 +
 +OTHER_FILES = plugin.json
 +
@@ -1134,109 +1057,302 @@ index 00000000..aa0907df
 +#endif // SENSORBACKEND_H
 diff --git a/src/plugins/sensors/openharmony/sensormanager.cpp b/src/plugins/sensors/openharmony/sensormanager.cpp
 new file mode 100644
-index 00000000..b368d556
+index 00000000..71e6cfee
 --- /dev/null
 +++ b/src/plugins/sensors/openharmony/sensormanager.cpp
-@@ -0,0 +1,114 @@
+@@ -0,0 +1,306 @@
++#include <QJsonDocument>
++#include <QJsonParseError>
++#include <QJsonObject>
++
++#include <sstream>
++#include <iomanip>
++#include <cctype>
++#include <cmath>
++
 +#include "sensormanager.h"
-+#include "QtCore/qopenharmonyjsobject.h"
-+#include "QtCore/qopenharmonyjsenvironment.h"
-+#include "QtCore/qopenharmonyjsobjectloader.h"
++#include "sensors/oh_sensor.h"
++#include <private/qopenharmony_p.h>
 +
-+JsSensor::JsSensor(const QString &uuid) : m_uuid(uuid)
-+      , m_jsSensor(Q_NULLPTR)
++JsSensor::JsSensor(const QString &uuid, SensorBackendBase *backend)
++    :QJsModule("@ohos.sensor")
++      , m_uuid(uuid)
++      , m_backend(backend)
 +{
-+
 +}
 +
 +JsSensor::~JsSensor()
 +{
-+    if (m_jsSensor)
-+        m_jsSensor->call<bool>("destroySensor", m_uuid);
++    delete m_backend;
++    m_backend = nullptr;
++}
++
++
++static int hertz2ns(int rate) {
++    if (rate == 0)
++        return 0;
++    return static_cast<int>(1.0 / rate * 1000000000);
++}
++
++static qreal ns2hertz(qreal ns) {
++    if (std::fabs(ns) < 1e-10 || ns < 0)
++        return 0.0;
++    return 1e9 / ns;
++}
++
++Napi::Object JsSensor::getSingleSensor(int id) const
++{
++    return QtOh::runOnJsUIThreadWithResult([&, this](){
++        return call("getSingleSensorSync", {Napi::Number::New(env(), id)}).As<Napi::Object>();
++    });
 +}
 +
 +qreal JsSensor::power(int id) const
 +{
-+    qreal p = m_jsSensor->call<qreal>("power", id);
-+    return p;
++    Napi::Object sensor = getSingleSensor(id);
++    return QtOh::runOnJsUIThreadWithResult([&](){
++        return sensor.Get("power").ToNumber().DoubleValue();
++    });
 +}
 +
 +QString JsSensor::name(int id) const
 +{
-+    QString n = m_jsSensor->call<QString>("sensorName", id);
-+    return n;
++    Napi::Object sensor = getSingleSensor(id);
++    return QtOh::runOnJsUIThreadWithResult([&](){
++        return QString::fromStdString(sensor.Get("sensorName").ToString());
++    });
 +}
 +
 +qreal JsSensor::maxRange(int id) const
 +{
-+    qreal r = m_jsSensor->call<qreal>("maxRange", id);
-+    return r;
++    Napi::Object sensor = getSingleSensor(id);
++    return QtOh::runOnJsUIThreadWithResult([&](){
++        return sensor.Get("maxRange").ToNumber().DoubleValue();
++    });
 +}
 +
 +qreal JsSensor::precision(int id) const
 +{
-+    qreal  accuracy = m_jsSensor->call<qreal>("precision", id);
-+    return accuracy;
++    Napi::Object sensor = getSingleSensor(id);
++    return QtOh::runOnJsUIThreadWithResult([&](){
++        return sensor.Get("precision").ToNumber().DoubleValue();
++    });
 +}
 +
 +QString JsSensor::vendorName(int id) const
 +{
-+    QString n = m_jsSensor->call<QString>("vendorName", id);
-+    return n;
++    Napi::Object sensor = getSingleSensor(id);
++    return QtOh::runOnJsUIThreadWithResult([&](){
++        return QString::fromStdString(sensor.Get("vendorName").ToString());
++    });
 +}
 +
 +QString JsSensor::description(int id) const
 +{
-+    QString des = m_jsSensor->call<QString>("description", id);
-+    return des;
++    Napi::Object sensor = getSingleSensor(id);
++    return QtOh::runOnJsUIThreadWithResult([&](){
++        return QString::fromStdString(sensor.Get("description").ToString());
++    });
 +}
 +
 +qreal JsSensor::minSamplePeriod(int id) const
 +{
-+    qreal p = m_jsSensor->call<qreal>("minSamplePeriod", id);
-+    return p;
++    Napi::Object sensor = getSingleSensor(id);
++    return QtOh::runOnJsUIThreadWithResult([&](){
++        return ns2hertz(sensor.Get("minSamplePeriod").ToNumber().DoubleValue());
++    });
 +}
 +
 +qreal JsSensor::maxSamplePeriod(int id) const
 +{
-+    qreal p = m_jsSensor->call<qreal>("maxSamplePeriod", id);
-+    return p;
++    Napi::Object sensor = getSingleSensor(id);
++    return QtOh::runOnJsUIThreadWithResult([&](){
++        return ns2hertz(sensor.Get("maxSamplePeriod").ToNumber().DoubleValue());
++    });
 +}
 +
 +QString JsSensor::firmwareVersion(int id) const
 +{
-+    QString v = m_jsSensor->call<QString>("firmwareVersion", id);
-+    return v;
++    Napi::Object sensor = getSingleSensor(id);
++    return QtOh::runOnJsUIThreadWithResult([&](){
++        return QString::fromStdString(sensor.Get("firmwareVersion").ToString());
++    });
 +}
 +
 +void JsSensor::stop(int id)
 +{
-+    m_jsSensor->callWithoutReturn("stop", id);
++    QtOh::runOnJsUIThreadNoWait([&, this](){
++        call("off", {Napi::Number::New(env(), id)});
++    });
++}
++
++static void escape_json_string(const std::string& input, std::ostringstream& output) {
++    for (char c : input) {
++        switch (c) {
++        case '"': output << "\\\""; break;
++        case '\\': output << "\\\\"; break;
++        case '/': output << "\\/"; break;
++        case '\b': output << "\\b"; break;
++        case '\f': output << "\\f"; break;
++        case '\n': output << "\\n"; break;
++        case '\r': output << "\\r"; break;
++        case '\t': output << "\\t"; break;
++        default:
++            if (static_cast<unsigned char>(c) < 0x20 || c == 0x7F) {
++                output << "\\u00"
++                       << std::hex << std::setw(2) << std::setfill('0')
++                       << static_cast<int>(static_cast<unsigned char>(c));
++            } else {
++                output << c;
++            }
++        }
++    }
++}
++
++static  void serialize_napi_value(const Napi::Value& val, std::ostringstream& output) {
++    Napi::Env env = val.Env();
++
++    if (val.IsString()) {
++        output << '"';
++        escape_json_string(val.As<Napi::String>().Utf8Value(), output);
++        output << '"';
++    }
++    else if (val.IsNumber()) {
++        double num = val.As<Napi::Number>().DoubleValue();
++        if (num == static_cast<int64_t>(num) &&
++            (num > 9007199254740991 || num < -9007199254740991)) {
++            output << '"' << static_cast<int64_t>(num) << '"';
++        } else {
++            output << num;
++        }
++    }
++    else if (val.IsBoolean()) {
++        output << (val.As<Napi::Boolean>() ? "true" : "false");
++    }
++    else if (val.IsNull() || val.IsUndefined()) {
++        output << "null";
++    }
++    else if (val.IsArray()) {
++        Napi::Array arr = val.As<Napi::Array>();
++        output << '[';
++        for (uint32_t i = 0; i < arr.Length(); i++) {
++            if (i > 0) output << ',';
++            serialize_napi_value(arr[i], output);
++        }
++        output << ']';
++    }
++    else if (val.IsObject()) {
++        if (val.IsBuffer()) {
++            output << "\"<Buffer>";
++            output << val.As<Napi::Buffer<char>>().Length();
++            output << " bytes>\"";
++        }else {
++            Napi::Object obj = val.As<Napi::Object>();
++            output << '{';
++
++            Napi::Array keys = obj.GetPropertyNames();
++            bool first = true;
++
++            for (uint32_t i = 0; i < keys.Length(); i++) {
++                Napi::Value key = keys[i];
++                if (!key.IsString()) continue;
++
++                std::string keyStr = key.As<Napi::String>().Utf8Value();
++                Napi::Value value = obj.Get(key);
++
++                // 跳过undefined值
++                if (value.IsUndefined()) continue;
++
++                if (!first) output << ',';
++                first = false;
++
++                output << '"';
++                escape_json_string(keyStr, output);
++                output << "\":";
++                serialize_napi_value(value, output);
++            }
++            output << '}';
++        }
++    }
++    else if (val.IsFunction()) {
++        output << "\"<Function>\"";
++    }
++    else if (val.IsPromise()) {
++        output << "\"<Promise>\"";
++    }
++    else {
++        output << "\"<UnsupportedType>\"";
++    }
++}
++
++static QByteArray convertNapiObjectToQByteArray(const Napi::Object& obj) {
++    std::ostringstream jsonStream;
++    jsonStream << std::boolalpha;
++
++    serialize_napi_value(obj, jsonStream);
++
++    std::string jsonStr = jsonStream.str();
++    return QByteArray(jsonStr.c_str(), jsonStr.size());
 +}
 +
 +void JsSensor::start(int id, int rate)
 +{
-+    m_jsSensor->callWithoutReturn("start", id, rate);
++    stop(id);
++    QtOh::runOnJsUIThreadNoWait([&, this](){
++        Napi::Function callback = Napi::Function::New(env(), [this](const Napi::CallbackInfo& info) {
++            Napi::Object responseData = info[0].As<Napi::Object>();
++            QByteArray jsonData = convertNapiObjectToQByteArray(responseData);
++            if(m_backend){
++                QJsonParseError err;
++                const QJsonDocument &doc = QJsonDocument::fromJson(jsonData, &err);
++                if (QJsonParseError::NoError == err.error){
++                    QMetaObject::invokeMethod((QObject *)m_backend, "dataReceived", Qt::QueuedConnection, Q_ARG(QJsonObject, doc.object()));
++                }
++            }
++        });
++        call("on", {Napi::Number::New(env(), id), callback, Napi::Number::New(env(), hertz2ns(rate))});
++    });
 +}
 +
 +QString JsSensor::hardwareVersion(int id) const
 +{
-+    QString hv = m_jsSensor->call<QString>("hardwareVersion", id);
-+    return hv;
++    Napi::Object sensor = getSingleSensor(id);
++    return QString::fromStdString(sensor.Get("hardwareVersion").ToString());
 +}
 +
-+SensorManager::SensorManager() {
++SensorManager::SensorManager()
++{
 +}
 +
 +QList<int> SensorManager::sensorIds() const
 +{
-+    QSharedPointer<QOpenHarmonyJsObject> jsSensorManager = qJsObjectLoader->create("JsSensorManager");
-+    QStringList ids = jsSensorManager->call<QStringList>("sensorIds");
 +    QList<int> ns;
-+    ns.reserve(ids.size());
-+    for (const auto &id : qAsConst(ids)) {
-+        ns.append(id.toInt());
++    uint32_t count = 0;
++    int32_t ret = OH_Sensor_GetInfos(nullptr, &count);
++    if (ret != SENSOR_SUCCESS) {
++        return ns;
 +    }
++    ns.reserve(count);
++
++    Sensor_Info **sensors = OH_Sensor_CreateInfos(count);
++    if (sensors == nullptr) {
++        return ns;
++    }
++    ret = OH_Sensor_GetInfos(sensors, &count);
++    if (ret != SENSOR_SUCCESS) {
++        return ns;
++    }
++
++    for (uint32_t i = 0; i < count; ++i) {
++        Sensor_Type sensorType;
++        ret = OH_SensorInfo_GetType(sensors[i], &sensorType);
++        if (ret != SENSOR_SUCCESS) {
++            return ns;
++        }
++        ns.append((int)sensorType);
++    }
++
++    OH_Sensor_DestroyInfos(sensors, count);
 +    return ns;
 +}
 +
@@ -1248,21 +1364,20 @@ index 00000000..b368d556
 +
 +QSharedPointer<JsSensor> SensorManager::createJsSensor(const QString &uuid, SensorBackendBase *backend)
 +{
-+    JsSensor *s = new JsSensor(uuid);
-+    s->m_jsSensor = qJsObjectLoader->create("JsSensor", uuid, QVariantList() << QVariant(qlonglong(backend)));
++    JsSensor *s = new JsSensor(uuid, backend);
 +    return QSharedPointer<JsSensor>(s);
 +}
 diff --git a/src/plugins/sensors/openharmony/sensormanager.h b/src/plugins/sensors/openharmony/sensormanager.h
 new file mode 100644
-index 00000000..47c14df7
+index 00000000..e90d777f
 --- /dev/null
 +++ b/src/plugins/sensors/openharmony/sensormanager.h
-@@ -0,0 +1,65 @@
+@@ -0,0 +1,68 @@
 +#ifndef SENSORMANAGER_H
 +#define SENSORMANAGER_H
 +
 +#include <QSharedPointer>
-+#include <napi/native_api.h>
++#include <QJsModule>
 +
 +/* NOTE 鸿蒙和Qt传感器匹配的项
 + * Qt对前端传感器模块进行了封装
@@ -1285,16 +1400,14 @@ index 00000000..47c14df7
 +};
 +
 +class SensorBackendBase;
-+class QOpenHarmonyJsObject;
 +
-+class JsSensor
++class JsSensor : public QJsModule
 +{
 +    QString m_uuid;
-+    QSharedPointer<QOpenHarmonyJsObject> m_jsSensor;
 +
 +    friend class SensorManager;
 +public:
-+    JsSensor(const QString &uuid);
++    JsSensor(const QString &uuid, SensorBackendBase *backend);
 +    ~JsSensor();
 +
 +    qreal power(int id) const;
@@ -1310,6 +1423,11 @@ index 00000000..47c14df7
 +
 +    void stop(int id);
 +    void start(int id, int rate);
++
++private:
++    Napi::Object getSingleSensor(int id) const;
++
++    SensorBackendBase *m_backend;
 +};
 +
 +class SensorManager
@@ -1346,6 +1464,75 @@ index 7fce2071..8037ffc4 100644
  isEmpty(SENSORS_PLUGINS)|contains(SENSORS_PLUGINS, sensorfw):sensorfw:SUBDIRS += sensorfw
  isEmpty(SENSORS_PLUGINS)|contains(SENSORS_PLUGINS, sensortag):linux:SUBDIRS += sensortag
  isEmpty(SENSORS_PLUGINS)|contains(SENSORS_PLUGINS, ios):darwin:SUBDIRS += ios
+diff --git a/src/sensors/qsensormanager.cpp b/src/sensors/qsensormanager.cpp
+index 425a87b9..287c0fbb 100644
+--- a/src/sensors/qsensormanager.cpp
++++ b/src/sensors/qsensormanager.cpp
+@@ -53,7 +53,10 @@ QT_BEGIN_NAMESPACE
+ typedef QHash<QByteArray,QSensorBackendFactory*> FactoryForIdentifierMap;
+ typedef QHash<QByteArray,FactoryForIdentifierMap> BackendIdentifiersForTypeMap;
+ 
+-static QLoggingCategory sensorsCategory("qt.sensors");
++#ifndef Q_OS_OPENHARMONY
++ 	static QLoggingCategory sensorsCategory("qt.sensors");
++#endif
++
+ 
+ class QSensorManagerPrivate : public QObject
+ {
+@@ -101,14 +104,14 @@ public:
+         if (config.isEmpty()) return; // QStandardPaths is broken?
+         config += QLatin1String("/QtProject/Sensors.conf");
+ #endif
+-        qCDebug(sensorsCategory) << "Loading config from" << config;
++        qDebug() << "Loading config from" << config;
+         if (!QFile::exists(config)) {
+-            qCDebug(sensorsCategory) << "There is no config file" << config;
++            qDebug() << "There is no config file" << config;
+             return;
+         }
+         QFile cfgfile(config);
+         if (!cfgfile.open(QFile::ReadOnly)) {
+-            qCWarning(sensorsCategory) << "Can't open config file" << config;
++            qWarning() << "Can't open config file" << config;
+             return;
+         }
+ 
+@@ -176,9 +179,9 @@ Q_GLOBAL_STATIC(QSensorManagerPrivate, sensorManagerPrivate)
+ 
+ static void initPlugin(QObject *o, bool warnOnFail = true)
+ {
+-    qCDebug(sensorsCategory) << "Init plugin" << o;
++    qDebug() << "Init plugin" << o;
+     if (!o) {
+-        qCWarning(sensorsCategory) << "Null plugin" << o;
++        qWarning() << "Null plugin" << o;
+         return;
+     }
+ 
+@@ -186,7 +189,7 @@ static void initPlugin(QObject *o, bool warnOnFail = true)
+     if (!d) return; // hardly likely but just in case...
+ 
+     if (d->seenPlugins.contains(o)) {
+-        qCDebug(sensorsCategory) << "Plugin is seen" << o;
++        qDebug() << "Plugin is seen" << o;
+         return;
+     }
+ 
+@@ -197,11 +200,11 @@ static void initPlugin(QObject *o, bool warnOnFail = true)
+     QSensorPluginInterface *plugin = qobject_cast<QSensorPluginInterface*>(o);
+ 
+     if (plugin) {
+-        qCDebug(sensorsCategory) << "Register sensors for " << plugin;
++        qDebug() << "Register sensors for " << plugin;
+         d->seenPlugins.insert(o);
+         plugin->registerSensors();
+     } else if (warnOnFail) {
+-        qCWarning(sensorsCategory) << "Can't cast to plugin" << o;
++        qWarning() << "Can't cast to plugin" << o;
+     }
+ }
+ 
 diff --git a/src/src.pro b/src/src.pro
 index b3aa7ba0..df12cad0 100644
 --- a/src/src.pro
