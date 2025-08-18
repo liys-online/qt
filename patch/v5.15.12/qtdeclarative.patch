@@ -122,7 +122,7 @@ index 465a342129..36a383cd4d 100644
  }
  
 diff --git a/src/qml/qml/qqmlimport.cpp b/src/qml/qml/qqmlimport.cpp
-index e7263d1850..1409bcb993 100644
+index e7263d1850..f4b3da20f7 100644
 --- a/src/qml/qml/qqmlimport.cpp
 +++ b/src/qml/qml/qqmlimport.cpp
 @@ -95,7 +95,7 @@ QString resolveLocalUrl(const QString &url, const QString &relative)
@@ -718,8 +718,8 @@ index e7263d1850..1409bcb993 100644
 + */
 +#if defined(Q_OS_OPENHARMONY)
 +    addImportPath(QStringLiteral("qrc:/harmony_rcc_bundle/qml"));
-+    if (Q_UNLIKELY(!qEnvironmentVariableIsEmpty("QT_HARMONY_BUNDLED_LIBS_PATH"))) {
-+        const QString envImportPath = qEnvironmentVariable("QT_HARMONY_BUNDLED_LIBS_PATH");
++    if (Q_UNLIKELY(!qEnvironmentVariableIsEmpty("QT_HARMONY_QML_PLUGINS_PATH"))) {
++        const QString envImportPath = qEnvironmentVariable("QT_HARMONY_QML_PLUGINS_PATH");
 +        QLatin1Char pathSep(':');
 +        QStringList paths = envImportPath.split(pathSep, Qt::SkipEmptyParts);
 +        for (int ii = paths.count() - 1; ii >= 0; --ii)
@@ -763,12 +763,12 @@ index e7263d1850..1409bcb993 100644
 -        // hack for resources, should probably go away
 +        }
 +/* FIXME 因为鸿蒙安全限制,QML脚本和扩展插件加载路径有区别
-+ * 使用环境变量QT_HARMONY_BUNDLED_LIBS_PATH的值替换鸿蒙rawfile资源文件的路径
++ * 使用环境变量QT_HARMONY_QML_PLUGINS_PATH的值替换鸿蒙rawfile资源文件的路径
 + * 用以qml扩展插件的加载
 + */
 +#if defined(Q_OS_OPENHARMONY)
-+        if (Q_UNLIKELY(!qEnvironmentVariableIsEmpty("QT_HARMONY_CACHE_DIR"))) {
-+            QString cacheQmlStr = qEnvironmentVariable("QT_HARMONY_CACHE_DIR");
++        if (Q_UNLIKELY(!qEnvironmentVariableIsEmpty("QT_HARMONY_QML_FILE_DIR"))) {
++            QString cacheQmlStr = qEnvironmentVariable("QT_HARMONY_QML_FILE_DIR");
 +            resolvedPath = QString(qmldirPath).replace(cacheQmlStr, pluginPath);
 +        }
 +#endif
@@ -1039,6 +1039,32 @@ index 01aba47a9a..96bce3548a 100644
      if (isResource) {
          // qrc resource
          QFileInfo fileInfo(path);
+diff --git a/src/quick/items/qquickevents_p_p.h b/src/quick/items/qquickevents_p_p.h
+index 7004b341de..635b8ce6e1 100644
+--- a/src/quick/items/qquickevents_p_p.h
++++ b/src/quick/items/qquickevents_p_p.h
+@@ -256,6 +256,21 @@ public:
+ 
+     bool isAccepted() { return _accepted; }
+     void setAccepted(bool accepted) { _accepted = accepted; }
++#ifdef Q_OS_OPENHARMONY
++#if OHOS_SDK_VERSION >= 15
++    enum CloseReason {
++        UnKnown,
++        WindowClose,
++        AbilityClose,
++        InternalClose
++    };
++    Q_ENUM(CloseReason)
++    CloseReason closeReason() { return _reason; }
++    void setCloseReason(CloseReason reason) { _reason = reason; }
++private:
++    CloseReason _reason;
++#endif
++#endif
+ 
+ private:
+     bool _accepted = true;
 diff --git a/src/quick/items/qquicklistview.cpp b/src/quick/items/qquicklistview.cpp
 index 1001b34c3c..46b37a4d3b 100644
 --- a/src/quick/items/qquicklistview.cpp
@@ -1056,22 +1082,10 @@ index 1001b34c3c..46b37a4d3b 100644
          pos = static_cast<const QMouseEvent *>(event)->localPos();
          break;
 diff --git a/src/quick/items/qquickwindow.cpp b/src/quick/items/qquickwindow.cpp
-index 8ab69603ad..119bcdfef0 100644
+index 8ab69603ad..07b804c8ef 100644
 --- a/src/quick/items/qquickwindow.cpp
 +++ b/src/quick/items/qquickwindow.cpp
-@@ -44,6 +44,11 @@
- #include "qquickitem_p.h"
- #include "qquickevents_p_p.h"
- 
-+#ifdef USE_MASK
-+#include "qquicktext_p.h"
-+#include <private/qquicktext_p_p.h>
-+#endif
-+
- #if QT_CONFIG(quick_draganddrop)
- #include <private/qquickdrag_p.h>
- #endif
-@@ -686,7 +691,6 @@ void QQuickWindowPrivate::init(QQuickWindow *c, QQuickRenderControl *control)
+@@ -686,7 +686,6 @@ void QQuickWindowPrivate::init(QQuickWindow *c, QQuickRenderControl *control)
  {
      q_ptr = c;
  
@@ -1079,20 +1093,46 @@ index 8ab69603ad..119bcdfef0 100644
      Q_Q(QQuickWindow);
  
      contentItem = new QQuickRootItem;
-@@ -698,6 +702,16 @@ void QQuickWindowPrivate::init(QQuickWindow *c, QQuickRenderControl *control)
-     contentItemPrivate->flags |= QQuickItem::ItemIsFocusScope;
-     contentItem->setSize(q->size());
- 
-+#ifdef USE_MASK
-+    QQuickText *mask = new QQuickText(contentItem);
-+    mask->setColor(QColor(Qt::red));
-+    mask->setText("managed by isoftstone");
-+    mask->setZ(std::numeric_limits<qreal>::max());
-+    QQuickTextPrivate *maskPrivate = QQuickTextPrivate::get(mask);
-+    maskPrivate->anchors()->setRight(contentItemPrivate->right());
-+    maskPrivate->anchors()->setBottom(contentItemPrivate->bottom());
+@@ -1845,6 +1844,13 @@ bool QQuickWindow::event(QEvent *e)
+         // closeEvent(static_cast<QCloseEvent *>(e));
+         QQuickCloseEvent qev;
+         qev.setAccepted(e->isAccepted());
++#ifdef Q_OS_OPENHARMONY
++#if OHOS_SDK_VERSION >= 15
++        if (auto closeEvent = static_cast<QCloseEvent *>(e)) {
++            qev.setCloseReason(QQuickCloseEvent::CloseReason(closeEvent->closeReason()));
++        }
 +#endif
-+
-     customRenderMode = qgetenv("QSG_VISUALIZE");
-     renderControl = control;
-     if (renderControl)
++#endif
+         emit closing(&qev);
+         e->setAccepted(qev.isAccepted());
+         } break;
+diff --git a/src/quick/scenegraph/qsgthreadedrenderloop.cpp b/src/quick/scenegraph/qsgthreadedrenderloop.cpp
+index d47b0d72a5..52ae6b3b95 100644
+--- a/src/quick/scenegraph/qsgthreadedrenderloop.cpp
++++ b/src/quick/scenegraph/qsgthreadedrenderloop.cpp
+@@ -407,7 +407,16 @@ bool QSGRenderThread::event(QEvent *e)
+         window = se->window;
+         windowSize = se->size;
+         dpr = se->dpr;
+-
++#ifdef Q_OS_OPENHARMONY
++        QPlatformWindow *pw = window->handle();
++        if (nullptr != pw) {
++            const QSize &xcSize = pw->xcomponentSize();
++            if (xcSize.isValid() && xcSize != windowSize) {
++                windowSize = xcSize;
++            }
++        }
++        qCWarning(QSG_LOG_RENDERLOOP) << "WM_RequestSync windowSize: " << windowSize;
++#endif
+         pendingUpdate |= SyncRequest;
+         if (se->syncInExpose) {
+             qCDebug(QSG_LOG_RENDERLOOP, QSG_RT_PAD, "- triggered from expose");
+diff --git a/tests/auto/qml/ecmascripttests/test262 b/tests/auto/qml/ecmascripttests/test262
+index 6b0c42c63c..a0efb7e1ab 160000
+--- a/tests/auto/qml/ecmascripttests/test262
++++ b/tests/auto/qml/ecmascripttests/test262
+@@ -1 +1 @@
+-Subproject commit 6b0c42c63c2492bd0a7a96d3179d122b5f71793f
++Subproject commit a0efb7e1ab1cee24c387abe1897ff18fa116c17d
