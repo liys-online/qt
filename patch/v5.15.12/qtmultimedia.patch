@@ -2119,13 +2119,14 @@ index 000000000..a3841d703
 +}
 diff --git a/src/plugins/openharmony/src/mediacapture/mediacapture.pri b/src/plugins/openharmony/src/mediacapture/mediacapture.pri
 new file mode 100644
-index 000000000..17a0acdf0
+index 000000000..594b81b09
 --- /dev/null
 +++ b/src/plugins/openharmony/src/mediacapture/mediacapture.pri
-@@ -0,0 +1,30 @@
+@@ -0,0 +1,32 @@
 +INCLUDEPATH += $$PWD
 +
 +HEADERS += \
++    $$PWD/qohcameraimagecapturecontrol.h \
 +    $$PWD/qohcamerarendercontrol.h \
 +    $$PWD/qopenharmonyaudioencodercontrol.h \
 +    $$PWD/qopenharmonycameracontrol.h \
@@ -2140,6 +2141,7 @@ index 000000000..17a0acdf0
 +    $$PWD/qopenharmonyviewfindersettingscontrol2.h
 +
 +SOURCES += \
++    $$PWD/qohcameraimagecapturecontrol.cpp \
 +    $$PWD/qohcamerarendercontrol.cpp \
 +    $$PWD/qopenharmonyaudioencodercontrol.cpp \
 +    $$PWD/qopenharmonycameracontrol.cpp \
@@ -2153,17 +2155,99 @@ index 000000000..17a0acdf0
 +    $$PWD/qopenharmonyvideoencodercontrol.cpp \
 +    $$PWD/qopenharmonyviewfindersettingscontrol2.cpp
 +
+diff --git a/src/plugins/openharmony/src/mediacapture/qohcameraimagecapturecontrol.cpp b/src/plugins/openharmony/src/mediacapture/qohcameraimagecapturecontrol.cpp
+new file mode 100644
+index 000000000..1cb3206b0
+--- /dev/null
++++ b/src/plugins/openharmony/src/mediacapture/qohcameraimagecapturecontrol.cpp
+@@ -0,0 +1,40 @@
++#include "qohcameraimagecapturecontrol.h"
++#include "qopenharmonycamerasession.h"
++
++QOHCameraImageCaptureControl::QOHCameraImageCaptureControl(QOPenHarmonyCameraSession *session)
++    :QCameraImageCaptureControl()
++      , m_session(session)
++{
++    connect(m_session, SIGNAL(readyForCaptureChanged(bool)), this, SIGNAL(readyForCaptureChanged(bool)));
++    connect(m_session, SIGNAL(imageExposed(int)), this, SIGNAL(imageExposed(int)));
++    connect(m_session, SIGNAL(imageCaptured(int,QImage)), this, SIGNAL(imageCaptured(int,QImage)));
++    connect(m_session, SIGNAL(imageMetadataAvailable(int,QString,QVariant)), this, SIGNAL(imageMetadataAvailable(int,QString,QVariant)));
++    connect(m_session, SIGNAL(imageAvailable(int,QVideoFrame)), this, SIGNAL(imageAvailable(int,QVideoFrame)));
++    connect(m_session, SIGNAL(imageSaved(int,QString)), this, SIGNAL(imageSaved(int,QString)));
++    connect(m_session, SIGNAL(imageCaptureError(int,int,QString)), this, SIGNAL(error(int,int,QString)));
++}
++
++bool QOHCameraImageCaptureControl::isReadyForCapture() const
++{
++    return true;
++}
++
++QCameraImageCapture::DriveMode QOHCameraImageCaptureControl::driveMode() const
++{
++    return m_session->driveMode();
++}
++
++void QOHCameraImageCaptureControl::setDriveMode(QCameraImageCapture::DriveMode mode)
++{
++    m_session->setDriveMode(mode);
++}
++
++int QOHCameraImageCaptureControl::capture(const QString &fileName)
++{
++    return m_session->capture(fileName);
++}
++
++void QOHCameraImageCaptureControl::cancelCapture()
++{
++    m_session->cancelCapture();
++}
+diff --git a/src/plugins/openharmony/src/mediacapture/qohcameraimagecapturecontrol.h b/src/plugins/openharmony/src/mediacapture/qohcameraimagecapturecontrol.h
+new file mode 100644
+index 000000000..446f085fe
+--- /dev/null
++++ b/src/plugins/openharmony/src/mediacapture/qohcameraimagecapturecontrol.h
+@@ -0,0 +1,29 @@
++#ifndef QOHCAMERAIMAGECAPTURECONTROL_H
++#define QOHCAMERAIMAGECAPTURECONTROL_H
++
++#include <QCameraImageCaptureControl>
++
++QT_BEGIN_NAMESPACE
++
++class QOPenHarmonyCameraSession;
++
++class QOHCameraImageCaptureControl : public QCameraImageCaptureControl
++{
++    Q_OBJECT
++public:
++    explicit QOHCameraImageCaptureControl(QOPenHarmonyCameraSession *session);
++
++    bool isReadyForCapture() const override;
++
++    QCameraImageCapture::DriveMode driveMode() const override;
++    void setDriveMode(QCameraImageCapture::DriveMode mode) override;
++
++    int capture(const QString &fileName) override;
++    void cancelCapture() override;
++
++private:
++    QOPenHarmonyCameraSession *m_session;
++};
++
++QT_END_NAMESPACE
++#endif // QOHCAMERAIMAGECAPTURECONTROL_H
 diff --git a/src/plugins/openharmony/src/mediacapture/qohcamerarendercontrol.cpp b/src/plugins/openharmony/src/mediacapture/qohcamerarendercontrol.cpp
 new file mode 100644
-index 000000000..61f2ffbd9
+index 000000000..5d9ec0f73
 --- /dev/null
 +++ b/src/plugins/openharmony/src/mediacapture/qohcamerarendercontrol.cpp
-@@ -0,0 +1,43 @@
+@@ -0,0 +1,44 @@
 +#include <arkui/native_node.h>
 +#include <arkui/native_type.h>
 +#include <arkui/native_interface.h>
 +
 +#include "qohcamerarendercontrol.h"
++#include "qopenharmonycamerasession.h"
 +
 +QT_BEGIN_NAMESPACE
 +
@@ -2204,17 +2288,18 @@ index 000000000..61f2ffbd9
 +QT_BEGIN_NAMESPACE
 diff --git a/src/plugins/openharmony/src/mediacapture/qohcamerarendercontrol.h b/src/plugins/openharmony/src/mediacapture/qohcamerarendercontrol.h
 new file mode 100644
-index 000000000..1f4060f9e
+index 000000000..7ba9c06cd
 --- /dev/null
 +++ b/src/plugins/openharmony/src/mediacapture/qohcamerarendercontrol.h
-@@ -0,0 +1,27 @@
+@@ -0,0 +1,28 @@
 +#ifndef QOHCAMERARENDERCONTROL_H
 +#define QOHCAMERARENDERCONTROL_H
 +
 +#include <qvideorenderercontrol.h>
-+#include "qopenharmonycamerasession.h"
 +
 +QT_BEGIN_NAMESPACE
++
++class QOPenHarmonyCameraSession;
 +
 +class QOHCameraRenderControl : public QVideoRendererControl
 +{
@@ -2595,24 +2680,25 @@ index 000000000..f58accd1c
 +#endif // QOPENHARMONYCAMERAINFOCONTROL_H
 diff --git a/src/plugins/openharmony/src/mediacapture/qopenharmonycamerasession.cpp b/src/plugins/openharmony/src/mediacapture/qopenharmonycamerasession.cpp
 new file mode 100644
-index 000000000..655202cbb
+index 000000000..d0a4c078a
 --- /dev/null
 +++ b/src/plugins/openharmony/src/mediacapture/qopenharmonycamerasession.cpp
-@@ -0,0 +1,847 @@
+@@ -0,0 +1,1041 @@
 +#include "qopenharmonycamerasession.h"
++#include "openharmonymultimediautils.h"
 +#include <qelapsedtimer.h>
++#include <qfile.h>
 +
 +#include <QAbstractVideoSurface>
 +#include <QtMultimedia/qvideosurfaceformat.h>
++#include <QtConcurrent/qtconcurrentrun.h>
 +
-+#include "hilog/log.h"
 +#include "ohcamera/camera.h"
 +#include "ohcamera/camera_input.h"
 +#include "ohcamera/capture_session.h"
 +#include "ohcamera/photo_output.h"
 +#include "ohcamera/preview_output.h"
 +#include "ohcamera/video_output.h"
-+#include "napi/native_api.h"
 +#include "ohcamera/camera_manager.h"
 +#include <qguiapplication.h>
 +
@@ -2633,12 +2719,96 @@ index 000000000..655202cbb
 +        p_cameraSession->onReceiverCallback(receiver);
 +}
 +
++QVideoFrame imageNativeToVideoFrame(OH_ImageNative *image, Camera_Format fromat) {
++    // 获取图像的宽和高
++    Image_Size imgSize;
++    Image_ErrorCode errCode = OH_ImageNative_GetImageSize(image, &imgSize);
++    if (errCode != IMAGE_SUCCESS) {
++        qWarning() << "Failed to get image size, error code:" << errCode;
++        return QVideoFrame();
++    }
++
++           // 获取组件类型的数量（假设组件列表的第一个元素是有效的）
++    size_t componentTypeSize = 0;
++    uint32_t* components = new uint32_t[componentTypeSize];
++    errCode = OH_ImageNative_GetComponentTypes(image, &components, &componentTypeSize);
++    if (errCode != IMAGE_SUCCESS || componentTypeSize == 0) {
++        qWarning() << "Failed to get image component types, error code:" << errCode;
++        return QVideoFrame();
++    }
++
++           // 读取 OH_ImageNative 的第一个组件所对应的缓冲区对象。
++    OH_NativeBuffer* nativeBuffer = nullptr;
++    errCode = OH_ImageNative_GetByteBuffer(image, components[0], &nativeBuffer);
++    if (errCode != IMAGE_SUCCESS) {
++        qWarning() << "Failed to get image byte buffer, error code:" << errCode;
++        delete [] components;
++        return QVideoFrame();
++    }
++
++           // 读取 OH_ImageNative 的第一个组件所对应的缓冲区大小。
++    size_t nativeBufferSize = 0;
++    errCode = OH_ImageNative_GetBufferSize(image, components[0], &nativeBufferSize);
++    if (errCode != IMAGE_SUCCESS) {
++        qWarning() << "Failed to get buffer size, error code:" << errCode;
++        delete [] components;
++        return QVideoFrame();
++    }
++
++           // 读取 OH_ImageNative 的第一个组件所对应的像素行宽。
++    int32_t rowStride = 0;
++    errCode = OH_ImageNative_GetRowStride(image, components[0], &rowStride);
++    if (errCode != IMAGE_SUCCESS) {
++        delete[] components;
++        qWarning() << "Failed to get row stride, error code:" << errCode;
++        return QVideoFrame();
++    }
++
++           // 使用 nativeBuffer 数据构造 QVideoFrame
++    void* srcVir = nullptr;
++    OH_NativeBuffer_Map(nativeBuffer, &srcVir);
++    uint8_t* srcBuffer = static_cast<uint8_t*>(srcVir);
++
++    QVideoFrame result;
++    switch(fromat){
++    case CAMERA_FORMAT_YUV_420_SP:
++        result = QVideoFrame(nativeBufferSize, QSize(imgSize.width, imgSize.height)\
++                                     , rowStride, QVideoFrame::Format_NV21);
++        if (result.map(QAbstractVideoBuffer::WriteOnly)) {
++            memcpy(result.bits(), srcBuffer, result.mappedBytes());
++        }
++        result.unmap();
++        break;
++    case CAMERA_FORMAT_RGBA_8888:
++        result = QVideoFrame(nativeBufferSize, QSize(imgSize.width, imgSize.height)\
++                                     , rowStride, QVideoFrame::Format_RGB32);
++        if (result.map(QAbstractVideoBuffer::WriteOnly)) {
++            memcpy(result.bits(), srcBuffer, result.mappedBytes());
++        }
++        result.unmap();
++    default:break;
++    }
++    // 释放buffer,保证bufferQueue正常轮转
++    OH_NativeBuffer_Unmap(nativeBuffer);
++    return result;
++}
++
 +QOPenHarmonyCameraSession::QOPenHarmonyCameraSession(QObject *parent) : QObject{ parent }
 +    , m_state(QCamera::UnloadedState)
 +    , m_savedState(-1)
 +    , m_captureMode(QCamera::CaptureStillImage)
++    , m_captureCanceled(false)
++    , m_lastImageCaptureId(0)
++    , m_captureDestination(QCameraImageCapture::CaptureToFile)
++    , m_captureImageDriveMode(QCameraImageCapture::SingleImageCapture)
++    , m_readyForCapture(false)
++    , m_currentImageCaptureId(-1)
 +{
 +    p_cameraSession = this;
++
++    m_mediaStorageLocation.addStorageLocation(
++            QMediaStorageLocation::Pictures,
++            OPenHarmonyMultimediaUtils::getDefaultMediaDirectory(OPenHarmonyMultimediaUtils::Image));
 +
 +    if (qApp) {
 +        connect(qApp, SIGNAL(applicationStateChanged(Qt::ApplicationState)),
@@ -2876,25 +3046,33 @@ index 000000000..655202cbb
 +    m_surfaceID[0] = '\0';
 +}
 +
-+void QOPenHarmonyCameraSession::rawDataToFrame(uint8_t *raw, int size, int width, int height, int rowStride)
++void QOPenHarmonyCameraSession::processCapturedImage(int id, const QVideoFrame &data,\
++                                                QCameraImageCapture::CaptureDestinations dest, const QString &fileName)
 +{
-+    if(!profile_)
-+    {
-+        qWarning() << "Cannot found profile info!";
-+        return;
++    if (dest & QCameraImageCapture::CaptureToFile) {
++
++
++        const QString actualFileName = m_mediaStorageLocation.generateFileName(fileName,
++                                                                               QMediaStorageLocation::Pictures,
++                                                                               QLatin1String("IMG_"),
++                                                                               QLatin1String("jpg"));
++        QImage image = data.image();
++        QFile file(actualFileName);
++        if (!file.open(QIODevice::WriteOnly)) {
++            const QString errorMessage = tr("Could not open destination file: %1").arg(actualFileName);
++            emit imageCaptureError(id, QCameraImageCapture::ResourceError, errorMessage);
++        }
++
++        if (!image.save(&file, "JPG")) {
++            emit imageCaptureError(id, QCameraImageCapture::OutOfSpaceError, file.errorString());
++        }
++
++        file.close();
++        emit imageSaved(id, actualFileName);
 +    }
 +
-+    switch(profile_->format){
-+        case CAMERA_FORMAT_YUV_420_SP:
-+        m_presentMutex.lock();
-+        m_currentFrame = QVideoFrame(size, QSize(width, height), rowStride, QVideoFrame::Format_NV21);
-+        if (m_currentFrame.map(QAbstractVideoBuffer::WriteOnly)) {
-+            memcpy(m_currentFrame.bits(), raw, m_currentFrame.mappedBytes());
-+        }
-+        m_currentFrame.unmap();
-+        m_presentMutex.unlock();
-+        break;
-+        default:break;
++    if (dest & QCameraImageCapture::CaptureToBuffer) {
++        emit imageAvailable(id, data);
 +    }
 +}
 +
@@ -2927,12 +3105,76 @@ index 000000000..655202cbb
 +
 +void QOPenHarmonyCameraSession::setCaptureMode(QCamera::CaptureModes mode)
 +{
-+    Q_UNUSED(mode);
++    m_captureMode = mode;
 +}
 +
 +bool QOPenHarmonyCameraSession::isCaptureModeSupported(QCamera::CaptureModes mode) const
 +{
-+    return mode == QCamera::CaptureViewfinder;
++    return true;
++}
++
++bool QOPenHarmonyCameraSession::isReadyForCapture()
++{
++    return m_status == QCamera::ActiveStatus;
++}
++
++int QOPenHarmonyCameraSession::capture(const QString &fileName)
++{
++    ++m_lastImageCaptureId;
++
++    if (m_captureImageDriveMode == QCameraImageCapture::SingleImageCapture) {
++
++        m_currentImageCaptureId = m_lastImageCaptureId;
++        m_currentImageCaptureFileName = fileName;
++
++        Camera_ErrorCode ret = OH_PhotoOutput_Capture(photoOutput_);
++        if (ret != CAMERA_OK) {
++            qWarning() << "OH_PhotoOutput_Capture failed." << ret;
++        }
++    } else {
++        //: Drive mode is the camera's shutter mode, for example single shot, continuos exposure, etc.
++        emit imageCaptureError(m_lastImageCaptureId, QCameraImageCapture::NotSupportedFeatureError,
++                               tr("Drive mode not supported"));
++    }
++
++    return m_lastImageCaptureId;
++}
++
++void QOPenHarmonyCameraSession::cancelCapture()
++{
++    m_captureCanceled = true;
++}
++
++QCameraImageCapture::DriveMode QOPenHarmonyCameraSession::driveMode() const
++{
++    return m_captureImageDriveMode;
++}
++
++void QOPenHarmonyCameraSession::setDriveMode(QCameraImageCapture::DriveMode mode)
++{
++    m_captureImageDriveMode = mode;
++}
++
++void QOPenHarmonyCameraSession::setReadyForCapture(bool ready)
++{
++    if (m_readyForCapture == ready)
++        return;
++
++    m_readyForCapture = ready;
++    emit readyForCaptureChanged(ready);
++}
++
++QCameraImageCapture::CaptureDestinations QOPenHarmonyCameraSession::captureDestination() const
++{
++    return m_captureDestination;
++}
++
++void QOPenHarmonyCameraSession::setCaptureDestination(QCameraImageCapture::CaptureDestinations destination)
++{
++    if (m_captureDestination != destination) {
++        m_captureDestination = destination;
++        emit captureDestinationChanged(m_captureDestination);
++    }
 +}
 +
 +QCameraViewfinderSettings QOPenHarmonyCameraSession::viewfinderSettings() const
@@ -2942,7 +3184,10 @@ index 000000000..655202cbb
 +
 +void QOPenHarmonyCameraSession::setViewfinderSettings(const QCameraViewfinderSettings &settings)
 +{
-+    m_viewfinderSettings = settings;
++    if (m_viewfinderSettings == settings)
++        return;
++
++    m_viewfinderSettings = m_actualViewfinderSettings = settings;
 +}
 +
 +void QOPenHarmonyCameraSession::setSurface(QAbstractVideoSurface *surface)
@@ -2965,65 +3210,40 @@ index 000000000..655202cbb
 +        return;
 +    }
 +
-+    // 获取图像的宽和高
-+    Image_Size imgSize;
-+    errCode = OH_ImageNative_GetImageSize(image, &imgSize);
-+    if (errCode != IMAGE_SUCCESS) {
-+        qWarning() << "Failed to get image size, error code:" << errCode;
-+        return;
++    if (profile_) {
++        QVideoFrame frame = imageNativeToVideoFrame(image, profile_->format);
++
++        m_presentMutex.lock();
++        m_currentFrame = frame;
++        m_presentMutex.unlock();
++
++        QMetaObject::invokeMethod(this, "presentFrame", Qt::QueuedConnection);
 +    }
-+
-+    // 获取组件类型的数量（假设组件列表的第一个元素是有效的）
-+    size_t componentTypeSize = 0;
-+    uint32_t* components = new uint32_t[componentTypeSize];
-+    errCode = OH_ImageNative_GetComponentTypes(image, &components, &componentTypeSize);
-+    if (errCode != IMAGE_SUCCESS || componentTypeSize == 0) {
-+        qWarning() << "Failed to get image component types, error code:" << errCode;
-+        return;
-+    }
-+
-+    // 读取 OH_ImageNative 的第一个组件所对应的缓冲区对象。
-+    OH_NativeBuffer* nativeBuffer = nullptr;
-+    errCode = OH_ImageNative_GetByteBuffer(image, components[0], &nativeBuffer);
-+    if (errCode != IMAGE_SUCCESS) {
-+        qWarning() << "Failed to get image byte buffer, error code:" << errCode;
-+        delete [] components;
-+        OH_ImageNative_Release(image);
-+        return;
-+    }
-+
-+    // 读取 OH_ImageNative 的第一个组件所对应的缓冲区大小。
-+    size_t nativeBufferSize = 0;
-+    errCode = OH_ImageNative_GetBufferSize(image, components[0], &nativeBufferSize);
-+    if (errCode != IMAGE_SUCCESS) {
-+        qWarning() << "Failed to get buffer size, error code:" << errCode;
-+        delete [] components;
-+        OH_ImageNative_Release(image);
-+        return;
-+    }
-+
-+    // 读取 OH_ImageNative 的第一个组件所对应的像素行宽。
-+    int32_t rowStride = 0;
-+    errCode = OH_ImageNative_GetRowStride(image, components[0], &rowStride);
-+    if (errCode != IMAGE_SUCCESS) {
-+        delete[] components;
-+        qWarning() << "Failed to get row stride, error code:" << errCode;
-+        OH_ImageNative_Release(image);
-+        return;
-+    }
-+
-+    // 使用 nativeBuffer 数据构造 QVideoFrame
-+    void* srcVir = nullptr;
-+    OH_NativeBuffer_Map(nativeBuffer, &srcVir);
-+    uint8_t* srcBuffer = static_cast<uint8_t*>(srcVir);
-+
-+    rawDataToFrame(srcBuffer, nativeBufferSize, imgSize.width, imgSize.height, rowStride);
-+    // 释放buffer,保证bufferQueue正常轮转
-+    OH_NativeBuffer_Unmap(nativeBuffer);
-+    QMetaObject::invokeMethod(this, "presentFrame", Qt::QueuedConnection);
 +
 +    // 释放 OH_ImageNative 实例
 +    errCode = OH_ImageNative_Release(image);
++}
++
++void QOPenHarmonyCameraSession::onPhotoCallback(Camera_PhotoOutput *photoOutput, OH_PhotoNative *photo)
++{
++    Q_UNUSED(photoOutput)
++    if (!m_captureCanceled) {
++        OH_ImageNative* imageNative;
++        Camera_ErrorCode errCode = OH_PhotoNative_GetMainImage(photo, &imageNative);
++        if (errCode != CAMERA_OK) {
++            qWarning() << "OH_PhotoNative_GetMainImage get image failed, errCode: "<< errCode;
++            return;
++        }
++        QVideoFrame frame = imageNativeToVideoFrame(imageNative, photoProfile_->format);
++
++        QtConcurrent::run(this, &QOPenHarmonyCameraSession::processCapturedImage,
++                          m_currentImageCaptureId,
++                          frame,
++                          m_captureDestination,
++                          m_currentImageCaptureFileName);
++    }
++
++    m_captureCanceled = false;
 +}
 +
 +bool QOPenHarmonyCameraSession::addVideoOutput(const QString &surfaceID, const QSize &reslotion)
@@ -3141,6 +3361,110 @@ index 000000000..655202cbb
 +    return true;
 +}
 +
++bool QOPenHarmonyCameraSession::createPreviewOutput()
++{
++    int offset = INT_MAX;
++    int usrPix = m_viewfinderSettings.resolution().width() * m_viewfinderSettings.resolution().height();
++
++    Camera_Format defaultFormat;
++    switch(m_viewfinderSettings.pixelFormat()){
++    case QVideoFrame::Format_RGB32: defaultFormat = CAMERA_FORMAT_RGBA_8888;break;
++    case QVideoFrame::Format_NV21: defaultFormat = CAMERA_FORMAT_YUV_420_SP;break;
++    case QVideoFrame::Format_Jpeg: defaultFormat = CAMERA_FORMAT_JPEG;break;
++    default:
++        defaultFormat = CAMERA_FORMAT_YUV_420_SP;
++    }
++
++    for(int i = 0; i < cameraOutputCapability_->previewProfilesSize; ++i)
++    {
++        Camera_Profile *curPro = cameraOutputCapability_->previewProfiles[i];
++        int curPix = curPro->size.width * curPro->size.height;
++
++        if (!profile_) {
++            offset = qAbs(curPix - usrPix);
++            profile_ = curPro;
++            continue;
++        }
++
++        if (curPro->format == defaultFormat) {
++            if(profile_->format != defaultFormat){
++                offset = qAbs(curPix - usrPix);
++                profile_ = curPro;
++                continue;
++            }
++        } else if (profile_->format == defaultFormat) {
++            continue;
++        }
++
++        if (qAbs(curPix - usrPix) < offset) {
++            offset = qAbs(curPix - usrPix);
++            profile_ = curPro;
++        }
++    }
++    if (!profile_) {
++        qWarning() << "Get previewProfiles failed.";
++        return false;
++    }
++
++    m_actualViewfinderSettings = profileToSetting(profile_);
++
++    initReceiver(profile_->size.width, profile_->size.height);
++    if (m_surface) {
++        if (m_surfaceID[0] != '\0') {
++            Camera_ErrorCode ret;
++            ret = OH_CameraManager_CreatePreviewOutput(g_cameraManager, profile_, m_surfaceID, &previewOutput_);
++            if (m_surfaceID[0] == '\0' || !previewOutput_ || ret != CAMERA_OK) {
++                qWarning() << "CreatePreviewOutput failed or surfaceID not valid.";
++                return false;
++            }
++        }
++        else {
++            qWarning() << "surface not ready.";
++            return false;
++        }
++    } else {
++        qWarning() << "surface not set.";
++        return false;
++    }
++
++    return true;
++}
++
++bool QOPenHarmonyCameraSession::createPhotoOutput()
++{
++    int maxPix = 0;
++
++    for (int i = 0; i < cameraOutputCapability_->photoProfilesSize; ++i)
++    {
++        Camera_Profile *curPro = cameraOutputCapability_->photoProfiles[i];
++        int curPix = curPro->size.width * curPro->size.height;
++        if (curPix > maxPix) {
++            maxPix = curPix;
++            photoProfile_ = curPro;
++        }
++    }
++
++    if (!photoProfile_) {
++        qWarning() << "get photoProfile failed.";
++        return false;
++    }
++
++    Camera_ErrorCode ret;
++    ret = OH_CameraManager_CreatePhotoOutputWithoutSurface(g_cameraManager, photoProfile_, &photoOutput_);
++    if (!photoOutput_ || ret != CAMERA_OK) {
++        qWarning() << "CreatePhotoOutput failed.";
++        return false;
++    }
++
++    ret = OH_PhotoOutput_RegisterPhotoAvailableCallback(photoOutput_, \
++                                                        [](Camera_PhotoOutput* photoOutput, OH_PhotoNative* photo) {
++                                                            if(p_cameraSession)
++                                                                p_cameraSession->onPhotoCallback(photoOutput, photo);
++                                                        });
++
++    return true;
++}
++
 +Camera_OutputCapability *QOPenHarmonyCameraSession::cameraAbility()
 +{
 +    return cameraOutputCapability_;
@@ -3160,6 +3484,7 @@ index 000000000..655202cbb
 +
 +void QOPenHarmonyCameraSession::onApplicationStateChanged(Qt::ApplicationState state)
 +{
++#if 0
 +    switch (state) {
 +    case Qt::ApplicationInactive:
 +        if (m_state != QCamera::UnloadedState) {
@@ -3178,6 +3503,7 @@ index 000000000..655202cbb
 +    default:
 +        break;
 +    }
++#endif
 +}
 +
 +void QOPenHarmonyCameraSession::updateAvailableCameras()
@@ -3250,84 +3576,22 @@ index 000000000..655202cbb
 +
 +bool QOPenHarmonyCameraSession::load()
 +{
-+    // unload();
-+    int offset = INT_MAX;
-+    int usrPix = m_viewfinderSettings.resolution().width() * m_viewfinderSettings.resolution().height();
-+
-+    Camera_Format defaultFormat;
-+    switch(m_viewfinderSettings.pixelFormat()){
-+        case QVideoFrame::Format_RGB32: defaultFormat = CAMERA_FORMAT_RGBA_8888;break;
-+        case QVideoFrame::Format_NV21: defaultFormat = CAMERA_FORMAT_YUV_420_SP;break;
-+        case QVideoFrame::Format_Jpeg: defaultFormat = CAMERA_FORMAT_JPEG;break;
-+        default:
-+            defaultFormat = CAMERA_FORMAT_YUV_420_SP;
-+    }
-+
-+    for(int i = 0; i < cameraOutputCapability_->previewProfilesSize; ++i)
-+    {
-+        Camera_Profile *curPro = cameraOutputCapability_->previewProfiles[i];
-+        int curPix = curPro->size.width * curPro->size.height;
-+
-+        if(!profile_)
-+        {
-+            offset = qAbs(curPix - usrPix);
-+            profile_ = curPro;
-+            continue;
-+        }
-+
-+        if(curPro->format == defaultFormat){
-+            if(profile_->format != defaultFormat){
-+                offset = qAbs(curPix - usrPix);
-+                profile_ = curPro;
-+                continue;
-+            }
-+        }
-+        else if(profile_->format == defaultFormat)
-+        {
-+            continue;
-+        }
-+
-+        if(qAbs(curPix - usrPix) < offset)
-+        {
-+            offset = qAbs(curPix - usrPix);
-+            profile_ = curPro;
-+        }
-+    }
-+    if (!profile_) {
-+        qWarning() << "Get previewProfiles failed.";
++    if (!createPreviewOutput())
 +        return false;
-+    }
 +
-+    m_actualViewfinderSettings = profileToSetting(profile_);
++    if (m_captureMode.testFlag(QCamera::CaptureStillImage)) {
++        if (!createPhotoOutput())
++            return false;
++    }
 +
 +    Camera_ErrorCode ret;
-+    initReceiver(profile_->size.width, profile_->size.height);
-+    if(m_surface){
-+        if(m_surfaceID[0] != '\0')
-+        {
-+            ret = OH_CameraManager_CreatePreviewOutput(g_cameraManager, profile_, m_surfaceID, &previewOutput_);
-+            if (m_surfaceID[0] == '\0' || !previewOutput_ || ret != CAMERA_OK) {
-+                qWarning() << "CreatePreviewOutput failed or surfaceID not valid.";
-+                return false;
-+            }
-+        }
-+        else{
-+            qWarning() << "surface not ready.";
-+            return false;
-+        }
-+    }
-+    else{
-+        qWarning() << "surface not set.";
-+        return false;
-+    }
-+
 +    ret = OH_CaptureSession_BeginConfig(captureSession_);
 +    if (ret != CAMERA_OK) {
 +        qWarning() << "OH_CaptureSession_BeginConfig failed.";
 +        return false;
 +    }
 +
-+    if(!cameraInput_){
++    if (!cameraInput_) {
 +        ret = OH_CameraManager_CreateCameraInput(g_cameraManager, &g_cameras[m_deviceIndex], &cameraInput_);
 +        if (!cameraInput_ || ret != CAMERA_OK) {
 +            qWarning() << "CreateCameraInput failed.";
@@ -3347,11 +3611,18 @@ index 000000000..655202cbb
 +        }
 +    }
 +
-+    if(previewOutput_)
-+    {
++    if (previewOutput_) {
 +        ret = OH_CaptureSession_AddPreviewOutput(captureSession_, previewOutput_);
 +        if (ret != CAMERA_OK) {
 +            qWarning() << "OH_CaptureSession_AddPreviewOutput failed.";
++            return false;
++        }
++    }
++
++    if (photoOutput_) {
++        ret = OH_CaptureSession_AddPhotoOutput(captureSession_, photoOutput_);
++        if (ret != CAMERA_OK) {
++            qWarning() << "OH_CaptureSession_AddPhotoOutput failed.";
 +            return false;
 +        }
 +    }
@@ -3386,6 +3657,11 @@ index 000000000..655202cbb
 +        previewOutput_ = nullptr;
 +    }
 +
++    photoProfile_ = nullptr;
++    if (photoOutput_) {
++        OH_PhotoOutput_Release(photoOutput_);
++    }
++
 +    if (cameraInput_) {
 +        OH_CameraInput_Close(cameraInput_);
 +        OH_CameraInput_Release(cameraInput_);
@@ -3394,6 +3670,9 @@ index 000000000..655202cbb
 +
 +    stopReceiver();
 +
++    m_readyForCapture = false;
++    m_currentImageCaptureId = -1;
++    m_currentImageCaptureFileName.clear();
 +    m_state = QCamera::UnloadedState;
 +    return true;
 +}
@@ -3422,7 +3701,7 @@ index 000000000..655202cbb
 +    // }
 +
 +    QVideoSurfaceFormat fomat(QSize(profile_->size.width,profile_->size.height),
-+                              QVideoFrame::Format_NV21,
++                              m_actualViewfinderSettings.pixelFormat(),
 +                              QAbstractVideoBuffer::NoHandle);
 +    fomat.setProperty("mirrored", m_actualViewfinderSettings.mirrored());
 +
@@ -3448,10 +3727,10 @@ index 000000000..655202cbb
 +QT_END_NAMESPACE
 diff --git a/src/plugins/openharmony/src/mediacapture/qopenharmonycamerasession.h b/src/plugins/openharmony/src/mediacapture/qopenharmonycamerasession.h
 new file mode 100644
-index 000000000..28fccd4ea
+index 000000000..21cb88793
 --- /dev/null
 +++ b/src/plugins/openharmony/src/mediacapture/qopenharmonycamerasession.h
-@@ -0,0 +1,112 @@
+@@ -0,0 +1,154 @@
 +#ifndef QOPENHARMONYCAMERASESSION_H
 +#define QOPENHARMONYCAMERASESSION_H
 +
@@ -3461,6 +3740,8 @@ index 000000000..28fccd4ea
 +#include <qcamera.h>
 +
 +#include "openharmonycamera.h"
++#include <QCameraImageCapture>
++#include <private/qmediastoragelocation_p.h>
 +
 +QT_BEGIN_NAMESPACE
 +
@@ -3476,6 +3757,8 @@ index 000000000..28fccd4ea
 +struct OH_ImageReceiverNative;
 +struct OH_ImageReceiverOptions;
 +struct OH_ImageReceiverNative;
++struct Camera_PhotoOutput;
++struct OH_PhotoNative;
 +
 +class QOPenHarmonyCameraSession : public QObject
 +{
@@ -3496,11 +3779,22 @@ index 000000000..28fccd4ea
 +    void setCaptureMode(QCamera::CaptureModes mode);
 +    bool isCaptureModeSupported(QCamera::CaptureModes mode) const;
 +
++    bool isReadyForCapture();
++    int capture(const QString &fileName);
++    void cancelCapture();
++    QCameraImageCapture::DriveMode driveMode() const;
++    void setDriveMode(QCameraImageCapture::DriveMode mode);
++    void setReadyForCapture(bool ready);
++
++    QCameraImageCapture::CaptureDestinations captureDestination() const;
++    void setCaptureDestination(QCameraImageCapture::CaptureDestinations destination);
++
 +    QCameraViewfinderSettings viewfinderSettings() const;
 +    void setViewfinderSettings(const QCameraViewfinderSettings &settings);
 +
 +    void setSurface(QAbstractVideoSurface* surface);
 +    void onReceiverCallback(OH_ImageReceiverNative *receiver);
++    void onPhotoCallback(Camera_PhotoOutput* photoOutput, OH_PhotoNative* photo);
 +
 +    bool addVideoOutput(const QString &surfaceID, const QSize &reslotion);
 +    bool removeVideoOutput();
@@ -3513,6 +3807,16 @@ index 000000000..28fccd4ea
 +    void error(int error, const QString &errorString);
 +    void captureModeChanged(QCamera::CaptureModes);
 +    void loaded();
++
++    void captureDestinationChanged(QCameraImageCapture::CaptureDestinations destination);
++
++    void readyForCaptureChanged(bool);
++    void imageExposed(int id);
++    void imageCaptured(int id, const QImage &preview);
++    void imageMetadataAvailable(int id, const QString &key, const QVariant &value);
++    void imageAvailable(int id, const QVideoFrame &buffer);
++    void imageSaved(int id, const QString &fileName);
++    void imageCaptureError(int id, int error, const QString &errorString);
 +
 +private Q_SLOTS:
 +    void presentFrame();
@@ -3528,10 +3832,16 @@ index 000000000..28fccd4ea
 +    void setStateHelper(QCamera::State state);
 +
 +    void initCameraSession();
++    bool createPreviewOutput();
++    bool createPhotoOutput();
 +
 +    bool initReceiver(uint32_t width, uint32_t height);
 +    void stopReceiver();
-+    void rawDataToFrame(uint8_t *raw, int size, int width, int height, int rowStride);
++
++    void processCapturedImage(int id,
++                              const QVideoFrame &data,
++                              QCameraImageCapture::CaptureDestinations dest,
++                              const QString &fileName);
 +
 +    QString m_sourceDeviceName = QLatin1String("default");
 +    char m_surfaceID[21];
@@ -3540,6 +3850,15 @@ index 000000000..28fccd4ea
 +    int m_savedState;
 +    QCamera::Status m_status;
 +    QCamera::CaptureModes m_captureMode;
++    bool m_captureCanceled;
++    int m_lastImageCaptureId;
++    QCameraImageCapture::CaptureDestinations m_captureDestination;
++    QCameraImageCapture::DriveMode m_captureImageDriveMode;
++    bool m_readyForCapture;
++    int m_currentImageCaptureId;
++    QString m_currentImageCaptureFileName;
++
++    QMediaStorageLocation m_mediaStorageLocation;
 +
 +    QMutex m_presentMutex;
 +    QVideoFrame m_currentFrame;
@@ -3548,6 +3867,7 @@ index 000000000..28fccd4ea
 +    QCameraViewfinderSettings m_actualViewfinderSettings;
 +
 +    Camera_PreviewOutput *previewOutput_ = nullptr;
++    Camera_PhotoOutput* photoOutput_ = nullptr;
 +    Camera_VideoOutput *videoOutput_ = nullptr;
 +    static Camera_Manager *g_cameraManager;
 +    static Camera_Device *g_cameras;
@@ -3558,6 +3878,7 @@ index 000000000..28fccd4ea
 +    bool m_sessionStarted = false;
 +    Camera_OutputCapability *cameraOutputCapability_ = nullptr;
 +    Camera_Profile *profile_ = nullptr;
++    Camera_Profile *photoProfile_ = nullptr;
 +    OH_ImageReceiverOptions *m_recOptions = nullptr;
 +    OH_ImageReceiverNative *m_receiver = nullptr;
 +};
@@ -3566,10 +3887,10 @@ index 000000000..28fccd4ea
 +#endif // QOPENHARMONYCAMERASESSION_H
 diff --git a/src/plugins/openharmony/src/mediacapture/qopenharmonycaptureservice.cpp b/src/plugins/openharmony/src/mediacapture/qopenharmonycaptureservice.cpp
 new file mode 100644
-index 000000000..b889eff19
+index 000000000..ede43337a
 --- /dev/null
 +++ b/src/plugins/openharmony/src/mediacapture/qopenharmonycaptureservice.cpp
-@@ -0,0 +1,91 @@
+@@ -0,0 +1,97 @@
 +#include "qopenharmonycamerasession.h"
 +#include "qopenharmonycapturesession.h"
 +#include "qopenharmonycameracontrol.h"
@@ -3577,6 +3898,7 @@ index 000000000..b889eff19
 +#include "qmediaserviceproviderplugin.h"
 +#include "qopenharmonycamerainfocontrol.h"
 +#include "qohcamerarendercontrol.h"
++#include "qohcameraimagecapturecontrol.h"
 +#include "qopenharmonydevicecontrol.h"
 +#include "qopenharmonyrecordercontrol.h"
 +#include "qopenharmonyaudioencodercontrol.h"
@@ -3597,12 +3919,14 @@ index 000000000..b889eff19
 +    m_recorderControl = new QOpenharmonyRecorderControl(m_captureSession);
 +    m_audioEncoderSettingsControl = new QOpenharmonyAudioEncoderControl(m_captureSession);
 +    m_mediaContainerControl = new QOpenharmonyContainerControl(m_captureSession);
++    m_imageCaptureControl = new QOHCameraImageCaptureControl(m_cameraSession);
 +    m_videoEncoderSettingsControl = new QOpenharmonyVideoEncoderControl(m_captureSession);
 +}
 +
 +QOPenHarmonyCaptureService::~QOPenHarmonyCaptureService()
 +{
 +    delete m_videoEncoderSettingsControl;
++    delete m_imageCaptureControl;
 +    delete m_mediaContainerControl;
 +    delete m_audioEncoderSettingsControl;
 +    delete m_recorderControl;
@@ -3622,6 +3946,9 @@ index 000000000..b889eff19
 +
 +    if (qstrcmp(name, QMediaContainerControl_iid) == 0)
 +        return m_mediaContainerControl;
++
++    if (qstrcmp(name, QCameraImageCaptureControl_iid) == 0)
++        return m_imageCaptureControl;
 +
 +    if (qstrcmp(name, QAudioEncoderSettingsControl_iid) == 0)
 +        return m_audioEncoderSettingsControl;
@@ -3663,10 +3990,10 @@ index 000000000..b889eff19
 +}
 diff --git a/src/plugins/openharmony/src/mediacapture/qopenharmonycaptureservice.h b/src/plugins/openharmony/src/mediacapture/qopenharmonycaptureservice.h
 new file mode 100644
-index 000000000..a7d7dd238
+index 000000000..967c9d18e
 --- /dev/null
 +++ b/src/plugins/openharmony/src/mediacapture/qopenharmonycaptureservice.h
-@@ -0,0 +1,50 @@
+@@ -0,0 +1,52 @@
 +#ifndef QOPENHARMONYCAPTURESERVICE_H
 +#define QOPENHARMONYCAPTURESERVICE_H
 +
@@ -3679,6 +4006,7 @@ index 000000000..a7d7dd238
 +class QOPenHarmonyCameraSession;
 +class QOPenHarmonyCameraInfoControl;
 +class QOHCameraRenderControl;
++class QOHCameraImageCaptureControl;
 +class QOpenharmonyDeviceControl;
 +class QOPenHarmonyCaptureSession;
 +class QOpenharmonyRecorderControl;
@@ -3705,6 +4033,7 @@ index 000000000..a7d7dd238
 +    QOPenHarmonyCameraControl *m_cameraControl = nullptr;
 +    QOPenHarmonyCameraInfoControl *m_cameraInfoControl = nullptr;
 +    QOHCameraRenderControl *m_videoRenderer = nullptr;
++    QOHCameraImageCaptureControl *m_imageCaptureControl = nullptr;
 +    QOpenharmonyDeviceControl *m_videoDevice = nullptr;
 +    QOPenHarmonyCaptureSession *m_captureSession = nullptr;
 +    QOpenharmonyRecorderControl *m_recorderControl = nullptr;
@@ -3719,10 +4048,10 @@ index 000000000..a7d7dd238
 +#endif // QOPENHARMONYCAPTURESERVICE_H
 diff --git a/src/plugins/openharmony/src/mediacapture/qopenharmonycapturesession.cpp b/src/plugins/openharmony/src/mediacapture/qopenharmonycapturesession.cpp
 new file mode 100644
-index 000000000..8134a5929
+index 000000000..1be434023
 --- /dev/null
 +++ b/src/plugins/openharmony/src/mediacapture/qopenharmonycapturesession.cpp
-@@ -0,0 +1,447 @@
+@@ -0,0 +1,449 @@
 +#include "qopenharmonycapturesession.h"
 +#include "qopenharmonycamerasession.h"
 +#include "openharmonymultimediautils.h"
@@ -3744,7 +4073,7 @@ index 000000000..8134a5929
 +{
 +    m_mediaStorageLocation.addStorageLocation(
 +            QMediaStorageLocation::Movies,
-+            "/storage/Users/currentUser/Download/");
++            OPenHarmonyMultimediaUtils::getDefaultMediaDirectory(OPenHarmonyMultimediaUtils::Video));
 +
 +    if(cameraSession) {
 +        // onCameraLoaded();
@@ -3935,8 +4264,10 @@ index 000000000..8134a5929
 +            m_videoSettings.setResolution(m_supportedResolutions.at(closestIndex));
 +        }
 +
-+        if (m_videoSettings.frameRate() <= 0 || m_videoSettings.frameRate() >= m_supportedFramerates.back())
++        if (m_supportedFramerates.isEmpty() && \
++            (m_videoSettings.frameRate() <= 0 || m_videoSettings.frameRate() >= m_supportedFramerates.back()) )
 +            m_videoSettings.setFrameRate(m_supportedFramerates.back());
++
 +        if (m_videoSettings.bitRate() <= 0)
 +            m_videoSettings.setBitRate(200000);
 +
@@ -3965,7 +4296,7 @@ index 000000000..8134a5929
 +    m_supportedResolutions.clear();
 +    m_supportedFramerates.clear();
 +
-+    QList<int> defaultRates({15, 30, 45, 60});
++    QList<int> defaultRates({5, 10, 15, 30, 45, 60});
 +
 +    for(int i = 0; i < ability->videoProfilesSize; ++i)
 +    {
@@ -7260,7 +7591,7 @@ index 000000000..8c4fdf3d5
 +#endif
 diff --git a/src/plugins/openharmony/src/player/qopenharmonywindowcontrol.cpp b/src/plugins/openharmony/src/player/qopenharmonywindowcontrol.cpp
 new file mode 100644
-index 000000000..5c0982deb
+index 000000000..a908a1afb
 --- /dev/null
 +++ b/src/plugins/openharmony/src/player/qopenharmonywindowcontrol.cpp
 @@ -0,0 +1,198 @@
@@ -7294,7 +7625,7 @@ index 000000000..5c0982deb
 +{
 +    // 阻止Qt绘制，创建surface
 +public:
-+    VideoOutWidget(QWidget *parent) : QWidget(parent) { setAttribute(Qt::WA_UpdatesDisabled); }
++    VideoOutWidget(QWidget *parent) : QWidget(parent) { setObjectName("_q_oh_videowidget"); setAttribute(Qt::WA_UpdatesDisabled); }
 +};
 +
 +
@@ -7966,10 +8297,10 @@ index 000000000..61baab6d8
 +#endif // OPENHARMONYCAMERA_H
 diff --git a/src/plugins/openharmony/src/wrappers/napi/openharmonymediarecorder.cpp b/src/plugins/openharmony/src/wrappers/napi/openharmonymediarecorder.cpp
 new file mode 100644
-index 000000000..dddb21409
+index 000000000..f463c9efe
 --- /dev/null
 +++ b/src/plugins/openharmony/src/wrappers/napi/openharmonymediarecorder.cpp
-@@ -0,0 +1,214 @@
+@@ -0,0 +1,215 @@
 +#include "openharmonymediarecorder.h"
 +#include "qopenharmony.h"
 +
@@ -7977,6 +8308,7 @@ index 000000000..dddb21409
 +#include <QJsObject>
 +#include <private/qopenharmony_p.h>
 +#include <private/qjspromise_p.h>
++#include "private/qjspromise_p.h"
 +
 +OPenHarmonyMediaRecorder::OPenHarmonyMediaRecorder()
 +    :QJsModule("@ohos.multimedia.media"),
