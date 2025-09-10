@@ -13,7 +13,6 @@
 ```
 OpenHarmony - Qt
 │
-|__tests - 单元测试代码
 └───patch - 源码补丁
 |____v5.15.12
 │   	│ qtbase - qtbase子模块代码补丁
@@ -22,19 +21,18 @@ OpenHarmony - Qt
 │   	│ qtdeclarative - qtdeclarative子模块代码补丁
 │   	│ qtconnectivity - qtconnectivity子模块代码补丁
 │   	│ qtquickcontrols - qtquickcontrols子模块代码补丁
-└───apply-patch.bat Qt Patch应用脚本工具
-└───window_build.bat Qt for OpenHarmony 交叉编译脚本工具
+└───LICENSE - Apache License
 └───LICENSE.FDL - GNU Free Documentation License
 └───LICENSE.GPLv2 - GNU GENERAL PUBLIC LICENSE Version 2
 └───LICENSE.GPLv3 - GNU GENERAL PUBLIC LICENSE Version 3
 └───LICENSE.LGPLv3 - GNU LESSER GENERAL PUBLIC LICENSE Version 3
 └───LICENSE.LGPLv21 - GNU LESSER GENERAL PUBLIC LICENSE Version 2.1
 └───LICENSE.QT-LICENSE-AGREEMENT - QT LICENSE AGREEMENT Agreement
+└───OAT.xml - OAT配置文件，OpenHarmony社区的自动化开源审视工具
 └───README.md - 中文版本readme
 └───README.en.md - 英文版本readme
 ```
 
-# Qt For OpenHarmony使用
+# Qt For OpenHarmony 使用说明
 
-参见仓库wiki说明：https://gitee.com/openharmony-sig/qt/wikis
-
+参见仓库wiki：https://gitcode.com/openharmony-sig/qt/wiki/Home.md
