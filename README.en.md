@@ -13,7 +13,6 @@ Use the “git diff” command to generate code patches and submit them to the c
 ```
 OpenHarmony - Qt
 │
-|__tests - Unit test code
 └───patch - Source code patches
 |____v5.15.12
 │   	│ qtbase - qtbase sub-module code patch
@@ -22,18 +21,18 @@ OpenHarmony - Qt
 │   	│ qtdeclarative - qtdeclarative sub-module code patch
 │   	│ qtconnectivity - qtconnectivity sub-module code patch
 │   	│ qtquickcontrols - qtquickcontrols sub-module code patch
-└───apply-patch.bat Qt Patch Application Script Tool
-└───window_build.bat Qt for OpenHarmony Cross-Compilation Script Tool
+└───LICENSE - Apache License
 └───LICENSE.FDL - GNU Free Documentation License
 └───LICENSE.GPLv2 - GNU GENERAL PUBLIC LICENSE Version 2
 └───LICENSE.GPLv3 - GNU GENERAL PUBLIC LICENSE Version 3
 └───LICENSE.LGPLv3 - GNU LESSER GENERAL PUBLIC LICENSE Version 3
 └───LICENSE.LGPLv21 - GNU LESSER GENERAL PUBLIC LICENSE Version 2.1
 └───LICENSE.QT-LICENSE-AGREEMENT - QT LICENSE AGREEMENT Agreement
+└───OAT.xml - OAT configuration file, the automated open source review tool of the OpenHarmony community
 └───README.md - Chinese version readme
 └───README.en.md - English version readme
 ```
 
 # Using Qt For OpenHarmony
 
-Refer to the repository wiki instructions: https://gitee.com/openharmony-sig/qt/wikis
+Refer to the repository wiki: https://gitcode.com/openharmony-sig/qt/wiki/Home.md
