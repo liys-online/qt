@@ -1,11 +1,11 @@
-/****************************************************************************
+/* ***************************************************************************
  *
  * Copyright (C) 2025 iSoftStone. All rights reserved.
  * See LGPL for detailed Information
- * 
+ *
  * This file is part of the qtohextras module.
- * 
- ****************************************************************************/
+ *
+ * ************************************************************************** */
 #include "mainwindow.h"
 
 #include <QIntValidator>
@@ -17,27 +17,22 @@
 #include "ui_mainwindow.h"
 
 namespace {
+/* 列索引常量 */
+constexpr int COLUMN_KEY = 0;
+constexpr int COLUMN_VALUE = 1;
+constexpr int COLUMN_TYPE = 2;
 
-    /* 列索引常量 */
-    constexpr int COLUMN_KEY = 0;
-    constexpr int COLUMN_VALUE = 1;
-    constexpr int COLUMN_TYPE = 2;
-
-    /* 设置flags输入范围：最小值为0，最大值为100 */
-    constexpr int MIN_FLAGS_VALUE = 0;
-    constexpr int MAX_FLAGS_VALUE = 100;
+/* 设置flags输入范围：最小值为0，最大值为100 */
+constexpr int MIN_FLAGS_VALUE = 0;
+constexpr int MAX_FLAGS_VALUE = 100;
 }
 
-MainWindow::MainWindow(QWidget *parent) :
-    QWidget(parent),
-    ui(new Ui::MainWindow)
+MainWindow::MainWindow(QWidget *parent) : QWidget(parent), ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
     QIntValidator *v = new QIntValidator(this);
     v->setRange(MIN_FLAGS_VALUE, MAX_FLAGS_VALUE);
     ui->lineEdit_flags->setValidator(v);
-
-
 }
 
 MainWindow::~MainWindow()
@@ -53,7 +48,10 @@ void MainWindow::on_pushButton_add_clicked()
     item = new QTableWidgetItem("value");
     ui->tableWidget->setItem(0, COLUMN_VALUE, item);
     QComboBox *box = new QComboBox;
-    box->addItems(QStringList() << "string" << "int" << "float" << "bool");
+    box->addItems(QStringList() << "string"
+                                << "int"
+                                << "float"
+                                << "bool");
     ui->tableWidget->setCellWidget(0, COLUMN_TYPE, box);
 }
 

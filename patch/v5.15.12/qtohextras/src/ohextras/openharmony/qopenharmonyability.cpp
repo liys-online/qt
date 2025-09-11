@@ -1,18 +1,17 @@
-/****************************************************************************
+/* ***************************************************************************
  *
  * Copyright (C) 2025 iSoftStone. All rights reserved.
  * See LGPL for detailed Information
- * 
+ *
  * This file is part of the qtohextras module.
- * 
- ****************************************************************************/
+ *
+ * ************************************************************************** */
 #include "qopenharmonyability.h"
 #include <qohosabilityctrl.h>
 #include "qopenharmonydefines.h"
 
 
 namespace QOpenHarmonyAbility {
-
 static QVariantMap wantToMap(const QOpenHarmonyWant &want)
 {
     QVariantMap map;
@@ -50,33 +49,32 @@ static QVariantMap wantToMap(const QOpenHarmonyWant &want)
 static QVariantMap startOptionsToMap(const QOpenHarmonyStartOptions &startOptions)
 {
     QVariantMap map;
-    if(startOptions.windowMode != DEFAULT_VAL)
+    if (startOptions.windowMode != DEFAULT_VAL)
         map.insert("windowMode", startOptions.windowMode);
 
     map.insert("displayId", startOptions.displayId);
     map.insert("withAnimation", startOptions.withAnimation);
 
-    if(startOptions.windowLeft != DEFAULT_VAL)
+    if (startOptions.windowLeft != DEFAULT_VAL)
         map.insert("windowLeft", startOptions.windowLeft);
-    if(startOptions.windowTop != DEFAULT_VAL)
+    if (startOptions.windowTop != DEFAULT_VAL)
         map.insert("windowTop", startOptions.windowTop);
-    if(startOptions.windowWidth != DEFAULT_VAL)
+    if (startOptions.windowWidth != DEFAULT_VAL)
         map.insert("windowWidth", startOptions.windowWidth);
-    if(startOptions.windowHeight != DEFAULT_VAL)
+    if (startOptions.windowHeight != DEFAULT_VAL)
         map.insert("windowHeight", startOptions.windowHeight);
-    if(startOptions.processMode != DEFAULT_VAL)
+    if (startOptions.processMode != DEFAULT_VAL)
         map.insert("processMode", startOptions.processMode);
-    if(startOptions.startupVisibility != DEFAULT_VAL)
+    if (startOptions.startupVisibility != DEFAULT_VAL)
         map.insert("startupVisibility", startOptions.startupVisibility);
-    if(!startOptions.startWindowIcon.isNull())
+    if (!startOptions.startWindowIcon.isNull())
         map.insert("startWindowIcon", startOptions.startWindowIcon);
-    if(!startOptions.startWindowBackgroundColor.isEmpty())
+    if (!startOptions.startWindowBackgroundColor.isEmpty())
         map.insert("startWindowBackgroundColor", startOptions.startWindowBackgroundColor);
-    if(!startOptions.supportWindowModes.isEmpty()){
+    if (!startOptions.supportWindowModes.isEmpty()) {
         QVariantList varList;
         for (const auto &mode : startOptions.supportWindowModes) {
-            if(mode >= SupportWindowMode::FULL_SCREEN &&
-                mode <= SupportWindowMode::FLOATING){
+            if (mode >= SupportWindowMode::FULL_SCREEN && mode <= SupportWindowMode::FLOATING) {
                 varList.append(static_cast<int>(mode));
             }
         }
@@ -87,9 +85,9 @@ static QVariantMap startOptionsToMap(const QOpenHarmonyStartOptions &startOption
 }
 
 
-void start(const QOpenHarmonyWant &want, const QOpenHarmonyStartOptions &startOptions, QAbilityResultReceiver* receiver)
+void start(const QOpenHarmonyWant &want, const QOpenHarmonyStartOptions &startOptions, QAbilityResultReceiver *receiver)
 {
-    auto handlerResult = [receiver](const Napi::Value &err){
+    auto handlerResult = [receiver](const Napi::Value &err) {
         if (receiver != nullptr)
             receiver->handleResult(err);
     };
@@ -101,36 +99,32 @@ void start(const QOpenHarmonyWant &want)
     return start(want, QOpenHarmonyStartOptions(), nullptr);
 }
 
-void start(const QOpenHarmonyWant &want, QAbilityResultReceiver* receiver)
+void start(const QOpenHarmonyWant &want, QAbilityResultReceiver *receiver)
 {
     return start(want, QOpenHarmonyStartOptions(), receiver);
 }
 
-void startForResult(const QOpenHarmonyWant &want, const QOpenHarmonyStartOptions &startOptions, QAbilityResultReceiver *receiver)
+void startForResult(const QOpenHarmonyWant &want, const QOpenHarmonyStartOptions &startOptions,
+    QAbilityResultReceiver *receiver)
 {
-    auto handlerResult = [receiver](const Napi::Value &err, const Napi::Value &result = Napi::Value()){
+    auto handlerResult = [receiver](const Napi::Value &err, const Napi::Value &result = Napi::Value()) {
         if (receiver != nullptr)
             receiver->handleResult(err, result);
     };
     QtOhPrivate::startAbilityForResult(wantToMap(want), startOptionsToMap(startOptions), handlerResult);
 }
 
-void startForResult(const QOpenHarmonyWant &want){
+void startForResult(const QOpenHarmonyWant &want)
+{
     return startForResult(want, QOpenHarmonyStartOptions(), nullptr);
 }
 
-void startForResult(const QOpenHarmonyWant &want, QAbilityResultReceiver* receiver){
+void startForResult(const QOpenHarmonyWant &want, QAbilityResultReceiver *receiver)
+{
     return startForResult(want, QOpenHarmonyStartOptions(), receiver);
 }
 
-QAbilityResultReceiver::QAbilityResultReceiver()
-{
+QAbilityResultReceiver::QAbilityResultReceiver() {}
 
-}
-
-QAbilityResultReceiver::~QAbilityResultReceiver()
-{
-
-}
-
+QAbilityResultReceiver::~QAbilityResultReceiver() {}
 }

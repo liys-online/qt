@@ -1,11 +1,11 @@
-/****************************************************************************
+/* ***************************************************************************
  *
  * Copyright (C) 2025 iSoftStone. All rights reserved.
  * See LGPL for detailed Information
- * 
+ *
  * This file is part of the qtohextras module.
- * 
- ****************************************************************************/
+ *
+ * ************************************************************************** */
 #ifndef MAINWINDOW_H
 #define MAINWINDOW_H
 
@@ -15,8 +15,7 @@ namespace Ui {
 class MainWindow;
 }
 
-class MainWindow : public QWidget
-{
+class MainWindow : public QWidget {
     Q_OBJECT
 
 public:
