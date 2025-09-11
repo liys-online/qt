@@ -1,6 +1,9 @@
-/*******************************************************************
- *  Copyright(c) 2022-2025 Ltd.
- *  All right reserved. See LGPL for detailed Information
+/****************************************************************************
+ *
+ * Copyright (C) 2025 iSoftStone. All rights reserved.
+ * See LGPL for detailed Information
+ * 
+ * This file is part of the qtohextras module.
  *
  *  文件名称: qohfileshare.h
  *  简要描述: 提供了支持基于URI的文件及目录授于持久化权限、权限激活、权限查询等方法

@@ -1,6 +1,9 @@
-/*******************************************************************
- *  Copyright(c) 2022-2025 Ltd.
- *  All right reserved. See LGPL for detailed Information
+/****************************************************************************
+ *
+ * Copyright (C) 2025 iSoftStone. All rights reserved.
+ * See LGPL for detailed Information
+ * 
+ * This file is part of the qtohextras module.
  *
  *  文件名称: qohfunctions.h
  *  简要描述: 提供鸿蒙Native开发的辅助接口函数

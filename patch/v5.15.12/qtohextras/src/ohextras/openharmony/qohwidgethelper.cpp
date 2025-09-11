@@ -1,7 +1,14 @@
+/****************************************************************************
+ *
+ * Copyright (C) 2025 iSoftStone. All rights reserved.
+ * See LGPL for detailed Information
+ * 
+ * This file is part of the qtohextras module.
+ * 
+ ****************************************************************************/
 #include <QDebug>
 #include <QTimer>
 #include <QWidget>
-#include <optional>
 #include <QJsObject>
 #include <qohutility.h>
 #include <QGuiApplication>
@@ -15,6 +22,12 @@
 
 Q_LOGGING_CATEGORY(widgethelper, "ohos.widget.helper");
 
+namespace {
+    constexpr int API_11 = 11;
+    constexpr int API_14 = 14;
+    constexpr int API_17 = 17;
+    constexpr int API_18 = 18;
+}
 QT_BEGIN_NAMESPACE
 
 bool isSubWindowOrFloatingWindow(QWidget *w) {
@@ -54,7 +67,7 @@ class QOhPrivacyModeData final : public Data
 public:
     QOhPrivacyModeData(QOhWidgetHelperPrivate *helper, bool isPrivacyMode = false)
         : Data(helper), m_isPrivacyMode(isPrivacyMode) {}
-    virtual bool set() override;
+    bool set() override;
     virtual QVariant get() const override;
 private:
     bool m_isPrivacyMode;
@@ -65,7 +78,7 @@ class QOhWindowRectAutoSaveData final : public Data
 public:
     QOhWindowRectAutoSaveData(QOhWidgetHelperPrivate *helper, bool autoSave = false)
         : Data(helper), m_isAutoSave(autoSave) {}
-    virtual bool set() override;
+    bool set() override;
     virtual QVariant get() const override;
 private:
     bool m_isAutoSave;
@@ -77,7 +90,7 @@ class QOhDecorButtonStyleData final : public Data
 public:
     QOhDecorButtonStyleData(QOhWidgetHelperPrivate *helper, const QOhWidgetHelper::DecorButtonStyle &style = defaultDecorButtonStyle)
         : Data(helper), m_style(style) {}
-    virtual bool set() override;
+    bool set() override;
     virtual QVariant get() const override;
 private:
     QOhWidgetHelper::DecorButtonStyle m_style;
@@ -88,7 +101,7 @@ class QOhWindowKeepScreenOnData final : public Data
 public:
     QOhWindowKeepScreenOnData(QOhWidgetHelperPrivate *helper, bool keepOn = false)
         : Data(helper), m_keepOn(keepOn) {}
-    virtual bool set() override;
+    bool set() override;
     virtual QVariant get() const override;
 private:
     bool m_keepOn;
@@ -99,7 +112,7 @@ class QOhRegisterTitleButtonRectChangedData final : public Data
 public:
     QOhRegisterTitleButtonRectChangedData(QOhWidgetHelperPrivate *helper)
         : Data(helper) {}
-    virtual bool set() override;
+    bool set() override;
     virtual QVariant get() const override;
 };
 
@@ -108,7 +121,7 @@ class QOhSupportedWindowModesData final : public Data
 public:
     QOhSupportedWindowModesData(QOhWidgetHelperPrivate *helper, QOhWidgetHelper::SupportedWindowModes modes = QOhWidgetHelper::SupportedWindowModes())
         : Data(helper), m_modes(modes) {}
-    virtual bool set() override;
+    bool set() override;
     virtual QVariant get() const override;
 private:
     QOhWidgetHelper::SupportedWindowModes m_modes;
@@ -119,7 +132,7 @@ class QOhWindowBackgroundColorData final : public Data
 public:
     QOhWindowBackgroundColorData(QOhWidgetHelperPrivate *helper, const QColor &color)
         : Data(helper), m_color(color) {}
-    virtual bool set() override;
+    bool set() override;
     virtual QVariant get() const override;
 private:
     QColor m_color;
@@ -130,7 +143,7 @@ class QOhWindowCornerData final : public Data
 public:
     QOhWindowCornerData(QOhWidgetHelperPrivate *helper, qreal cornerRadius = 16)
         : Data(helper), m_cornerRadius(cornerRadius) {}
-    virtual bool set() override;
+    bool set() override;
     virtual QVariant get() const override;
 private:
     qreal m_cornerRadius;
@@ -141,7 +154,7 @@ class QOhWindowShadowData final : public Data
 public:
     QOhWindowShadowData(QOhWidgetHelperPrivate *helper, qreal shadowRadius)
         : Data(helper), m_shadowRadius(shadowRadius) {}
-    virtual bool set() override;
+    bool set() override;
     virtual QVariant get() const override;
 private:
     qreal m_shadowRadius;
@@ -247,7 +260,7 @@ abilities标签中的metadata标签下配置"enable.remove.starting.window"为"t
 void QOhWidgetHelper::removeStartingWindow()
 {
     Q_D(QOhWidgetHelper);
-    if (QtOh::apiVersion() < 14) {
+    if (QtOh::apiVersion() < API_14) {
         qCWarning(widgethelper) << "This interface has been supported since API version 14.";
         return;
     }
@@ -311,7 +324,7 @@ void QOhWidgetHelper::setWindowBackgroundColor(const QColor &color)
 
 void QOhWidgetHelper::setWindowCornerRadius(qreal cornerRadius)
 {
-    if (QtOh::apiVersion() < 17) {
+    if (QtOh::apiVersion() < API_17) {
         qCWarning(widgethelper) << "This interface has been supported since API version 17.";
         return;
     }
@@ -322,7 +335,7 @@ void QOhWidgetHelper::setWindowCornerRadius(qreal cornerRadius)
 
 qreal QOhWidgetHelper::windowCornerRadius()
 {
-    if (QtOh::apiVersion() < 17) {
+    if (QtOh::apiVersion() < API_17) {
         qCWarning(widgethelper) << "This interface has been supported since API version 17.";
         return -1.f;
     }
@@ -355,7 +368,7 @@ void QOhWidgetHelper::setResizeByDragEnabled(bool enable)
 
 void QOhWidgetHelper::setWindowShadowRadius(qreal shadowRadius)
 {
-    if (QtOh::apiVersion() < 17) {
+    if (QtOh::apiVersion() < API_17) {
         qCWarning(widgethelper) << "This interface has been supported since API version 17.";
         return;
     }
@@ -366,7 +379,7 @@ void QOhWidgetHelper::setWindowShadowRadius(qreal shadowRadius)
 
 void QOhWidgetHelper::setWindowTitleMoveEnabled(bool enable)
 {
-    if (QtOh::apiVersion() < 14) {
+    if (QtOh::apiVersion() < API_14) {
         qCWarning(widgethelper) << "This interface has been supported since API version 14.";
         return;
     }
@@ -407,7 +420,7 @@ void QOhWidgetHelper::setWindowTitleButtonVisible(bool maximizeButtonVisible, bo
     }
 
     QtOh::runOnJsUIThreadNoWait([jsObject, maximizeButtonVisible, minimizeButtonVisible, closeButtonVisible] {
-        if (QtOh::apiVersion() < 14) {
+        if (QtOh::apiVersion() < API_14) {
             qCWarning(widgethelper, "API versions below 14 do not support hiding the close button.");
             jsObject->call("setWindowTitleButtonVisible", {Napi::Boolean::New(jsObject->env(), maximizeButtonVisible),
                                                             Napi::Boolean::New(jsObject->env(), minimizeButtonVisible)});
@@ -451,7 +464,7 @@ bool QOhWidgetHelper::eventFilter(QObject *watched, QEvent *event)
 
 void QOhWidgetHelper::setWindowRectAutoSave(bool enable)
 {
-    if (QtOh::apiVersion() < 14) {
+    if (QtOh::apiVersion() < API_14) {
         qCWarning(widgethelper) << "This interface has been supported since API version 14.";
         return;
     }
@@ -461,7 +474,7 @@ void QOhWidgetHelper::setWindowRectAutoSave(bool enable)
 
 bool QOhWidgetHelper::isWindowRectAutoSave() const
 {
-    if (QtOh::apiVersion() < 14) {
+    if (QtOh::apiVersion() < API_14) {
         qCWarning(widgethelper) << "This interface has been supported since API version 14.";
         return false;
     }
@@ -500,7 +513,7 @@ QWindow *QOhWidgetHelperPrivate::window() const
 {
     if (!m_window.isNull())
         return m_window.data();
-#if 0
+#if defined(ENABLE_HERE)
     QWidget *w = m_widget->nativeParentWidget();
     if (w == nullptr)
         w = m_widget.data();
@@ -640,9 +653,11 @@ QVariant QOhWindowKeepScreenOnData::get() const
     });
 }
 
-#define FULL_SCREEN_VALUE  0    /*窗口支持全屏显示*/
-#define SPLIT_VALUE 1              /*窗口支持分屏显示*/
-#define FLOATING_VALUE  2          /*支持窗口化显示*/
+namespace {
+    constexpr int FULL_SCREEN_VALUE = 0;    /*窗口支持全屏显示*/
+    constexpr int SPLIT_VALUE = 1;          /*窗口支持分屏显示*/
+    constexpr int FLOATING_VALUE = 2;       /*支持窗口化显示*/
+}
 
 bool QOhSupportedWindowModesData::set()
 {
@@ -748,7 +763,7 @@ QVariant QOhWindowShadowData::get() const
 
 bool QOhWindowResizeByDragData::set()
 {
-    if (QtOh::apiVersion() < 14) {
+    if (QtOh::apiVersion() < API_14) {
         qCWarning(widgethelper) << "This interface has been supported since API version 14.";
         return false;
     }
@@ -808,7 +823,7 @@ QVariant QOhRegisterTitleButtonRectChangedData::get() const
 
 bool QOhWindowDecorData::set()
 {
-    if (QtOh::apiVersion() < 11) {
+    if (QtOh::apiVersion() < API_11) {
         qCWarning(widgethelper) << "This interface has been supported since API version 11.";
         return false;
     }
@@ -826,7 +841,7 @@ bool QOhWindowDecorData::set()
 
 QVariant QOhWindowDecorData::get() const
 {
-    if (QtOh::apiVersion() < 18) {
+    if (QtOh::apiVersion() < API_18) {
         qCWarning(widgethelper) << "This interface has been supported since API version 18.";
         return false;
     }

@@ -1,6 +1,9 @@
-/*******************************************************************
- *  Copyright(c) 2022-2025 Ltd.
- *  All right reserved. See LGPL for detailed Information
+/****************************************************************************
+ *
+ * Copyright (C) 2025 iSoftStone. All rights reserved.
+ * See LGPL for detailed Information
+ * 
+ * This file is part of the qtohextras module.
  *
  *  文件名称: qohappcontext.cpp
  *  简要描述: 主题相关处理类

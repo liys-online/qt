@@ -1,7 +1,10 @@
-/*******************************************************************
- *  Copyright(c) 2022-2025 Ltd.
- *  All right reserved. See LGPL for detailed Information
+/****************************************************************************
  *
+ * Copyright (C) 2025 iSoftStone. All rights reserved.
+ * See LGPL for detailed Information
+ * 
+ * This file is part of the qtohextras module.
+ * 
  *  文件名称: qohfileshare.cpp
  *  简要描述: 提供了支持基于URI的文件及目录授于持久化权限、权限激活、权限查询等方法
  *  创建日期: 2024/10/22
@@ -22,6 +25,10 @@
 #include "qohfileshare.h"
 
 Q_LOGGING_CATEGORY(fileshare, "ohos.fileshare.permission");
+
+namespace {
+    constexpr int kMaxPolicyCount = 500;
+}
 
 namespace PermissionType {
     Q_NAMESPACE
@@ -48,7 +55,7 @@ static QOHFileShare::Error permissionHelper(PermissionType::Permission type,
                                             const QOHFileShare::Policys &policys,
                                             QOHFileShare::Results &results)
 {
-    if (500 < policys.size()) {
+    if (policys.size() > kMaxPolicyCount) {
         qCWarning(fileshare) << "exceed the limit";
         return QOHFileShare::EXCEED_LIMIT;
     }
@@ -163,7 +170,7 @@ QOHFileShare::Error QOHFileShare::deactivatePermission(const Policys &policys, R
  */
 QOHFileShare::Error QOHFileShare::checkPersistentPermission(const Policys &policys, Checks &checks)
 {
-    if (500 < policys.size()) {
+    if (policys.size() > kMaxPolicyCount) {
         qCWarning(fileshare) << "exceed the limit";
         return QOHFileShare::EXCEED_LIMIT;
     }

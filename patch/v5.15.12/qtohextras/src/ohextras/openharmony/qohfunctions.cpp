@@ -1,6 +1,9 @@
-/*******************************************************************
- *  Copyright(c) 2022-2025 Ltd.
- *  All right reserved. See LGPL for detailed Information
+/****************************************************************************
+ *
+ * Copyright (C) 2025 iSoftStone. All rights reserved.
+ * See LGPL for detailed Information
+ * 
+ * This file is part of the qtohextras module.
  *
  *  文件名称: qohfunctions.cpp
  *  简要描述: 提供鸿蒙Native开发的辅助接口函数
@@ -14,11 +17,12 @@
  *  requestPermissionsOnSetting
  *  requestPermissionsOnSettingSync
  ******************************************************************/
+#include "qohfunctions.h"
+
 #include <QDebug>
 #include <QJsModule>
 #include <qopenharmony.h>
 
-#include "qohfunctions.h"
 #include "qpa/qplatformaccessctrl.h"
 #include "qpa/qplatformintegration.h"
 #include "private/qguiapplication_p.h"
@@ -52,10 +56,10 @@ static PermissionRequestResult privateToPublicPermissionsResult(const QtOhPrivat
             result.dialogShownResults
             );
 }
-
+#undef ENABLE_SYS_MODULE
 int ohSdkVersion()
 {
-#if 0
+#if defined(ENABLE_SYS_MODULE)  
     /* @hms.core.atomicserviceComponent.atomicservice还能获取主题等信息 */
     int version = -1;
     QJsModule sysModule("@hms.core.atomicserviceComponent.atomicservice");
