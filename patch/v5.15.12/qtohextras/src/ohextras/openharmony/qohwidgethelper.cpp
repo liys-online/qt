@@ -32,17 +32,19 @@ QT_BEGIN_NAMESPACE
 namespace {
 bool isSubWindowOrFloatingWindow(QWidget *w)
 {
-    if (!w)
+    if (!w) {
         return false;
-
+    }
     /* 默认子窗 */
     Qt::WindowFlags flags = w->windowFlags();
-    if (flags.testFlag(Qt::ToolTip) || flags.testFlag(Qt::Popup))
+    if (flags.testFlag(Qt::ToolTip) || flags.testFlag(Qt::Popup)) {
         return true;
+    }
 
     /* 默认悬浮窗 */
-    if (flags.testFlag(Qt::WindowStaysOnTopHint))
+    if (flags.testFlag(Qt::WindowStaysOnTopHint)) {
         return true;
+    }
 
     if (!w->isWindow() || !w->parent()) {
         qWarning() << "interface only supports calling in independent child windows.";
@@ -492,11 +494,13 @@ QOhWidgetHelperPrivate::~QOhWidgetHelperPrivate() {}
 
 QJsObject *QOhWidgetHelperPrivate::native(const QByteArray &nativeName) const
 {
-    if (window() == nullptr)
+    if (window() == nullptr) {
         return nullptr;
+    }
     auto platformNativeInterface = qApp->platformNativeInterface();
-    if (platformNativeInterface == nullptr)
+    if (platformNativeInterface == nullptr) {
         return nullptr;
+    }
     QJsObject *obj =
         reinterpret_cast<QJsObject *>(platformNativeInterface->nativeResourceForWindow(nativeName, window()));
     return obj;
@@ -544,8 +548,9 @@ QPlatformNativeInterface::NativeResourceForIntegrationFunction QOhWidgetHelperPr
     const QByteArray &funcName)
 {
     auto platformNativeInterface = qApp->platformNativeInterface();
-    if (platformNativeInterface == nullptr)
+    if (platformNativeInterface == nullptr) {
         return nullptr;
+    }
 
     return platformNativeInterface->nativeResourceFunctionForIntegration(funcName);
 }

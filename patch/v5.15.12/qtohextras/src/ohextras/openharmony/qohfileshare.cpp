@@ -106,17 +106,15 @@ static FileManagement_ErrCode executePermissionOperation(PermissionType::Permiss
 static void processPermissionResults(FileManagement_ErrCode ret, PermissionType::Permission type,
     FileShare_PolicyErrorResult *result, quint32 resultNum, QOHFileShare::Results &results)
 {
-    if (ERR_OK != ret) {
+    if (ERR_OK != ret && (ERR_EPERM != ret && Q_NULLPTR != result)) {
         qCWarning(fileshare) << type << " method failed, code: " << ret << "result size:" << resultNum;
-        if (ERR_EPERM != ret && Q_NULLPTR != result) {
-            for (quint32 i = 0; i < resultNum; ++i) {
-                QOHFileShare::Result r{ QOHFileShare::Error(result[i].code), QString::fromLocal8Bit(result[i].uri),
-                    QString::fromLocal8Bit(result[i].message) };
-                results.append(r);
+        for (quint32 i = 0; i < resultNum; ++i) {
+            QOHFileShare::Result r{ QOHFileShare::Error(result[i].code), QString::fromLocal8Bit(result[i].uri),
+                QString::fromLocal8Bit(result[i].message) };
+            results.append(r);
 
-                qCDebug(fileshare) << "error uri: " << result[i].uri << "error code: " << result[i].code <<
-                    "error message: " << result[i].message;
-            }
+            qCDebug(fileshare) << "error uri: " << result[i].uri << "error code: " << result[i].code <<
+                "error message: " << result[i].message;
         }
     }
 }
