@@ -71,8 +71,8 @@ private:
 
     bool m_followSystemColorMode = false;
     Napi::FunctionReference m_callbackRef;
-    inline static std::once_flag ms_once{};
-    inline static QScopedPointer<QOhAppContext> ms_appContext{ nullptr };
+    inline static std::once_flag m_once{};
+    inline static QScopedPointer<QOhAppContext> m_appContext{ nullptr };
 
     QOhAppContext::ColorMode m_colorMode = QOhAppContext::ColorMode::Default;
     OhConfigurationColorMode m_sysColorMode = OhConfigurationColorMode::COLOR_MODE_LIGHT;
@@ -169,10 +169,10 @@ QOhAppContext::~QOhAppContext() {}
 
 QOhAppContext *QOhAppContext::instance()
 {
-    std::call_once(QOhAppContextPrivate::ms_once,
-        [] { QOhAppContextPrivate::ms_appContext.reset(new QOhAppContext()); });
+    std::call_once(QOhAppContextPrivate::m_once,
+        [] { QOhAppContextPrivate::m_appContext.reset(new QOhAppContext()); });
 
-    return QOhAppContextPrivate::ms_appContext.get();
+    return QOhAppContextPrivate::m_appContext.get();
 }
 
 void QOhAppContext::setColorMode(ColorMode mode)

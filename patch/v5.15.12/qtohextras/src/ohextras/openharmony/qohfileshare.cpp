@@ -27,7 +27,7 @@
 Q_LOGGING_CATEGORY(fileshare, "ohos.fileshare.permission");
 
 namespace {
-constexpr int kMaxPolicyCount = 500;
+constexpr int K_MAX_POLICY_COUNT = 500;
 }
 
 namespace PermissionType {
@@ -48,7 +48,7 @@ Q_ENUM_NS(Permission)
 static QOHFileShare::Error convertPoliciesToNativeFormat(const QOHFileShare::Policys &policys,
     QVarLengthArray<FileShare_PolicyInfo> &policyInfos, QByteArrayList &urlByts)
 {
-    if (policys.size() > kMaxPolicyCount) {
+    if (policys.size() > K_MAX_POLICY_COUNT) {
         qCWarning(fileshare) << "exceed the limit";
         return QOHFileShare::EXCEED_LIMIT;
     }
@@ -211,7 +211,7 @@ QOHFileShare::Error QOHFileShare::deactivatePermission(const Policys &policys, R
  */
 QOHFileShare::Error QOHFileShare::checkPersistentPermission(const Policys &policys, Checks &checks)
 {
-    if (policys.size() > kMaxPolicyCount) {
+    if (policys.size() > K_MAX_POLICY_COUNT) {
         qCWarning(fileshare) << "exceed the limit";
         return QOHFileShare::EXCEED_LIMIT;
     }

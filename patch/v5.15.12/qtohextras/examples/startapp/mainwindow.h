@@ -23,11 +23,11 @@ public:
     ~MainWindow();
 
 private slots:
-    void on_pushButton_add_clicked();
+    void onPushButtonAddClicked();
 
-    void on_pushButton_delete_clicked();
+    void onPushButtonDeleteClicked();
 
-    void on_pushButton_ok_clicked();
+    void onPushButtonOkClicked();
 
 private:
     Ui::MainWindow *ui;

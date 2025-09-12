@@ -33,6 +33,9 @@ MainWindow::MainWindow(QWidget *parent) : QWidget(parent), ui(new Ui::MainWindow
     QIntValidator *v = new QIntValidator(this);
     v->setRange(MIN_FLAGS_VALUE, MAX_FLAGS_VALUE);
     ui->lineEdit_flags->setValidator(v);
+    connect(ui->pushButton_add, &QPushButton::clicked, this, &MainWindow::onPushButtonAddClicked);
+    connect(ui->pushButton_delete, &QPushButton::clicked, this, &MainWindow::onPushButtonDeleteClicked);
+    connect(ui->pushButton_ok, &QPushButton::clicked, this, &MainWindow::onPushButtonOkClicked);
 }
 
 MainWindow::~MainWindow()
@@ -40,7 +43,7 @@ MainWindow::~MainWindow()
     delete ui;
 }
 
-void MainWindow::on_pushButton_add_clicked()
+void MainWindow::onPushButtonAddClicked()
 {
     QTableWidgetItem *item = new QTableWidgetItem("key");
     ui->tableWidget->insertRow(0);
@@ -55,13 +58,13 @@ void MainWindow::on_pushButton_add_clicked()
     ui->tableWidget->setCellWidget(0, COLUMN_TYPE, box);
 }
 
-void MainWindow::on_pushButton_delete_clicked()
+void MainWindow::onPushButtonDeleteClicked()
 {
     int index = ui->tableWidget->currentRow();
     ui->tableWidget->removeRow(index);
 }
 
-void MainWindow::on_pushButton_ok_clicked()
+void MainWindow::onPushButtonOkClicked()
 {
     QOpenHarmonyWant want;
     want.deviceId = ui->lineEdit_deviceId->text();
