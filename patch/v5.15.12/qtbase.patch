@@ -260,7 +260,7 @@ index 1ef1dcfd1cb..6ecde8f0269 100644
  }
 diff --git a/mkspecs/oh-clang/qmake.conf b/mkspecs/oh-clang/qmake.conf
 new file mode 100644
-index 00000000000..ef6b2818934
+index 00000000000..b838d9301e9
 --- /dev/null
 +++ b/mkspecs/oh-clang/qmake.conf
 @@ -0,0 +1,39 @@
@@ -296,7 +296,7 @@ index 00000000000..ef6b2818934
 +                -isystem=$$shell_path($$SDK_ROOT/native/llvm/include/libcxx-ohos/include/c++/v1)
 +
 +
-+QMAKE_CFLAGS += -g -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -fno-addrsig -Wa,--noexecstack -Wformat -Werror=format-security
++#QMAKE_CFLAGS += -g -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -fno-addrsig -Wa,--noexecstack -Wformat -Werror=format-security
 +
 +QMAKE_LINK    = $$QMAKE_CXX $$QMAKE_CFLAGS
 +
