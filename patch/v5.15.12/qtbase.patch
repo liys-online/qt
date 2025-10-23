@@ -260,7 +260,7 @@ index 1ef1dcfd1cb..6ecde8f0269 100644
  }
 diff --git a/mkspecs/oh-clang/qmake.conf b/mkspecs/oh-clang/qmake.conf
 new file mode 100644
-index 00000000000..ef6b2818934
+index 00000000000..b838d9301e9
 --- /dev/null
 +++ b/mkspecs/oh-clang/qmake.conf
 @@ -0,0 +1,39 @@
@@ -296,7 +296,7 @@ index 00000000000..ef6b2818934
 +                -isystem=$$shell_path($$SDK_ROOT/native/llvm/include/libcxx-ohos/include/c++/v1)
 +
 +
-+QMAKE_CFLAGS += -g -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -fno-addrsig -Wa,--noexecstack -Wformat -Werror=format-security
++#QMAKE_CFLAGS += -g -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -fno-addrsig -Wa,--noexecstack -Wformat -Werror=format-security
 +
 +QMAKE_LINK    = $$QMAKE_CXX $$QMAKE_CFLAGS
 +
@@ -13630,18 +13630,16 @@ index 6e69b4c4d32..ff8ff19361f 100644
                  fileName = url.toString(QUrl::RemoveAuthority | QUrl::RemoveFragment | QUrl::RemoveQuery);
          }
 diff --git a/src/network/kernel/kernel.pri b/src/network/kernel/kernel.pri
-index 7282e20cb3e..bb8b8f3c677 100644
+index 7282e20cb3e..eed5e7c1446 100644
 --- a/src/network/kernel/kernel.pri
 +++ b/src/network/kernel/kernel.pri
-@@ -38,8 +38,14 @@ qtConfig(dnslookup) {
+@@ -38,8 +38,12 @@ qtConfig(dnslookup) {
      SOURCES += kernel/qdnslookup.cpp
  }
  
 -unix {
 -    !integrity:qtConfig(dnslookup): SOURCES += kernel/qdnslookup_unix.cpp
 +openharmony {
-+    QT += gui-private
-+
 +    SOURCES += kernel/qdnslookup_openharmony.cpp
 +}
 +
@@ -13652,15 +13650,12 @@ index 7282e20cb3e..bb8b8f3c677 100644
  
 diff --git a/src/network/kernel/qdnslookup_openharmony.cpp b/src/network/kernel/qdnslookup_openharmony.cpp
 new file mode 100644
-index 00000000000..d08f24b9fc7
+index 00000000000..7bd9ed578d6
 --- /dev/null
 +++ b/src/network/kernel/qdnslookup_openharmony.cpp
-@@ -0,0 +1,75 @@
+@@ -0,0 +1,46 @@
 +#include "qdnslookup_p.h"
 +
-+#include "qpa/qplatformaccessctrl.h"
-+#include "qpa/qplatformintegration.h"
-+#include "private/qguiapplication_p.h"
 +#include "qjsmodule.h"
 +#include <private/qopenharmony_p.h>
 +#include <private/qjspromise_p.h>
@@ -13669,37 +13664,11 @@ index 00000000000..d08f24b9fc7
 +
 +QT_BEGIN_NAMESPACE
 +
-+static bool checkPermissionHelper(QString requestPerm)
-+{
-+    QPlatformAccessCtrl *accessCtrl = QGuiApplicationPrivate::platformIntegration()->accessCtrl();
-+    if (nullptr == accessCtrl)
-+        return false;
-+
-+    if (QtOhPrivate::PermissionsResult::Granted
-+        == QtOhPrivate::PermissionsResult(accessCtrl->checkPermission(requestPerm)))
-+        return true;
-+
-+    const QtOhPrivate::PermissionRequestResult &privatePerms =
-+            accessCtrl->requestPermissionsSync(QStringList { requestPerm });
-+
-+    if (privatePerms.authResults[0] == QtOhPrivate::PermissionsResult::Denied)
-+        return false;
-+
-+    return true;
-+}
-+
 +void QDnsLookupRunnable::query(const int requestType, const QByteArray &requestName,
 +                               const QHostAddress &nameserver, QDnsLookupReply *reply)
 +{
 +    Q_UNUSED(requestType);
 +    Q_UNUSED(nameserver);
-+
-+    if (!checkPermissionHelper(QStringLiteral("ohos.permission.INTERNET"))) {
-+        qWarning() << Q_FUNC_INFO << "the permission check fail!";
-+        reply->error = QDnsLookup::InvalidRequestError;
-+        reply->errorString = tr("The Permission Check Fail");
-+        return;
-+    }
 +
 +    QtOh::runOnJsUIThreadWithPromise<bool>([requestName, &reply](auto p) {
 +        QJsModule jsNetMoudle("@ohos.net.connection");
