@@ -51,7 +51,6 @@ public:
 
     void removeStartingWindow();
     QRect titleButtonRect() const;
-    void registerTitleButtonRectChangedListener();
 
     DecorButtonStyle decorButtonStyle() const;
     void setDecorButtonStyle(const DecorButtonStyle &style);
@@ -74,6 +73,7 @@ public:
 
 signals:
     void titleButtonRectChanged(const QRect &rect);
+    void pcModeChanged(bool isPCMode);
     // QObject interface
 public:
     virtual bool eventFilter(QObject *watched, QEvent *event) override;
