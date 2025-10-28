@@ -828,7 +828,6 @@ QVariant QOhWindowCornerData::get() const
         return invalidValue;
     }
 
-
     return QtOh::runOnJsUIThreadWithResult([jw, invalidValue] {
         Napi::Value ret = jw->call("getWindowCornerRadius");
         if (ret.IsNumber()) {
