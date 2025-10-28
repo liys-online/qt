@@ -30,9 +30,11 @@ constexpr int API_18 = 18;
 }
 QT_BEGIN_NAMESPACE
 namespace {
-bool isSubWindow(QWindow *w) {
-    if (!w)
+bool isSubWindow(QWindow *w)
+{
+    if (!w) {
         return false;
+    }
 
     /* 不处理嵌入式子窗口 */
     if (w->parent()) {
@@ -41,8 +43,9 @@ bool isSubWindow(QWindow *w) {
 
     /* 默认子窗 */
     Qt::WindowFlags flags = w->flags();
-    if (flags.testFlag(Qt::ToolTip) || flags.testFlag(Qt::Popup))
+    if (flags.testFlag(Qt::ToolTip) || flags.testFlag(Qt::Popup)) {
         return true;
+    }
 
     if (!w->transientParent()) {
         qWarning() << "interface only supports calling in independent child windows.";
@@ -551,10 +554,12 @@ QPlatformNativeInterface::NativeResourceForIntegrationFunction QOhWidgetHelperPr
 
 void QOhWidgetHelperPrivate::registerHandler()
 {
-    if (!m_pcModeChangedHandlerRegistered)
+    if (!m_pcModeChangedHandlerRegistered) {
         m_pcModeChangedHandlerRegistered = registerPCModeChangedHandler();
-    if (!m_titleButtonRectChangedHandlerRegistered)
+    }
+    if (!m_titleButtonRectChangedHandlerRegistered) {
         m_titleButtonRectChangedHandlerRegistered = registerTitleButtonRectChangedHandler();
+    }
 }
 
 void QOhWidgetHelperPrivate::handleShowEvent(QOhWidgetHelper *helper)
@@ -626,8 +631,9 @@ bool QOhWidgetHelperPrivate::registerTitleButtonRectChangedHandler()
 bool QOhPrivacyModeData::set()
 {
     QJsObject *window = widgetHelper->jsWindow();
-    if (window == nullptr)
+    if (window == nullptr) {
         return false;
+    }
     QtOh::runOnJsUIThreadAndWait([this, window] {
         window->call(QString::fromUtf8("setWindowPrivacyMode"), { Napi::Boolean::New(window->env(), m_isPrivacyMode) });
     });
@@ -637,8 +643,9 @@ bool QOhPrivacyModeData::set()
 QVariant QOhPrivacyModeData::get() const
 {
     QJsObject *window = widgetHelper->jsWindow();
-    if (window == nullptr)
+    if (window == nullptr) {
         return false;
+    }
     return QtOh::runOnJsUIThreadWithResult([window] {
         Napi::Object result = window->call(QString::fromUtf8("getWindowProperties")).As<Napi::Object>();
         bool isPrivacy = result.Get("isPrivacyMode").ToBoolean();
@@ -649,8 +656,9 @@ QVariant QOhPrivacyModeData::get() const
 bool QOhWindowRectAutoSaveData::set()
 {
     QJsObject *ws = widgetHelper->windowStage();
-    if (ws == nullptr)
+    if (ws == nullptr) {
         return false;
+    }
     QtOh::runOnJsUIThreadAndWait([this, ws] {
         ws->call(QString::fromUtf8("setWindowRectAutoSave"), { Napi::Boolean::New(ws->env(), m_isAutoSave) });
     });
@@ -660,8 +668,9 @@ bool QOhWindowRectAutoSaveData::set()
 QVariant QOhWindowRectAutoSaveData::get() const
 {
     QJsObject *ws = widgetHelper->windowStage();
-    if (ws == nullptr)
+    if (ws == nullptr) {
         return false;
+    }
 
     return QtOh::runOnJsUIThreadWithPromise<bool>([ws](auto p) {
         QJsPromise promise(ws->call(QString::fromUtf8("isWindowRectAutoSave")).As<Napi::Promise>());
@@ -680,8 +689,9 @@ QVariant QOhWindowRectAutoSaveData::get() const
 bool QOhDecorButtonStyleData::set()
 {
     QJsObject *window = widgetHelper->jsWindow();
-    if (window == nullptr)
+    if (window == nullptr) {
         return false;
+    }
     QtOh::runOnJsUIThreadAndWait([style = widgetHelper->formatStyle(m_style), window] {
         Napi::Object jsStyle = Napi::Object::New(window->env());
         jsStyle.Set("colorMode", (int)style.colorMode);
@@ -699,8 +709,9 @@ QVariant QOhDecorButtonStyleData::get() const
     v.setValue(widgetHelper->formatStyle(defaultDecorButtonStyle, false));
 
     QJsObject *window = widgetHelper->jsWindow();
-    if (window == nullptr)
+    if (window == nullptr) {
         return v;
+    }
     QOhWidgetHelper::DecorButtonStyle style = QtOh::runOnJsUIThreadWithResult([window] {
         Napi::Object result = window->call(QString::fromUtf8("getDecorButtonStyle")).As<Napi::Object>();
         return QOhWidgetHelper::DecorButtonStyle{ (QOhWidgetHelper::ColorMode)((int)result.Get("colorMode").ToNumber()),
@@ -714,8 +725,9 @@ QVariant QOhDecorButtonStyleData::get() const
 bool QOhWindowKeepScreenOnData::set()
 {
     QJsObject *window = widgetHelper->jsWindow();
-    if (window == nullptr)
+    if (window == nullptr) {
         return false;
+    }
     QtOh::runOnJsUIThreadNoWait([keepOn = m_keepOn, window] {
         window->call(QLatin1String("setWindowKeepScreenOn"), { Napi::Boolean::New(window->env(), keepOn) });
     });
@@ -789,11 +801,13 @@ QVariant QOhWindowBackgroundColorData::get() const
 bool QOhWindowCornerData::set()
 {
     QJsObject *jw = widgetHelper->jsWindow();
-    if (!jw)
+    if (!jw) {
         return false;
+    }
 
-    if (!isSubWindow(widgetHelper->window()))
+    if (!isSubWindow(widgetHelper->window())) {
         return false;
+    }
 
     QtOh::runOnJsUIThreadNoWait([jw, cornerRadius = m_cornerRadius] {
         jw->call("setWindowCornerRadius", { Napi::Number::New(jw->env(), cornerRadius) });
@@ -806,16 +820,18 @@ QVariant QOhWindowCornerData::get() const
     qreal invalidValue = -1;
 
     QJsObject *jw = widgetHelper->jsWindow();
-    if (!jw)
+    if (!jw) {
         return invalidValue;
+    }
 
-    if (!isSubWindow(widgetHelper->window()))
+    if (!isSubWindow(widgetHelper->window())) {
         return invalidValue;
+    }
 
 
-    return QtOh::runOnJsUIThreadWithResult([jw, invalidValue]{
+    return QtOh::runOnJsUIThreadWithResult([jw, invalidValue] {
         Napi::Value ret = jw->call("getWindowCornerRadius");
-        if(ret.IsNumber()){
+        if (ret.IsNumber()) {
             qreal result = ret.ToNumber();
             return result;
         }
@@ -827,13 +843,15 @@ QVariant QOhWindowCornerData::get() const
 bool QOhWindowShadowData::set()
 {
     QJsObject *jw = widgetHelper->jsWindow();
-    if (!jw)
+    if (!jw) {
         return false;
+    }
 
-    if (!isSubWindow(widgetHelper->window()))
+    if (!isSubWindow(widgetHelper->window())) {
         return false;
+    }
 
-    QtOh::runOnJsUIThreadNoWait([jw, shadowRadius = m_shadowRadius]{
+    QtOh::runOnJsUIThreadNoWait([jw, shadowRadius = m_shadowRadius] {
         jw->call("setWindowShadowRadius", { Napi::Number::New(jw->env(), shadowRadius) });
     });
     return true;
