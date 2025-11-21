@@ -63,8 +63,14 @@ struct QOpenHarmonyStartOptions {
     {}
 };
 
+struct QOpenHarmonyAbilityResult {
+    int resultCode;
+    QOpenHarmonyWant want;
+};
+
 Q_DECLARE_METATYPE(QOpenHarmonyWant)
 Q_DECLARE_METATYPE(QOpenHarmonyStartOptions)
+Q_DECLARE_METATYPE(QOpenHarmonyAbilityResult)
 Q_DECLARE_METATYPE(SupportWindowMode)
 
 namespace QOpenHarmonyAbility {
@@ -91,6 +97,12 @@ Q_OPENHARMONYEXTRAS_EXPORT void startForResult(const QOpenHarmonyWant &want,
 
 Q_OPENHARMONYEXTRAS_EXPORT void startForResult(const QOpenHarmonyWant &want);
 Q_OPENHARMONYEXTRAS_EXPORT void startForResult(const QOpenHarmonyWant &want, QAbilityResultReceiver *receiver);
+
+Q_OPENHARMONYEXTRAS_EXPORT void terminateSelfWithResult(const QOpenHarmonyAbilityResult &abilityResult);
+
+Q_OPENHARMONYEXTRAS_EXPORT int getSubProcessPid(const QString &processIdent);
+Q_OPENHARMONYEXTRAS_EXPORT bool getSubProcessAliveState(const QString &processIdent);
+Q_OPENHARMONYEXTRAS_EXPORT void killSubProcess(const QString &processIdent);
 }
 
 #endif // QOPENHARMONYABILITY_H

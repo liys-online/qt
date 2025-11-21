@@ -515,13 +515,19 @@ QJsObject *QOhWidgetHelperPrivate::windowStage() const
 
 QWindow *QOhWidgetHelperPrivate::window() const
 {
-    if (!m_window.isNull())
+    if (!m_window.isNull()) {
         return m_window.data();
+    }
 #if defined(ENABLE_HERE)
     QWidget *w = m_widget->nativeParentWidget();
-    if (w == nullptr)
+    if (w == nullptr) {
         w = m_widget.data();
+    }
 #endif
+    if (!m_widget) {
+        return nullptr;
+    }
+
     auto windowHandle = m_widget->windowHandle();
     m_window = windowHandle;
     return windowHandle;

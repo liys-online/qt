@@ -1,0 +1,85 @@
+diff --git a/src/controls/plugin.cpp b/src/controls/plugin.cpp
+index 446357aa..520f0645 100644
+--- a/src/controls/plugin.cpp
++++ b/src/controls/plugin.cpp
+@@ -241,6 +241,11 @@ QString QtQuickControls1Plugin::fileLocation() const
+ {
+ #ifdef Q_OS_ANDROID
+     return "qrc:/android_rcc_bundle/qml/QtQuick/Controls";
++#elif defined(Q_OS_OPENHARMONY) /* FIXME 鸿蒙对文件读取的路径做了限制 */
++    if (Q_UNLIKELY(!qEnvironmentVariableIsEmpty("QT_HARMONY_QML_FILE_DIR"))) {
++        const QString envImportPath = qEnvironmentVariable("QT_HARMONY_QML_FILE_DIR");
++        return "file:" + envImportPath + "/QtQuick/Controls";
++    }
+ #else
+ # ifndef QT_STATIC
+     if (isLoadedFromResource())
+@@ -254,7 +259,7 @@ QString QtQuickControls1Plugin::fileLocation() const
+ 
+ bool QtQuickControls1Plugin::isLoadedFromResource() const
+ {
+-#ifdef Q_OS_ANDROID
++#if defined(Q_OS_ANDROID) || defined(Q_OS_OPENHARMONY)
+     return true;
+ #else
+ # ifdef QT_STATIC
+diff --git a/src/dialogs/dialogs.pro b/src/dialogs/dialogs.pro
+index ef0878ce..5302d154 100644
+--- a/src/dialogs/dialogs.pro
++++ b/src/dialogs/dialogs.pro
+@@ -72,7 +72,7 @@ DIALOGS_QML_FILES += \
+     images/window_border.png \
+     $$WIDGET_DIALOGS_QML_FILES
+ 
+-ios|android|blackberry {
++ios|android|blackberry|openharmony {
+     DIALOGS_QML_FILES -= $$WIDGET_DIALOGS_QML_FILES
+ }
+ 
+diff --git a/src/dialogs/plugin.cpp b/src/dialogs/plugin.cpp
+index 4bc7d386..4f074ca0 100644
+--- a/src/dialogs/plugin.cpp
++++ b/src/dialogs/plugin.cpp
+@@ -98,7 +98,7 @@ public:
+ #ifndef QT_STATIC
+         widgetsDir.cd("../PrivateWidgets");
+ #endif
+-#ifdef QT_STATIC
++#if defined(QT_STATIC) || defined(Q_OS_OPENHARMONY)
+         m_useResources = false;
+ #else
+ #ifndef ALWAYS_LOAD_FROM_RESOURCES
+@@ -109,7 +109,6 @@ public:
+             m_useResources = false;
+ #endif
+ #endif
+-
+         QQuickAbstractDialog::m_decorationComponentUrl = fileLocation("qml/DefaultWindowDecoration");
+         // Prefer the QPA dialog helpers if the platform supports them.
+         // Else if there is a QWidget-based implementation, check whether it's
+@@ -229,14 +228,25 @@ protected:
+ 
+     QUrl fileLocation(const QString &moduleName) const
+     {
++#ifdef Q_OS_OPENHARMONY
++
++        QString temp = baseUrl().toLocalFile();
++        temp.replace(qEnvironmentVariable("QT_PLUGIN_PATH") + "/qml", qEnvironmentVariable("QT_HARMONY_QML_FILE_DIR"));
++#endif
+         return m_useResources ?
+ #ifdef Q_OS_ANDROID
+                               QUrl(QString("qrc:/android_rcc_bundle/qml/QtQuick/Dialogs/%1.qml").arg(moduleName)) :
++#elif defined(Q_OS_OPENHARMONY)
++                              QUrl(QString("qrc:/harmony_rcc_bundle/qml/QtQuick/Dialogs/%1.qml").arg(moduleName)) :
+ #else
+                               QUrl(QString("qrc:/QtQuick/Dialogs/%1.qml").arg(moduleName)) :
+ #endif
+ #ifndef QT_STATIC
++#ifdef Q_OS_OPENHARMONY
++                              QUrl::fromLocalFile(QDir(temp).filePath(moduleName + ".qml"));
++#else
+                               QUrl::fromLocalFile(QDir(baseUrl().toLocalFile()).filePath(moduleName + ".qml"));
++#endif
+ #else
+                               QUrl(QString("qrc:/qt-project.org/imports/QtQuick/Dialogs/%1.qml").arg(moduleName));
+ #endif

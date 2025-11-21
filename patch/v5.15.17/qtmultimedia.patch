@@ -1199,32 +1199,33 @@ index 000000000..a48f9aba3
 +#endif // QOPENHARMONYAUDIOINPUT_H
 diff --git a/src/plugins/ohaudiodevice/qopenharmonyaudiomanager.cpp b/src/plugins/ohaudiodevice/qopenharmonyaudiomanager.cpp
 new file mode 100644
-index 000000000..b141e156f
+index 000000000..b78254c11
 --- /dev/null
 +++ b/src/plugins/ohaudiodevice/qopenharmonyaudiomanager.cpp
-@@ -0,0 +1,142 @@
+@@ -0,0 +1,139 @@
 +#include <QDebug>
 +#include <QJsModule>
 +
 +#include "qopenharmonyaudiomanager.h"
-+#include <private/qopenharmony_p.h>
++#include "qopenharmony.h"
 +
 +auto createRouting = []{
-+    return QtOh::runOnJsUIThreadWithResult([]{
-+        Napi::Object object = Napi::Object();
++    Napi::Object object = Napi::Object();
++    QtOh::runOnJsUIThreadAndWait([&]{
 +        QJsModule module("@ohos.multimedia.audio");
 +        Napi::Object obj = module.call("getAudioManager").As<Napi::Object>();
 +        if (!obj.IsNull()) {
 +            Napi::Value value = QJsObject(obj).call("getRoutingManager");
 +            if (!value.IsNull()) {
 +                object = value.As<Napi::Object>();
-+                return object;
++                return;
 +            }
 +        }
 +
 +        qWarning() << "get audio routing manager failed.";
-+        return Napi::Object();
 +    });
++
++    return object;
 +};
 +
 +Q_GLOBAL_STATIC_WITH_ARGS(QJsObject, audioMgr, (createRouting()));
@@ -1237,83 +1238,79 @@ index 000000000..b141e156f
 +};
 +
 +auto availableDevices = [](DeviceFlag flag)->Napi::Array {
-+    return QtOh::runOnJsUIThreadWithResult([=]{
-+        if (audioMgr->object().IsNull())
-+            return Napi::Array();
++    if (audioMgr->object().IsNull())
++        return Napi::Array();
 +
-+        Napi::Value devs;
++    Napi::Value devs;
++    QtOh::runOnJsUIThreadAndWait([&]{
 +        devs = audioMgr->call("getDevicesSync", { Napi::Number::New(audioMgr->env(), int(flag)) });
-+        return devs.As<Napi::Array>();
 +    });
++
++    return devs.As<Napi::Array>();
 +};
 +
 +auto channelCounts(const QString &devName, DeviceFlag flag)->QList<int> {
-+    return QtOh::runOnJsUIThreadWithResult([&](){
-+        Napi::Array devices = availableDevices(flag);
-+        QList<int> result;
++    QList<int> result;
 +
-+        for (uint32_t i = 0; i < devices.Length(); ++i){
-+            Napi::Object obj = Napi::Value(devices[i]).ToObject();
-+            if (obj.IsNull())
-+                continue;
++    Napi::Array devices = availableDevices(flag);
++    for (uint32_t i = 0; i < devices.Length(); ++i){
++        Napi::Object obj = Napi::Value(devices[i]).ToObject();
++        if (obj.IsNull())
++            continue;
 +
-+            QJsObject dev(obj);
-+            QString curName = QString::fromStdString(dev.get("displayName").ToString());
-+            if(curName == devName){
-+                Napi::Array channels = dev.get("channelCounts").As<Napi::Array>();
-+                for (uint32_t j = 0; j < channels.Length(); ++j){
-+                    result.append(Napi::Value(channels[j]).ToNumber());
-+                }
++        QJsObject dev(obj);
++        QString curName = QString::fromStdString(dev.get("displayName").ToString());
++        if(curName == devName){
++            Napi::Array channels = dev.get("channelCounts").As<Napi::Array>();
++            for (uint32_t j = 0; j < channels.Length(); ++j){
++                result.append(Napi::Value(channels[j]).ToNumber());
 +            }
 +        }
-+        return result;
-+    });
++    }
++    return result;
 +}
 +
 +auto supportedSampleRates(const QString &devName, DeviceFlag flag)->QList<int> {
-+    return QtOh::runOnJsUIThreadWithResult([&](){
-+        Napi::Array devices = availableDevices(flag);
-+        QList<int> result;
-+        for (uint32_t i = 0; i < devices.Length(); ++i){
-+            Napi::Object obj = Napi::Value(devices[i]).ToObject();
-+            if (obj.IsNull())
-+                continue;
++    QList<int> result;
 +
-+            QJsObject dev(obj);
-+            QString curName = QString::fromStdString(dev.get("displayName").ToString());
-+            if(curName == devName){
-+                Napi::Array sampleRates = dev.get("sampleRates").As<Napi::Array>();
-+                for (uint32_t j = 0; j < sampleRates.Length(); ++j){
-+                    result.append(Napi::Value(sampleRates[j]).ToNumber());
-+                }
++    Napi::Array devices = availableDevices(flag);
++    for (uint32_t i = 0; i < devices.Length(); ++i){
++        Napi::Object obj = Napi::Value(devices[i]).ToObject();
++        if (obj.IsNull())
++            continue;
++
++        QJsObject dev(obj);
++        QString curName = QString::fromStdString(dev.get("displayName").ToString());
++        if(curName == devName){
++            Napi::Array sampleRates = dev.get("sampleRates").As<Napi::Array>();
++            for (uint32_t j = 0; j < sampleRates.Length(); ++j){
++                result.append(Napi::Value(sampleRates[j]).ToNumber());
 +            }
 +        }
-+        return result;
-+    });
++    }
++    return result;
 +};
 +auto availableDeviceNames = [](DeviceFlag flag)->QList<QByteArray> {
-+    return QtOh::runOnJsUIThreadWithResult([&](){
-+        Napi::Array devices = availableDevices(flag);
-+        QList<QByteArray> result;
-+        for (uint32_t i = 0; i < devices.Length(); ++i) {
-+            Napi::Object obj = Napi::Value(devices[i]).ToObject();
-+            if (obj.IsNull())
-+                continue;
++    QList<QByteArray> result;
++    Napi::Array devices = availableDevices(flag);
++    for (uint32_t i = 0; i < devices.Length(); ++i) {
++        Napi::Object obj = Napi::Value(devices[i]).ToObject();
++        if (obj.IsNull())
++            continue;
 +
-+            QJsObject dev(obj);
-+            int deviceType = dev.get("deviceType").ToNumber();
-+            if(deviceType == 0){
-+                continue;
-+            }
-+
-+            QString devName = QString::fromStdString(dev.get("displayName").ToString());
-+            if(!devName.isEmpty())
-+            {
-+                result.append(devName.toUtf8());
-+            }
++        QJsObject dev(obj);
++        int deviceType = dev.get("deviceType").ToNumber();
++        if(deviceType == 0){
++            continue;
 +        }
-+        return result;
-+    });
++
++        QString devName = QString::fromStdString(dev.get("displayName").ToString());
++        if(!devName.isEmpty())
++        {
++            result.append(devName.toUtf8());
++        }
++    }
++    return result;
 +};
 +
 +QList<QByteArray> QOpenharmonyAudioManager::availableInputDevices()
@@ -7602,10 +7599,10 @@ index 000000000..8c4fdf3d5
 +#endif
 diff --git a/src/plugins/openharmony/src/player/qopenharmonywindowcontrol.cpp b/src/plugins/openharmony/src/player/qopenharmonywindowcontrol.cpp
 new file mode 100644
-index 000000000..03cca0adf
+index 000000000..a908a1afb
 --- /dev/null
 +++ b/src/plugins/openharmony/src/player/qopenharmonywindowcontrol.cpp
-@@ -0,0 +1,203 @@
+@@ -0,0 +1,198 @@
 +#include "qopenharmonywindowcontrol.h"
 +#include <qopenharmonydefines.h>
 +#include <QHash>
@@ -7636,12 +7633,7 @@ index 000000000..03cca0adf
 +{
 +    // 阻止Qt绘制，创建surface
 +public:
-+    VideoOutWidget(QWidget *parent) : QWidget(parent)
-+    {
-+        setObjectName("_q_oh_videowidget");
-+        setAttribute(Qt::WA_UpdatesDisabled);
-+        setAttribute(Qt::WA_StyledBackground);
-+    }
++    VideoOutWidget(QWidget *parent) : QWidget(parent) { setObjectName("_q_oh_videowidget"); setAttribute(Qt::WA_UpdatesDisabled); }
 +};
 +
 +
@@ -9490,7 +9482,7 @@ index 9a2fbbf79..5bd58b324 100644
  
  QT_BEGIN_NAMESPACE
 diff --git a/src/plugins/plugins.pro b/src/plugins/plugins.pro
-index 95c004125..08c0b9ab4 100644
+index ec2c20498..8c4d513e8 100644
 --- a/src/plugins/plugins.pro
 +++ b/src/plugins/plugins.pro
 @@ -17,6 +17,10 @@ android {

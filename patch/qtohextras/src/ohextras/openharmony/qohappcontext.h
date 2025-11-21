@@ -28,6 +28,7 @@ class Q_OPENHARMONYEXTRAS_EXPORT QOhAppContext : public QObject {
     QOhAppContext(QObject *parent = nullptr);
 
 public:
+    enum class SysThem { Dark, Light };
     enum class ColorMode { Dark, Light, Default, FollowSystemSetting };
     ~QOhAppContext();
     static QOhAppContext *instance();
@@ -38,8 +39,10 @@ public Q_SLOTS:
     void setColorMode(QOhAppContext::ColorMode mode);
 
 Q_SIGNALS:
+    void sysThemChanged(QOhAppContext::SysThem, QPrivateSignal);
     void colorModeChanged(QOhAppContext::ColorMode, QPrivateSignal);
 };
+Q_DECLARE_METATYPE(QOhAppContext::SysThem)
 Q_DECLARE_METATYPE(QOhAppContext::ColorMode)
 
 #endif // QOHAPPCONTEXT_H
