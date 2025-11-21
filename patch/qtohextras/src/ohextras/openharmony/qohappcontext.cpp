@@ -127,7 +127,9 @@ Napi::Function QOhAppContextPrivate::createConfigurationUpdateCallback(const Nap
 
         if (m_sysColorMode != colorMode) {
             Q_Q(QOhAppContext);
-            q->sysThemChanged(OhConfigurationColorMode::COLOR_MODE_DARK == m_sysColorMode ? QOhAppContext::SysThem::Dark : QOhAppContext::SysThem::Light,
+            q->sysThemChanged(OhConfigurationColorMode::COLOR_MODE_DARK == m_sysColorMode
+                              ? QOhAppContext::SysThem::Dark
+                                      : QOhAppContext::SysThem::Light,
                               QOhAppContext::QPrivateSignal());
             m_sysColorMode = colorMode;
         }

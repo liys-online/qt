@@ -187,7 +187,9 @@ bool getSubProcessAliveState(const QString &processIdent)
 
     if (jsUiAbility->object().Has("getSubProcessAliveState")) {
         return QtOh::runOnJsUIThreadWithResult([processIdent, jsUiAbility] {
-            return jsUiAbility->call("getSubProcessAliveState", {Napi::String::New(QtOh::uiEnv(), processIdent.toStdString())})
+            return jsUiAbility
+                    ->call("getSubProcessAliveState",
+                           { Napi::String::New(QtOh::uiEnv(), processIdent.toStdString()) })
                     .As<Napi::Boolean>();
         });
     } else {
