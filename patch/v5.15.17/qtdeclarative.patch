@@ -1178,10 +1178,10 @@ index 7004b341de..635b8ce6e1 100644
  private:
      bool _accepted = true;
 diff --git a/src/quick/items/qquicklistview.cpp b/src/quick/items/qquicklistview.cpp
-index 1001b34c3c..46b37a4d3b 100644
+index 56cb4e4507..dac67bfb9e 100644
 --- a/src/quick/items/qquicklistview.cpp
 +++ b/src/quick/items/qquicklistview.cpp
-@@ -3920,9 +3920,11 @@ bool QQuickListViewPrivate::wantsPointerEvent(const QEvent *event)
+@@ -3919,9 +3919,11 @@ bool QQuickListViewPrivate::wantsPointerEvent(const QEvent *event)
      QPointF pos;
      // TODO switch not needed in Qt 6: use points().first().position()
      switch (event->type()) {
@@ -1194,7 +1194,7 @@ index 1001b34c3c..46b37a4d3b 100644
          pos = static_cast<const QMouseEvent *>(event)->localPos();
          break;
 diff --git a/src/quick/items/qquickwindow.cpp b/src/quick/items/qquickwindow.cpp
-index 8ab69603ad..5e1fcff5b6 100644
+index cd449e3649..d0980cb3b5 100644
 --- a/src/quick/items/qquickwindow.cpp
 +++ b/src/quick/items/qquickwindow.cpp
 @@ -44,6 +44,11 @@
@@ -1209,7 +1209,7 @@ index 8ab69603ad..5e1fcff5b6 100644
  #if QT_CONFIG(quick_draganddrop)
  #include <private/qquickdrag_p.h>
  #endif
-@@ -686,7 +691,6 @@ void QQuickWindowPrivate::init(QQuickWindow *c, QQuickRenderControl *control)
+@@ -678,7 +683,6 @@ void QQuickWindowPrivate::init(QQuickWindow *c, QQuickRenderControl *control)
  {
      q_ptr = c;
  
@@ -1217,7 +1217,7 @@ index 8ab69603ad..5e1fcff5b6 100644
      Q_Q(QQuickWindow);
  
      contentItem = new QQuickRootItem;
-@@ -698,6 +702,16 @@ void QQuickWindowPrivate::init(QQuickWindow *c, QQuickRenderControl *control)
+@@ -690,6 +694,16 @@ void QQuickWindowPrivate::init(QQuickWindow *c, QQuickRenderControl *control)
      contentItemPrivate->flags |= QQuickItem::ItemIsFocusScope;
      contentItem->setSize(q->size());
  
@@ -1234,7 +1234,7 @@ index 8ab69603ad..5e1fcff5b6 100644
      customRenderMode = qgetenv("QSG_VISUALIZE");
      renderControl = control;
      if (renderControl)
-@@ -1845,6 +1859,13 @@ bool QQuickWindow::event(QEvent *e)
+@@ -1837,6 +1851,13 @@ bool QQuickWindow::event(QEvent *e)
          // closeEvent(static_cast<QCloseEvent *>(e));
          QQuickCloseEvent qev;
          qev.setAccepted(e->isAccepted());
@@ -1249,12 +1249,12 @@ index 8ab69603ad..5e1fcff5b6 100644
          e->setAccepted(qev.isAccepted());
          } break;
 diff --git a/src/quick/scenegraph/qsgthreadedrenderloop.cpp b/src/quick/scenegraph/qsgthreadedrenderloop.cpp
-index d47b0d72a5..52ae6b3b95 100644
+index f5e3f2e864..b146749e9d 100644
 --- a/src/quick/scenegraph/qsgthreadedrenderloop.cpp
 +++ b/src/quick/scenegraph/qsgthreadedrenderloop.cpp
-@@ -407,7 +407,16 @@ bool QSGRenderThread::event(QEvent *e)
-         window = se->window;
-         windowSize = se->size;
+@@ -415,7 +415,16 @@ bool QSGRenderThread::event(QEvent *e)
+         }
+ 
          dpr = se->dpr;
 -
 +#ifdef Q_OS_OPENHARMONY

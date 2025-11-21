@@ -1,0 +1,47 @@
+include($QT_INSTALL_DOCS/global/qt-module-defaults.qdocconf)
+
+Cpp.ignoretokens += Q_OHEXTRAS_EXPORT
+# dummy module header for clang, found under doc/
+moduleheader = QtOhExtrasDoc
+
+# pass include paths to clang
+includepaths += -I . \
+                -I .. \
+
+project = QtOhExtras
+description = Qt Harmony Extras Reference Documentation
+version = $QT_VERSION
+
+qhp.projects = QtOpenHarmonyExtras
+
+qhp.QtOpenHarmonyExtras.file = qtohextras.qhp
+qhp.QtOpenHarmonyExtras.namespace = org.qt-project.qtohextras.$QT_VERSION_TAG
+qhp.QtOpenHarmonyExtras.virtualFolder = qtohextras
+qhp.QtOpenHarmonyExtras.indexTitle = Qt Harmony Extras
+qhp.QtOpenHarmonyExtras.indexRoot =
+
+qhp.QtOpenHarmonyExtras.filterAttributes = qtohextras $QT_VERSION qtrefdoc
+qhp.QtOpenHarmonyExtras.customFilters.Qt.name = QtOpenHarmonyExtras $QT_VERSION
+qhp.QtOpenHarmonyExtras.customFilters.Qt.filterAttributes = qtohextras $QT_VERSION
+
+qhp.QtOpenHarmonyExtras.subprojects = classes examples
+qhp.QtOpenHarmonyExtras.subprojects.classes.title = C++ Classes and Namespaces
+qhp.QtOpenHarmonyExtras.subprojects.classes.indexTitle = Qt Harmony Extras C++ Classes
+qhp.QtOpenHarmonyExtras.subprojects.classes.selectors = class function namespace fake:headerfile
+qhp.QtOpenHarmonyExtras.subprojects.classes.sortPages = true
+qhp.QtOpenHarmonyExtras.subprojects.examples.title = Examples
+qhp.QtOpenHarmonyExtras.subprojects.examples.indexTitle = Qt Harmony Extras Examples
+qhp.QtOpenHarmonyExtras.subprojects.examples.selectors = fake:example
+
+depends += qtcore qtdoc
+headerdirs += ..
+sourcedirs += ..
+exampledirs += ../../../examples/ohextras \
+               snippets
+
+# Specify example install dir under QT_INSTALL_EXAMPLES
+examplesinstallpath = ohextras
+
+imagedirs += images
+navigation.landingpage = "Qt Harmony Extras"
+navigation.cppclassespage = "Qt Harmony Extras C++ Classes"
