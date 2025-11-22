@@ -1,38 +1,81 @@
 # Contribution Instructions
 
-Since the Qt source code includes multiple Qt sub-libraries, and in accordance with community management requirements, Qt For OpenHarmony contributes through code patches and independent adaptation modules.
+The Qt source tree contains multiple submodules. Following the OpenHarmony community workflow, contributions to Qt for OpenHarmony are managed by providing code patches and independent adaptation modules.
 
 ## Generating Code Patches
 
-Use the “git diff” command to generate code patches and submit them to the corresponding Patch directory.
+Use `git diff` to create patch files and place them under the appropriate `patch/` directory.
 
-> Each sub-library manages adaptation code patches using the naming convention “submodulename.patch”. For example, executing “git diff v5.15.12 > qtbase.patch” in the qtbase sub-repository directory generates the corresponding qtbase sub-module code patch. After generating the code patch, follow the OpenHarmony community requirements to submit it to the main repository branch.
+Convention: name each patch file after the submodule it targets, e.g.:
 
-# Directory Description
+```bash
+git diff v5.15.17 > qtbase.patch
+```
+
+After generating the patch, follow the OpenHarmony contribution guidelines when submitting it to the target repository/branch.
+
+# Repository Layout
 
 ```
 OpenHarmony - Qt
 │
-└───patch - Source code patches
-|____v5.15.12
-│   	│ qtbase - qtbase sub-module code patch
-│   	│ qtsensors - qtsensors sub-module code patch
-│   	│ qtmultimedia - qtmultimedia sub-module code patch
-│   	│ qtdeclarative - qtdeclarative sub-module code patch
-│   	│ qtconnectivity - qtconnectivity sub-module code patch
-│   	│ qtquickcontrols - qtquickcontrols sub-module code patch
-└───LICENSE - Apache License
-└───LICENSE.FDL - GNU Free Documentation License
-└───LICENSE.GPLv2 - GNU GENERAL PUBLIC LICENSE Version 2
-└───LICENSE.GPLv3 - GNU GENERAL PUBLIC LICENSE Version 3
-└───LICENSE.LGPLv3 - GNU LESSER GENERAL PUBLIC LICENSE Version 3
-└───LICENSE.LGPLv21 - GNU LESSER GENERAL PUBLIC LICENSE Version 2.1
-└───LICENSE.QT-LICENSE-AGREEMENT - QT LICENSE AGREEMENT Agreement
-└───OAT.xml - OAT configuration file, the automated open source review tool of the OpenHarmony community
-└───README.md - Chinese version readme
-└───README.en.md - English version readme
+└───patch - source code patches
+	└── v5.15.17
+		├─ qtbase             # qtbase submodule patches
+		├─ qtsensors          # qtsensors submodule patches
+		├─ qtmultimedia       # qtmultimedia submodule patches
+		├─ qtdeclarative      # qtdeclarative submodule patches
+		├─ qtconnectivity     # qtconnectivity submodule patches
+		└─ qtquickcontrols    # qtquickcontrols submodule patches
+
+LICENSE* - license files (Apache, GPL, LGPL, etc.)
+OAT.xml   - OpenHarmony automated open-source review configuration
+README.md - Chinese README
+README.en.md - English README
 ```
+
+# Scripts
+
+This repository contains a set of scripts for automating the build of Qt for OpenHarmony located in the `script/` directory. The command-line entry point is `script/build-qt-ohos.py`; core logic lives in the `script/build_qt/` package.
+
+Main capabilities provided by the scripts:
+
+- Clone and initialize the Qt source tree and the OHOS patch repository (`QtRepo`).
+- Read `configure.json` / `configure.json.user` for configuration and prepare the build environment (including optional automatic download of missing dependencies).
+- Support building both Qt5 and Qt6: configure, host build (for Qt6), cross build, install and packaging.
+- Download OHOS SDK components via a remote SDK list API (`OhosSdkDownloader`).
+- Provide robust download/extract/pack utilities and a `ziptools/` helper that preserves symlinks, permissions and supports long Windows paths.
+
+Key modules in `script/build_qt/`:
+
+- `config.py`              - Loads configuration, handles user prompts, environment checks and assembles Qt configure/CMake options.
+- `qt_repo.py`            - Manages Git clone, submodules, patch application, reset and clean.
+- `qt5_build.py`         - Implements Qt5 configure/make/install/pack/clean flow.
+- `qt6_build.py`         - Implements Qt6 host build + cross-compile flow (CMake based); applies patches after host build where appropriate.
+- `ohos_sdk_downloader.py` - High-level helper to query available SDK versions and download components.
+- `utils.py`             - Download, checksum, extract and archive helpers.
+- `ziptools/`            - Third-party utilities used for packaging.
+
+## Quick start (PowerShell)
+
+```powershell
+cd script
+python -m pip install -r requirements.txt
+
+# initialize repositories and apply patches (Qt5 applies patches during init; Qt6 applies patches during build)
+python build-qt-ohos.py --init
+
+# check and prepare development environment (may download missing components)
+python build-qt-ohos.py --env_check
+
+# perform configure, build, install and pack (use --exe_stage to run specific phases)
+python build-qt-ohos.py --exe_stage all --with_pack
+```
+
+See `script/README.md` for full usage details and configuration options.
 
 # Using Qt For OpenHarmony
 
-Refer to the repository wiki: https://gitcode.com/openharmony-sig/qt/wiki/Home.md
+Refer to the project wiki for broader guidance and community information:
+
+https://gitcode.com/openharmony-sig/qt/wiki/Home.md
