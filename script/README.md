@@ -46,7 +46,7 @@
 - Git 命令行（脚本通过 GitPython/系统 git 调用）
 - 网络可访问以下源：
   - Qt 源码与补丁仓库（默认 GitCode 镜像）
-  - 依赖组件下载（Perl/MinGW 预编译包、OHOS SDK 官方接口）
+  - 依赖组件下载（Perl/MinGW 预编译包、OHOS SDK 接口）
 - 充足磁盘空间：
   - Qt 源码 + 构建中间文件 + 安装产物，建议预留 20GB 以上
 
@@ -64,12 +64,12 @@ python -m pip install -r requirements.txt
 ## 快速上手
 以下以 Windows cmd 为例（Linux/macOS 命令相同，仅输出格式略有差异）：
 
-1) 初始化仓库并应用补丁（首次执行会创建/询问用户配置）
+1) 初始化仓库并应用补丁（首次执行会创建或请求配置）
 ```cmd
 python build-qt-ohos.py --init
 ```
 
-2) 检查并准备开发环境（Windows 会自动下载 Perl/MinGW；任何平台会下载 OHOS SDK native 包）
+2) 检查并准备开发环境（Windows 会自动下载 Perl/MinGW；其他会下载 OHOS SDK native 包）
 ```cmd
 python build-qt-ohos.py --env_check
 ```
@@ -89,7 +89,7 @@ python build-qt-ohos.py --exe_stage all --with_pack
 - `--reset_repo`：重置 Qt 源码与所有子模块（git reset --hard/clean），并重新应用补丁
 - `--exe_stage {configure|build|install|clean|all|print_build_info}`：执行指定阶段
   - `configure`：调用 Qt 的 `configure(.bat)` 生成构建配置
-  - `build`：调用 `make -jN` 或 `mingw32-make -jN`
+  - `build`：调用 `make -jN` 或 `mingw32-make -jN` 构建项目
   - `install`：`make install`
   - `clean`：仅删除构建目录（不触碰源码）
   - `all`：依次执行 configure/build/install
@@ -129,12 +129,12 @@ python build-qt-ohos.py --reset_repo
 - 全局配置：`configure.json`（随仓库提供，不要直接改动默认值，除非知道自己在做什么）
 - 用户配置：`configure.json.user`（首次交互式生成；如需修改，建议编辑此文件）
 
-首次运行时，如果终端为交互模式，脚本会通过 questionary 弹出问答，生成 `configure.json.user`。
+首次执行时，如果终端为交互模式，脚本会通过 questionary 弹出问答，生成 `configure.json.user`。
 
 关键配置项（位于 `config` 段，用户配置会覆盖全局配置）：
 - `working_dir`：工作目录，默认 `${pwd}/work`（`${pwd}` 为本仓库根）
 - `perl`（Windows 默认会自动下载到 `${pwd}/work/perl/bin`）
-- `mingw`（Windows 默认会自动下载到 `${pwd}/work/mingw/bin`）
+- `mingw`（Windows 默认会自动下载到 `${pwd}/work/mingw/bin`，这是 MinGW 工具链默认安装路径）
 - `ohos_sdk`：OHOS SDK 解压目标目录，支持 `${ohos_version}` 占位
 - `ohos_version`：OHOS SDK 的 apiVersion（例如 15）
 - `build_type`：`release` 或 `debug`
@@ -147,15 +147,15 @@ python build-qt-ohos.py --reset_repo
 仓库/依赖（来自 `repositories` 与 `dependencies` 段）：
 - Qt 源码：`https://gitcode.com/qtforohos/qt5.git`
 - Qt OHOS 补丁：`https://gitcode.com/openharmony-sig/qt.git`
-- Perl/MinGW（Windows 预编译包，托管于 GitCode Releases）
+- Perl/MinGW（Windows 预编译包，托管于 GitCode Releases， 用户Qt编译环境）
 - OHOS SDK 列表接口：`https://repo.harmonyos.com/sdkmanager/v5/ohos/getSdkList`
 
 Qt configure 选项（来自 `qt-config` 段，脚本自动拼装）：
 - `-opensource -confirm-license`（或 `-commercial`）
 - `-platform <win32-g++|linux-g++|macx-clang>`（按宿主系统自动选择）
-- `-xplatform oh-clang`（面向 OHOS 交叉编译）
+- `-xplatform oh-clang`（用于 OHOS 交叉编译）
 - OpenGL：`-opengl es2`，可选附加 `-opengles3`
-- 其他：`-no-dbus`、`-disable-rpath`、`-nomake tests -nomake examples`
+- 其他：`-no-dbus`、`-disable-rpath`、`-nomake tests`、 `-nomake examples`
 - 每个受支持 Qt 版本还会附带相应 `-skip` 模块列表（详见 `configure.json`）
 
 
@@ -174,7 +174,7 @@ Qt configure 选项（来自 `qt-config` 段，脚本自动拼装）：
 ## 常见问题与排查
 - Git 不可用/未安装
   - 请先安装 Git，并确保 `git --version` 正常。
-- Windows 自动安装 Perl/MinGW 失败
+- Windows 自动安装 Perl/MinGW 遇到问题
   - 检查网络与磁盘空间；删除 `work/.temp` 后重试 `--env_check`。
 - OHOS SDK 下载失败或校验失败
   - 接口访问可能受网络限制；重试或更换网络。
