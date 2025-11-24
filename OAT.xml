@@ -20,6 +20,14 @@
                 <filteritem type="filename" name="*.qdocconf|*.ui|*.qrc|*.ts|*.pri" desc="Qt 项目文件"/>
                 <!-- dist 目录 -->
                 <filteritem type="filepath" name=".*/changes-5.12.12" desc="dist 目录下文件"/>
+                <!-- script 目录 -->
+                <filteritem type="filepath" name=".script" desc="script 目录下文件"/>
+                <filteritem type="filepath" name=".*/script" desc="script 目录下文件"/>
+                <filteritem type="filepath" name="./script/*" desc="script 目录下文件"/>
+
+                <!-- script 目录 -->
+                <filteritem type="filename" name="*.py" desc="python 文件"/>
+                <filteritem type="filename" name="*.md" desc="markdown 文件"/>
                 <!-- Qt 自动生成文件 -->
                 <filteritem type="filename" name="moc_*.cpp|ui_*.h|qrc_*.cpp" desc="Qt auto-generated files"/>
                 <!-- Examples/Tests -->

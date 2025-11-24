@@ -6,7 +6,7 @@
 
 使用"git diff"命令生成代码补丁，提交补丁到对应的Patch目录下。
 
-> 各子库使用"submodulename.patch"的命名方式对子库适配代码补丁进行管理，例如在qtbase子仓库目录下执行"git diff v5.15.12 > qtbase.patch"可生成对应的qtbase子模块代码补丁，生成代码补丁后，遵循OpenHarmony社区要求提交到主仓库分支。
+> 各子库使用"submodulename.patch"的命名方式对子库适配代码补丁进行管理，例如在qtbase子仓库目录下执行"git diff v5.15.17 > qtbase.patch"可生成对应的qtbase子模块代码补丁，生成代码补丁后，遵循OpenHarmony社区要求提交到主仓库分支。
 
 # 目录说明
 
@@ -14,7 +14,7 @@
 OpenHarmony - Qt
 │
 └───patch - 源码补丁
-|____v5.15.12
+|____v5.15.17
 │   	│ qtbase - qtbase子模块代码补丁
 │   	│ qtsensors - qtsensors子模块代码补丁
 │   	│ qtmultimedia - qtmultimedia子模块代码补丁
@@ -32,6 +32,25 @@ OpenHarmony - Qt
 └───README.md - 中文版本readme
 └───README.en.md - 英文版本readme
 ```
+
+# 脚本说明
+
+本仓库包含一个用于自动构建 Qt for OpenHarmony 的脚本集合，位于 `script/` 目录。
+
+- 详细文档请参阅：`script/README.md`。
+- 主入口脚本：`script/build-qt-ohos.py`，实现仓库克隆、环境检查、构建（configure/build/install）、补丁应用与打包功能。
+
+在 Windows 环境下可按如下步骤使用：
+
+```powershell
+cd script
+python -m pip install -r requirements.txt
+python build-qt-ohos.py --init
+python build-qt-ohos.py --env_check
+python build-qt-ohos.py --exe_stage all --with_pack
+```
+
+更多使用细节与配置请参见 `script/README.md`。
 
 # Qt For OpenHarmony 使用说明
 
