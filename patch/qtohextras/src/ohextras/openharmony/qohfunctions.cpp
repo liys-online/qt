@@ -49,25 +49,11 @@ static PermissionRequestResult privateToPublicPermissionsResult(const QtOhPrivat
     return QtOh::PermissionRequestResult(
             result.permissions,
             convertedAuthResults,
-            result.dialogShownResults
-            );
+            result.dialogShownResults);
 }
 
 int ohSdkVersion()
 {
-#if 0
-    /* @hms.core.atomicserviceComponent.atomicservice还能获取主题等信息 */
-    int version = -1;
-    QJsModule sysModule("@hms.core.atomicserviceComponent.atomicservice");
-    Napi::Array sysInfoTypes = Napi::Array::New(sysModule.env());
-    sysInfoTypes.Set(uint32_t(0), std::string("sdkApiVersion"));
-
-    Napi::Object info = sysModule.call("getSystemInfoSync", { sysInfoTypes }).As<Napi::Object>();
-    if (!info.IsNull()) {
-        version = info.Get("sdkApiVersion").ToNumber();
-    }
-    return version;
-#endif
     return QtOh::apiVersion();
 }
 
@@ -102,7 +88,7 @@ void requestPermissions(const QStringList &permissions, const PermissionResultCa
         return;
     }
 
-    accessCtrl->requestPermissions(permissions, [callbackFunc](const QtOhPrivate::PermissionRequestResult &result){
+    accessCtrl->requestPermissions(permissions, [callbackFunc](const QtOhPrivate::PermissionRequestResult &result) {
         callbackFunc(privateToPublicPermissionsResult(result));
     });
 }
@@ -115,7 +101,7 @@ PermissionRequestResult requestPermissionsOnSettingSync(const QStringList &permi
         return PermissionRequestResult();
     }
 
-    QtOhPrivate::PermissionRequestResult privateResult = accessCtrl->requestPermissionsOnSettingSync(permissions, timeoutMs);
+    auto privateResult = accessCtrl->requestPermissionsOnSettingSync(permissions, timeoutMs);
     return privateToPublicPermissionsResult(privateResult);
 }
 
@@ -127,7 +113,8 @@ void requestPermissionsOnSetting(const QStringList &permissions, const Permissio
         return;
     }
 
-    accessCtrl->requestPermissionsOnSetting(permissions, [callbackFunc](const QtOhPrivate::PermissionRequestResult &result){
+    accessCtrl->requestPermissionsOnSetting(permissions,
+                                            [callbackFunc](const QtOhPrivate::PermissionRequestResult &result) {
         callbackFunc(privateToPublicPermissionsResult(result));
     });
 }
@@ -140,7 +127,7 @@ void requestEnableNotification(const enableNotificationFunc &callbackFunc)
         return;
     }
 
-    accessCtrl->requestEnableNotification([callbackFunc](bool result){
+    accessCtrl->requestEnableNotification([callbackFunc](bool result) {
         callbackFunc(result);
     });
 }

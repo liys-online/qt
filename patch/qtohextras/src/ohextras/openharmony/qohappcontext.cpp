@@ -59,7 +59,7 @@ protected:
     void initialized();
     bool darkColorModeActive() const;
 
-private:    
+private:
     bool m_followSystemColorMode = false;
     Napi::FunctionReference m_callbackRef;
     inline static std::once_flag ms_once { };
@@ -83,21 +83,22 @@ void QOhAppContextPrivate::initialized()
     }
 
     if (QJsObject *jsContext = std::bit_cast<QJsObject*>(context)) {
-        QtOh::runOnJsUIThreadAndWait([&]{
+        QtOh::runOnJsUIThreadAndWait([&] {
             Napi::Object config = jsContext->get("config").ToObject();
             if (!config.IsNull())
                 m_sysColorMode = OhConfigurationColorMode(config.Get("colorMode").ToNumber().Int32Value());
 
             Napi::Object environmentCallback = Napi::Object::New(jsContext->env());
-            Napi::Function configurationUpdated = Napi::Function::New(environmentCallback.Env(), [this](const Napi::CallbackInfo &info){
+            Napi::Function configurationUpdated = Napi::Function::New(environmentCallback.Env(),
+                                                                      [this](const Napi::CallbackInfo &info) {
                 if (0 >= info.Length())
                     return;
 
                 Napi::Object config = info[0].ToObject();
                 Napi::Value value = config.Get("colorMode");
                 OhConfigurationColorMode colorMode = OhConfigurationColorMode(value.ToNumber().Int32Value());
-                if(m_followSystemColorMode)
-                    QMetaObject::invokeMethod(qApp, [colorMode]{
+                if (m_followSystemColorMode)
+                    QMetaObject::invokeMethod(qApp, [colorMode] {
                         QGuiApplicationPrivate::platformTheme()->setThemeColorMode(int(colorMode));
                     }, Qt::QueuedConnection);
 
@@ -128,13 +129,12 @@ QOhAppContext::QOhAppContext(QObject *parent)
 
 QOhAppContext::~QOhAppContext()
 {
-
 }
 
 QOhAppContext *QOhAppContext::instance()
 {
-    std::call_once(QOhAppContextPrivate::ms_once, []{
-        QOhAppContextPrivate::ms_appContext.reset(new QOhAppContext());        
+    std::call_once(QOhAppContextPrivate::ms_once, [] {
+        QOhAppContextPrivate::ms_appContext.reset(new QOhAppContext());
     });
 
     return QOhAppContextPrivate::ms_appContext.get();
@@ -153,6 +153,8 @@ void QOhAppContext::setColorMode(ColorMode mode)
             return ColorMode::Default;
         case ColorMode::FollowSystemSetting:
             return ::sysColorMode2ColorMode(d->m_sysColorMode);
+        default:
+            break;
         };
         qWarning("%s: got unknown ColorThemeMode: %d", Q_FUNC_INFO, static_cast<int>(mode));
         return ColorMode::Default;

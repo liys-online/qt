@@ -5,16 +5,14 @@
 #include <QOpenHarmonyWant>
 #include <qopenharmonyability.h>
 #include <QDebug>
-MainWindow::MainWindow(QWidget *parent) :
-    QWidget(parent),
-    ui(new Ui::MainWindow)
+MainWindow::MainWindow(QWidget *parent)
+    : QWidget(parent)
+    , ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
     QIntValidator *v = new QIntValidator(this);
     v->setRange(0, 100);
     ui->lineEdit_flags->setValidator(v);
-
-
 }
 
 MainWindow::~MainWindow()

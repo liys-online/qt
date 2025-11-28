@@ -17,7 +17,8 @@ Q_LOGGING_CATEGORY(widgethelper, "ohos.widget.helper");
 
 QT_BEGIN_NAMESPACE
 
-bool isSubWindowOrFloatingWindow(QWidget *w) {
+static bool isSubWindowOrFloatingWindow(QWidget *w)
+{
     if (!w)
         return false;
 
@@ -38,9 +39,8 @@ bool isSubWindowOrFloatingWindow(QWidget *w) {
     return true;
 }
 
-struct Data
-{
-    Data(QOhWidgetHelperPrivate *helper) : widgetHelper(helper) {}
+struct Data {
+    explicit Data(QOhWidgetHelperPrivate *helper) : widgetHelper(helper) {}
     virtual ~Data();
     virtual bool set() = 0;
     virtual QVariant get() const = 0;
@@ -52,10 +52,10 @@ Data::~Data() = default;
 class QOhPrivacyModeData final : public Data
 {
 public:
-    QOhPrivacyModeData(QOhWidgetHelperPrivate *helper, bool isPrivacyMode = false)
+    explicit QOhPrivacyModeData(QOhWidgetHelperPrivate *helper, bool isPrivacyMode = false)
         : Data(helper), m_isPrivacyMode(isPrivacyMode) {}
-    virtual bool set() override;
-    virtual QVariant get() const override;
+    bool set() override;
+    QVariant get() const override;
 private:
     bool m_isPrivacyMode;
 };
@@ -63,22 +63,24 @@ private:
 class QOhWindowRectAutoSaveData final : public Data
 {
 public:
-    QOhWindowRectAutoSaveData(QOhWidgetHelperPrivate *helper, bool autoSave = false)
+    explicit QOhWindowRectAutoSaveData(QOhWidgetHelperPrivate *helper, bool autoSave = false)
         : Data(helper), m_isAutoSave(autoSave) {}
-    virtual bool set() override;
-    virtual QVariant get() const override;
+    bool set() override;
+    QVariant get() const override;
 private:
     bool m_isAutoSave;
 };
 
-static QOhWidgetHelper::DecorButtonStyle defaultDecorButtonStyle = { QOhWidgetHelper::ColorMode::COLOR_MODE_NOT_SET, 28, 12, 20 };
+static QOhWidgetHelper::DecorButtonStyle defaultDecorButtonStyle =
+        { QOhWidgetHelper::ColorMode::COLOR_MODE_NOT_SET, 28, 12, 20 };
 class QOhDecorButtonStyleData final : public Data
 {
 public:
-    QOhDecorButtonStyleData(QOhWidgetHelperPrivate *helper, const QOhWidgetHelper::DecorButtonStyle &style = defaultDecorButtonStyle)
+    explicit QOhDecorButtonStyleData(QOhWidgetHelperPrivate *helper,
+                                     const QOhWidgetHelper::DecorButtonStyle &style = defaultDecorButtonStyle)
         : Data(helper), m_style(style) {}
-    virtual bool set() override;
-    virtual QVariant get() const override;
+    bool set() override;
+    QVariant get() const override;
 private:
     QOhWidgetHelper::DecorButtonStyle m_style;
 };
@@ -86,10 +88,10 @@ private:
 class QOhWindowKeepScreenOnData final : public Data
 {
 public:
-    QOhWindowKeepScreenOnData(QOhWidgetHelperPrivate *helper, bool keepOn = false)
+    explicit QOhWindowKeepScreenOnData(QOhWidgetHelperPrivate *helper, bool keepOn = false)
         : Data(helper), m_keepOn(keepOn) {}
-    virtual bool set() override;
-    virtual QVariant get() const override;
+    bool set() override;
+    QVariant get() const override;
 private:
     bool m_keepOn;
 };
@@ -97,10 +99,12 @@ private:
 class QOhSupportedWindowModesData final : public Data
 {
 public:
-    QOhSupportedWindowModesData(QOhWidgetHelperPrivate *helper, QOhWidgetHelper::SupportedWindowModes modes = QOhWidgetHelper::SupportedWindowModes())
+    explicit QOhSupportedWindowModesData(QOhWidgetHelperPrivate *helper,
+                                         QOhWidgetHelper::SupportedWindowModes modes
+                                         = QOhWidgetHelper::SupportedWindowModes())
         : Data(helper), m_modes(modes) {}
-    virtual bool set() override;
-    virtual QVariant get() const override;
+    bool set() override;
+    QVariant get() const override;
 private:
     QOhWidgetHelper::SupportedWindowModes m_modes;
 };
@@ -110,8 +114,8 @@ class QOhWindowBackgroundColorData final : public Data
 public:
     QOhWindowBackgroundColorData(QOhWidgetHelperPrivate *helper, const QColor &color)
         : Data(helper), m_color(color) {}
-    virtual bool set() override;
-    virtual QVariant get() const override;
+    bool set() override;
+    QVariant get() const override;
 private:
     QColor m_color;
 };
@@ -119,10 +123,10 @@ private:
 class QOhWindowCornerData final : public Data
 {
 public:
-    QOhWindowCornerData(QOhWidgetHelperPrivate *helper, qreal cornerRadius = 16)
+    explicit QOhWindowCornerData(QOhWidgetHelperPrivate *helper, qreal cornerRadius = 16)
         : Data(helper), m_cornerRadius(cornerRadius) {}
-    virtual bool set() override;
-    virtual QVariant get() const override;
+    bool set() override;
+    QVariant get() const override;
 private:
     qreal m_cornerRadius;
 };
@@ -132,8 +136,8 @@ class QOhWindowShadowData final : public Data
 public:
     QOhWindowShadowData(QOhWidgetHelperPrivate *helper, qreal shadowRadius)
         : Data(helper), m_shadowRadius(shadowRadius) {}
-    virtual bool set() override;
-    virtual QVariant get() const override;
+    bool set() override;
+    QVariant get() const override;
 private:
     qreal m_shadowRadius;
 };
@@ -152,7 +156,7 @@ private:
 class QOhWindowDecorData final : public Data
 {
 public:
-    QOhWindowDecorData(QOhWidgetHelperPrivate *helper, bool visible = true)
+    explicit QOhWindowDecorData(QOhWidgetHelperPrivate *helper, bool visible = true)
         : Data(helper), m_visible(visible) {}
     bool set() override;
     QVariant get() const override;
@@ -172,20 +176,23 @@ public:
     QJsObject *windowStage() const;
     QWindow *window() const;
     QOhWidgetHelper::DecorButtonStyle formatStyle(const QOhWidgetHelper::DecorButtonStyle &style, bool toNative = true);
-    QPlatformNativeInterface::NativeResourceForIntegrationFunction nativeFunctionForIntegration(const QByteArray &funcName);
+    QPlatformNativeInterface::NativeResourceForIntegrationFunction
+    nativeFunctionForIntegration(const QByteArray &funcName);
 
     void registerHandler();
     bool registerPCModeChangedHandler();
     bool registerTitleButtonRectChangedHandler();
     template<typename T, typename... Args>
-    void set(Args &&... args) {
+    void set(Args &&... args)
+    {
         QScopedPointer<T> data(new T(args...));
         if (!data->set()) {
             m_datas << data.take();
         }
     }
     template<typename T, typename RET>
-    RET get() const {
+    RET get() const
+    {
         T data(const_cast<QOhWidgetHelperPrivate *>(this));
         return data.get().template value<RET>();
     }
@@ -253,7 +260,7 @@ void QOhWidgetHelper::removeStartingWindow()
     if (windowStage == nullptr)
         return;
 
-    QtOh::runOnJsUIThreadNoWait([windowStage]{
+    QtOh::runOnJsUIThreadNoWait([windowStage] {
         windowStage->call(QLatin1String("removeStartingWindow"));
     });
 }
@@ -261,7 +268,7 @@ void QOhWidgetHelper::removeStartingWindow()
 QRect QOhWidgetHelper::titleButtonRect() const
 {
     Q_D(const QOhWidgetHelper);
-    QRect rect = QtOh::runOnJsUIThreadWithResult([d]{
+    QRect rect = QtOh::runOnJsUIThreadWithResult([d] {
         auto window = d->jsWindow();
         if (window == nullptr)
             return QRect();
@@ -366,7 +373,8 @@ void QOhWidgetHelper::setWindowTitleMoveEnabled(bool enable)
     auto isFreeWindowEnable = d->nativeFunctionForIntegration("isFreeWindowEnable");
     if (QtOh::Utility::type() == QtOh::Utility::Tablet &&
         !*reinterpret_cast<bool*>(isFreeWindowEnable())) {
-        qCWarning(widgethelper, "setWindowTitleMoveEnabled This interface is only available in Free Multi-Window Mode on 2-in-1 devices or tablet devices.");
+        qCWarning(widgethelper, "setWindowTitleMoveEnabled This interface is only available in "
+                                "Free Multi-Window Mode on 2-in-1 devices or tablet devices.");
         return;
     }
 
@@ -381,13 +389,16 @@ void QOhWidgetHelper::setWindowTitleMoveEnabled(bool enable)
     });
 }
 
-void QOhWidgetHelper::setWindowTitleButtonVisible(bool maximizeButtonVisible, bool minimizeButtonVisible, bool closeButtonVisible)
+void QOhWidgetHelper::setWindowTitleButtonVisible(bool maximizeButtonVisible,
+                                                  bool minimizeButtonVisible,
+                                                  bool closeButtonVisible)
 {
     Q_D(QOhWidgetHelper);
     auto isFreeWindowEnable = d->nativeFunctionForIntegration("isFreeWindowEnable");
     if (QtOh::Utility::type() == QtOh::Utility::Tablet &&
         !*reinterpret_cast<bool*>(isFreeWindowEnable())) {
-        qCWarning(widgethelper, "setWindowTitleButtonVisible This interface is only available in Free Multi-Window Mode on 2-in-1 devices or tablet devices.");
+        qCWarning(widgethelper, "setWindowTitleButtonVisible This interface is only available in "
+                                "Free Multi-Window Mode on 2-in-1 devices or tablet devices.");
         return;
     }
 
@@ -422,11 +433,10 @@ bool QOhWidgetHelper::eventFilter(QObject *watched, QEvent *event)
     // 发送到队列中执行
     if ((watched == d_func()->m_widget.data()
          || watched == d_func()->m_window.data())) {
-        if (event->type() == QEvent::Show)
-        {
+        if (event->type() == QEvent::Show) {
             Q_D(QOhWidgetHelper);
             if (!d->m_datas.isEmpty()) {
-                QTimer::singleShot(0, this, [d]{
+                QTimer::singleShot(0, this, [d] {
                     for (int i = 0; i < d->m_datas.count(); ++i) {
                         d->m_datas.at(i)->set();
                     }
@@ -434,7 +444,7 @@ bool QOhWidgetHelper::eventFilter(QObject *watched, QEvent *event)
                     d->m_datas.clear();
                 });
             }
-            QTimer::singleShot(0, this, [d]{
+            QTimer::singleShot(0, this, [d] {
                 d->registerHandler();
             });
         } else if (event->type() == QEvent::Hide) {
@@ -471,7 +481,6 @@ bool QOhWidgetHelper::isWindowRectAutoSave() const
 
 QOhWidgetHelperPrivate::~QOhWidgetHelperPrivate()
 {
-
 }
 
 QJsObject *QOhWidgetHelperPrivate::native(const QByteArray &nativeName) const
@@ -481,7 +490,8 @@ QJsObject *QOhWidgetHelperPrivate::native(const QByteArray &nativeName) const
     auto platformNativeInterface = qApp->platformNativeInterface();
     if (platformNativeInterface == nullptr)
         return nullptr;
-    QJsObject *obj = reinterpret_cast<QJsObject *>(platformNativeInterface->nativeResourceForWindow(nativeName, window()));
+    QJsObject *obj = reinterpret_cast<QJsObject *>(platformNativeInterface->nativeResourceForWindow(nativeName,
+                                                                                                    window()));
     return obj;
 }
 
@@ -499,28 +509,27 @@ QWindow *QOhWidgetHelperPrivate::window() const
 {
     if (!m_window.isNull())
         return m_window.data();
-#if 0
-    QWidget *w = m_widget->nativeParentWidget();
-    if (w == nullptr)
-        w = m_widget.data();
-#endif
     auto windowHandle = m_widget->windowHandle();
     m_window = windowHandle;
     return windowHandle;
 }
 
-QOhWidgetHelper::DecorButtonStyle QOhWidgetHelperPrivate::formatStyle(const QOhWidgetHelper::DecorButtonStyle &style, bool toNative)
+QOhWidgetHelper::DecorButtonStyle QOhWidgetHelperPrivate::formatStyle(const QOhWidgetHelper::DecorButtonStyle &style
+                                                                      , bool toNative)
 {
     auto windowHandle = window();
     if (toNative) {
         return { style.colorMode, QHighDpi::toNativePixels(style.buttonBackgroundSize, windowHandle),
-                 QHighDpi::toNativePixels(style.spacingBetweenButtons, windowHandle), QHighDpi::toNativePixels(style.closeButtonRightMargin, windowHandle)};
+                 QHighDpi::toNativePixels(style.spacingBetweenButtons, windowHandle),
+                 QHighDpi::toNativePixels(style.closeButtonRightMargin, windowHandle)};
     }
     return { style.colorMode, QHighDpi::fromNativePixels(style.buttonBackgroundSize, windowHandle),
-             QHighDpi::fromNativePixels(style.spacingBetweenButtons, windowHandle), QHighDpi::fromNativePixels(style.closeButtonRightMargin, windowHandle)};
+             QHighDpi::fromNativePixels(style.spacingBetweenButtons, windowHandle)
+             , QHighDpi::fromNativePixels(style.closeButtonRightMargin, windowHandle)};
 }
 
-QPlatformNativeInterface::NativeResourceForIntegrationFunction QOhWidgetHelperPrivate::nativeFunctionForIntegration(const QByteArray &funcName)
+QPlatformNativeInterface::NativeResourceForIntegrationFunction
+QOhWidgetHelperPrivate::nativeFunctionForIntegration(const QByteArray &funcName)
 {
     auto platformNativeInterface = qApp->platformNativeInterface();
     if (platformNativeInterface == nullptr)
@@ -543,13 +552,15 @@ bool QOhWidgetHelperPrivate::registerPCModeChangedHandler()
     if (window == nullptr)
         return false;
     Q_Q(QOhWidgetHelper);
-    QtOh::runOnJsUIThreadAndWait([guard = QPointer<QOhWidgetHelper>(q), window]{
-        Napi::Function pcModeChangedListener = Napi::Function::New(window->env(), [guard](const Napi::CallbackInfo& info){
-            if (guard.isNull() || info.Length() < 1 || !info[0].IsBoolean())
-                return;
-            bool pcMode = info[0].ToBoolean();
-            emit guard->pcModeChanged(pcMode);
-        });
+    QtOh::runOnJsUIThreadAndWait([guard = QPointer<QOhWidgetHelper>(q), window] {
+        Napi::Function pcModeChangedListener = Napi::Function::New(window->env(),
+                                                                   [guard](const Napi::CallbackInfo& info) {
+                                                                       if (guard.isNull() || info.Length() < 1
+                                                                           || !info[0].IsBoolean())
+                                                                           return;
+                                                                       bool pcMode = info[0].ToBoolean();
+                                                                       emit guard->pcModeChanged(pcMode);
+                                                                   });
         window->object().Set("pcModeChangedListener", pcModeChangedListener);
     });
     return true;
@@ -562,11 +573,14 @@ bool QOhWidgetHelperPrivate::registerTitleButtonRectChangedHandler()
         return false;
 
     Q_Q(QOhWidgetHelper);
-    QtOh::runOnJsUIThreadAndWait([guard = QPointer<QOhWidgetHelper>(q), window]{
-        window->call(QLatin1String("on"), {Napi::String::New(window->env(), "windowTitleButtonRectChange"), Napi::Function::New(window->env(), [guard](const Napi::CallbackInfo& info) {
+    QtOh::runOnJsUIThreadAndWait([guard = QPointer<QOhWidgetHelper>(q), window] {
+        window->call(QLatin1String("on"), {Napi::String::New(window->env(), "windowTitleButtonRectChange"),
+                                          Napi::Function::New(window->env(), [guard](const Napi::CallbackInfo& info) {
                                                 Napi::Object titleButtonRect = info[0].As<Napi::Object>();
-                                                QRect rect(titleButtonRect.Get("left").ToNumber(), titleButtonRect.Get("top").ToNumber(),
-                                                           titleButtonRect.Get("width").ToNumber(), titleButtonRect.Get("height").ToNumber());
+                                                QRect rect(titleButtonRect.Get("left").ToNumber(),
+                                                           titleButtonRect.Get("top").ToNumber(),
+                                                           titleButtonRect.Get("width").ToNumber(),
+                                                           titleButtonRect.Get("height").ToNumber());
                                                 if (!guard.isNull())
                                                     emit guard->titleButtonRectChanged(rect);
                                             })});
@@ -579,7 +593,7 @@ bool QOhPrivacyModeData::set()
     QJsObject *window = widgetHelper->jsWindow();
     if (window == nullptr)
         return false;
-    QtOh::runOnJsUIThreadAndWait([this, window]{
+    QtOh::runOnJsUIThreadAndWait([this, window] {
         window->call(QString::fromUtf8("setWindowPrivacyMode"), {Napi::Boolean::New(window->env(), m_isPrivacyMode)});
     });
     return true;
@@ -602,7 +616,7 @@ bool QOhWindowRectAutoSaveData::set()
     QJsObject *ws = widgetHelper->windowStage();
     if (ws == nullptr)
         return false;
-    QtOh::runOnJsUIThreadAndWait([this, ws]{
+    QtOh::runOnJsUIThreadAndWait([this, ws] {
         ws->call(QString::fromUtf8("setWindowRectAutoSave"), {Napi::Boolean::New(ws->env(), m_isAutoSave)});
     });
     return true;
@@ -616,7 +630,7 @@ QVariant QOhWindowRectAutoSaveData::get() const
 
     return QtOh::runOnJsUIThreadWithPromise<bool>([ws](auto p) {
         QJsPromise promise(ws->call(QString::fromUtf8("isWindowRectAutoSave")).As<Napi::Promise>());
-        promise.onThen([p](const Napi::CallbackInfo &info){
+        promise.onThen([p](const Napi::CallbackInfo &info) {
                    bool isAutoSave = info[0].ToBoolean();
                    p->set_value(isAutoSave);
                }).onCatch([p](const Napi::CallbackInfo &info) {
@@ -631,7 +645,7 @@ bool QOhDecorButtonStyleData::set()
     QJsObject *window = widgetHelper->jsWindow();
     if (window == nullptr)
         return false;
-    QtOh::runOnJsUIThreadAndWait([style = widgetHelper->formatStyle(m_style), window]{
+    QtOh::runOnJsUIThreadAndWait([style = widgetHelper->formatStyle(m_style), window] {
         Napi::Object jsStyle = Napi::Object::New(window->env());
         jsStyle.Set("colorMode", (int)style.colorMode);
         jsStyle.Set("buttonBackgroundSize", style.buttonBackgroundSize);
@@ -650,7 +664,7 @@ QVariant QOhDecorButtonStyleData::get() const
     QJsObject *window = widgetHelper->jsWindow();
     if (window == nullptr)
         return v;
-    QOhWidgetHelper::DecorButtonStyle style = QtOh::runOnJsUIThreadWithResult([window]{
+    QOhWidgetHelper::DecorButtonStyle style = QtOh::runOnJsUIThreadWithResult([window] {
         Napi::Object result = window->call(QString::fromUtf8("getDecorButtonStyle")).As<Napi::Object>();
         return QOhWidgetHelper::DecorButtonStyle{ (QOhWidgetHelper::ColorMode)((int)result.Get("colorMode").ToNumber()),
                                                    result.Get("buttonBackgroundSize").ToNumber(),
@@ -695,7 +709,7 @@ bool QOhSupportedWindowModesData::set()
         return false;
     if (m_modes == QOhWidgetHelper::SupportedWindowModes())
         return true;
-    QtOh::runOnJsUIThreadNoWait([modes = m_modes, ws]{
+    QtOh::runOnJsUIThreadNoWait([modes = m_modes, ws] {
         Napi::Array arr = Napi::Array::New(ws->env());
         int index = 0;
         if (modes.testFlag(QOhWidgetHelper::SPLIT))
@@ -704,7 +718,7 @@ bool QOhSupportedWindowModesData::set()
             arr.Set((uint32_t)index++, Napi::Number::New(ws->env(), FLOATING_VALUE));
         if (modes.testFlag(QOhWidgetHelper::FULL_SCREEN))
             arr.Set((uint32_t)index++, Napi::Number::New(ws->env(), FULL_SCREEN_VALUE));
-        ws->call(QLatin1String("setSupportedWindowModes"), { arr } );
+        ws->call(QLatin1String("setSupportedWindowModes"), { arr });
     });
     return true;
 }
@@ -722,7 +736,7 @@ bool QOhWindowBackgroundColorData::set()
         return false;
 
     QString colorStr = m_color.name(QColor::HexArgb);
-    QtOh::runOnJsUIThreadNoWait([this, colorStr, jw]{
+    QtOh::runOnJsUIThreadNoWait([this, colorStr, jw] {
         jw->call("setWindowBackgroundColor", { Napi::String::New(jw->env(), colorStr.toStdString()) });
     });
 }
@@ -735,14 +749,14 @@ QVariant QOhWindowBackgroundColorData::get() const
 bool QOhWindowCornerData::set()
 {
     QWidget *w = widgetHelper->m_widget;
-    if (widgetHelper->m_window.isNull() && (isSubWindowOrFloatingWindow(w) || !w->windowHandle()) )
+    if (widgetHelper->m_window.isNull() && (isSubWindowOrFloatingWindow(w) || !w->windowHandle()))
         return false;
 
     QJsObject *jw = widgetHelper->jsWindow();
     if (jw == nullptr)
         return false;
 
-    QtOh::runOnJsUIThreadNoWait([jw, cornerRadius = m_cornerRadius]{
+    QtOh::runOnJsUIThreadNoWait([jw, cornerRadius = m_cornerRadius] {
         jw->call("setWindowCornerRadius", { Napi::Number::New(jw->env(), cornerRadius) });
     });
     return true;
@@ -751,16 +765,16 @@ bool QOhWindowCornerData::set()
 QVariant QOhWindowCornerData::get() const
 {
     QWidget *w = widgetHelper->m_widget;
-    if (widgetHelper->m_window.isNull() && (isSubWindowOrFloatingWindow(w) || !w->windowHandle()) )
+    if (widgetHelper->m_window.isNull() && (isSubWindowOrFloatingWindow(w) || !w->windowHandle()))
         return -1;
 
     QJsObject *jw = widgetHelper->jsWindow();
     if (jw == nullptr)
         return -1;
 
-    return QtOh::runOnJsUIThreadWithResult([jw]{
+    return QtOh::runOnJsUIThreadWithResult([jw] {
         Napi::Value ret = jw->call("getWindowCornerRadius");
-        if(ret.IsNumber()){
+        if (ret.IsNumber()) {
             qreal result = ret.ToNumber();
             return result;
         }
@@ -772,14 +786,14 @@ QVariant QOhWindowCornerData::get() const
 bool QOhWindowShadowData::set()
 {
     QWidget *w = widgetHelper->m_widget;
-    if (widgetHelper->m_window.isNull() && (isSubWindowOrFloatingWindow(w) || !w->windowHandle()) )
+    if (widgetHelper->m_window.isNull() && (isSubWindowOrFloatingWindow(w) || !w->windowHandle()))
         return false;
 
     QJsObject *jw = widgetHelper->jsWindow();
     if (jw == nullptr)
         return false;
 
-    QtOh::runOnJsUIThreadNoWait([jw, shadowRadius = m_shadowRadius]{
+    QtOh::runOnJsUIThreadNoWait([jw, shadowRadius = m_shadowRadius] {
         jw->call("setWindowShadowRadius", { Napi::Number::New(jw->env(), shadowRadius) });
     });
     return true;
@@ -801,21 +815,22 @@ bool QOhWindowResizeByDragData::set()
     if (jw == nullptr)
         return false;
 
-    QtOh::runOnJsUIThreadNoWait([jw, this]{
+    QtOh::runOnJsUIThreadNoWait([jw, this] {
         Napi::Value ret = jw->call("setResizeByDragEnabled", { Napi::Number::New(jw->env(), m_enable) });
         Napi::Promise p = ret.As<Napi::Promise>();
         if (p.IsNull()) {
             return;
         }
         QJsPromise promise(p);
-        promise.onThen([](const Napi::CallbackInfo &info){
+        promise.onThen([](const Napi::CallbackInfo &info) {
                    ;
-               }).onCatch([](const Napi::CallbackInfo &info){
+               }).onCatch([](const Napi::CallbackInfo &info) {
                     Napi::Object error = info[0].As<Napi::Object>();
                     int code = (int)error.Get("code").ToNumber();
                     if (code != 0) {
                         LOGW("Failed to set the function of disabling the resize by drag window."
-                             "code is %{public}d, message is %{public}s", code, error.Get("message").ToString().Utf8Value().c_str());
+                             "code is %{public}d, message is %{public}s",
+                             code, error.Get("message").ToString().Utf8Value().c_str());
                     }
                 });
     });
@@ -839,7 +854,7 @@ bool QOhWindowDecorData::set()
     if (jw == nullptr)
         return false;
 
-    QtOh::runOnJsUIThreadNoWait([jw, this]{
+    QtOh::runOnJsUIThreadNoWait([jw, this] {
         jw->call("setWindowDecorVisible", { Napi::Number::New(jw->env(), m_visible) });
     });
 
@@ -856,7 +871,8 @@ QVariant QOhWindowDecorData::get() const
     auto isFreeWindowEnable = widgetHelper->nativeFunctionForIntegration("isFreeWindowEnable");
     if (QtOh::Utility::type() == QtOh::Utility::Tablet &&
         !*reinterpret_cast<bool*>(isFreeWindowEnable())) {
-        qCWarning(widgethelper, "getWindowDecorVisible This interface is only available in Free Multi-Window Mode on 2-in-1 devices or tablet devices.");
+        qCWarning(widgethelper, "getWindowDecorVisible This interface is only available in "
+                                "Free Multi-Window Mode on 2-in-1 devices or tablet devices.");
         return false;
     }
 
@@ -864,9 +880,9 @@ QVariant QOhWindowDecorData::get() const
     if (jw == nullptr)
         return false;
 
-    return QtOh::runOnJsUIThreadWithResult([jw]{
+    return QtOh::runOnJsUIThreadWithResult([jw] {
         Napi::Value ret = jw->call("getWindowDecorVisible");
-        if(ret.IsNumber()){
+        if (ret.IsNumber()) {
             bool result = ret.ToBoolean();
             return result;
         }

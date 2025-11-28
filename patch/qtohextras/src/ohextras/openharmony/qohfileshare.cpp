@@ -35,8 +35,6 @@ namespace PermissionType {
     Q_ENUM_NS(Permission)
 }
 
-
-
 /*!
  * \brief permission helper functions
  * \param type permission type
@@ -59,7 +57,7 @@ static QOHFileShare::Error permissionHelper(PermissionType::Permission type,
         QUrl url = QUrl::fromUserInput(p.file);
         QByteArray urlByt = url.toEncoded();
         FileShare_PolicyInfo fp {
-            urlByt.data(),            
+            urlByt.data(),
             static_cast<quint32>(urlByt.length()),
             FileShare_OperationMode(quint8(p.mode))
         };
@@ -70,18 +68,22 @@ static QOHFileShare::Error permissionHelper(PermissionType::Permission type,
     quint32 resultNum(0);
     FileManagement_ErrCode ret(ERR_UNKNOWN);
     FileShare_PolicyErrorResult* result = nullptr;
-    switch(type){
+    switch (type) {
     case PermissionType::E_REVOKEPERMISSION:
-        ret = OH_FileShare_RevokePermission(const_cast<FileShare_PolicyInfo*>(pcs.constData()), pcs.size(), &result, &resultNum);
+        ret = OH_FileShare_RevokePermission(const_cast<FileShare_PolicyInfo*>(pcs.constData()),
+                                            pcs.size(), &result, &resultNum);
         break;
     case PermissionType::E_PERSISTPERMISSION:
-        ret = OH_FileShare_PersistPermission(const_cast<FileShare_PolicyInfo*>(pcs.constData()), pcs.size(), &result, &resultNum);
+        ret = OH_FileShare_PersistPermission(const_cast<FileShare_PolicyInfo*>(pcs.constData()),
+                                             pcs.size(), &result, &resultNum);
         break;
     case PermissionType::E_ACTIVATEPERMISSION:
-        ret = OH_FileShare_ActivatePermission(const_cast<FileShare_PolicyInfo*>(pcs.constData()), pcs.size(), &result, &resultNum);
+        ret = OH_FileShare_ActivatePermission(const_cast<FileShare_PolicyInfo*>(pcs.constData()),
+                                              pcs.size(), &result, &resultNum);
         break;
     case PermissionType::E_DEACTIVATEPERMISSION:
-        ret = OH_FileShare_DeactivatePermission(const_cast<FileShare_PolicyInfo*>(pcs.constData()), pcs.size(), &result, &resultNum);
+        ret = OH_FileShare_DeactivatePermission(const_cast<FileShare_PolicyInfo*>(pcs.constData()),
+                                                pcs.size(), &result, &resultNum);
         break;
     default:
         return QOHFileShare::INVALID_MODE;
@@ -184,9 +186,10 @@ QOHFileShare::Error QOHFileShare::checkPersistentPermission(const Policys &polic
 
     quint32 resultNum(0);
     bool *result(nullptr);
-    auto ret = OH_FileShare_CheckPersistentPermission(const_cast<FileShare_PolicyInfo*>(pcs.constData()), pcs.size(), &result, &resultNum);
+    auto ret = OH_FileShare_CheckPersistentPermission(const_cast<FileShare_PolicyInfo*>(pcs.constData()),
+                                                      pcs.size(), &result, &resultNum);
     if (Q_NULLPTR != result && 0 < resultNum) {
-        for(quint32 i = 0; i < resultNum && resultNum <= quint32(pcs.size()); ++i) {
+        for (quint32 i = 0; i < resultNum && resultNum <= quint32(pcs.size()); ++i) {
             CheckResult cr { bool(result[i]), policys.at(i).file };
             checks.append(cr);
         }
