@@ -1,11 +1,3 @@
-/* ***************************************************************************
- *
- * Copyright (C) 2025 iSoftStone. All rights reserved.
- * See LGPL for detailed Information
- *
- * This file is part of the qtohextras module.
- *
- * ************************************************************************** */
 #ifndef QOHWIDGETHELPER_H
 #define QOHWIDGETHELPER_H
 #include <QObject>
@@ -16,11 +8,16 @@ class QWidget;
 class QWindow;
 class QOhWidgetHelperPrivate;
 
-class Q_OPENHARMONYEXTRAS_EXPORT QOhWidgetHelper : public QObject {
+class Q_OPENHARMONYEXTRAS_EXPORT QOhWidgetHelper : public QObject
+{
     Q_OBJECT
     Q_DECLARE_PRIVATE(QOhWidgetHelper)
 public:
-    enum class ColorMode { COLOR_MODE_NOT_SET = -1, COLOR_MODE_DARK = 0, COLOR_MODE_LIGHT = 1 };
+    enum class ColorMode {
+        COLOR_MODE_NOT_SET = -1,
+        COLOR_MODE_DARK = 0,
+        COLOR_MODE_LIGHT = 1
+    };
 
     struct DecorButtonStyle {
         ColorMode colorMode;
@@ -30,11 +27,11 @@ public:
     };
 
     enum SupportedWindowMode {
-        /* 窗口支持全屏显示 */
+        /*窗口支持全屏显示*/
         FULL_SCREEN = 0x1,
-        /* 窗口支持分屏显示 */
+        /*窗口支持分屏显示*/
         SPLIT = 0x2,
-        /* 支持窗口化显示 */
+        /*支持窗口化显示*/
         FLOATING = 0x04
     };
     Q_DECLARE_FLAGS(SupportedWindowModes, SupportedWindowMode)
@@ -69,7 +66,9 @@ public:
     void setWindowShadowRadius(qreal shadowRadius);
 
     void setWindowTitleMoveEnabled(bool enable);
-    void setWindowTitleButtonVisible(bool maximizeButtonVisible, bool minimizeButtonVisible, bool closeButtonVisible);
+    void setWindowTitleButtonVisible(bool maximizeButtonVisible,
+                                     bool minimizeButtonVisible,
+                                     bool closeButtonVisible);
 
 signals:
     void titleButtonRectChanged(const QRect &rect);

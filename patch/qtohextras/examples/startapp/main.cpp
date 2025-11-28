@@ -1,17 +1,7 @@
-/* ***************************************************************************
- *
- * Copyright (C) 2025 iSoftStone. All rights reserved.
- * See LGPL for detailed Information
- *
- * This file is part of the qtohextras module.
- *
- * ************************************************************************** */
-
+#include "mainwindow.h"
 #include <QApplication>
 #include <QFile>
 #include <QDebug>
-
-#include "mainwindow.h"
 
 int main(int argc, char *argv[])
 {

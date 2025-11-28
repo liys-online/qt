@@ -1,15 +1,8 @@
-/* ***************************************************************************
- *
- * Copyright (C) 2025 iSoftStone. All rights reserved.
- * See LGPL for detailed Information
- *
- * This file is part of the qtohextras module.
- *
- * ************************************************************************** */
 #include <napi/native_api.h>
 #include <hilog/log.h>
 
 #include "qopenharmonywant.h"
+#include "qopenharmonyability.h"
 #include "qopenharmonydefines.h"
 #include "private/qtnihelpers_p.h"
 #include "qopenharmonyjsenvironment.h"
@@ -23,6 +16,7 @@ static napi_value Init(napi_env env, napi_value exports)
     static bool initialized = false;
     if (initialized)
         return exports;
+
 
     initialized = true;
     LOGI("init in qt openharmony extras");
@@ -45,7 +39,7 @@ static napi_module openharmonyQtOHExtrasModule = {
     .nm_filename = nullptr,
     .nm_register_func = Init,
     .nm_modname = "Qt5OhExtras",
-    .nm_priv = ((void *)0),
+    .nm_priv = ((void*)0),
     .reserved = { 0 },
 };
 /*

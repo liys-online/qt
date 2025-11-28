@@ -1,11 +1,3 @@
-/* ***************************************************************************
- *
- * Copyright (C) 2025 iSoftStone. All rights reserved.
- * See LGPL for detailed Information
- *
- * This file is part of the qtohextras module.
- *
- * ************************************************************************** */
 #ifndef MAINWINDOW_H
 #define MAINWINDOW_H
 
@@ -15,7 +7,8 @@ namespace Ui {
 class MainWindow;
 }
 
-class MainWindow : public QWidget {
+class MainWindow : public QWidget
+{
     Q_OBJECT
 
 public:
@@ -23,11 +16,11 @@ public:
     ~MainWindow();
 
 private slots:
-    void onPushButtonAddClicked();
+    void on_pushButton_add_clicked();
 
-    void onPushButtonDeleteClicked();
+    void on_pushButton_delete_clicked();
 
-    void onPushButtonOkClicked();
+    void on_pushButton_ok_clicked();
 
 private:
     Ui::MainWindow *ui;
