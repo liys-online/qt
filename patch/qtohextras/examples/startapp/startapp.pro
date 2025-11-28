@@ -33,3 +33,6 @@ FORMS += \
 
 HEADERS += \
     mainwindow.h
+
+target.path = $$[QT_INSTALL_EXAMPLES]/startapp
+INSTALLS += target

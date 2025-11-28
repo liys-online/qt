@@ -6,6 +6,7 @@ SOURCES += \
     $$PWD/qohappcontext.cpp \
     $$PWD/qohfileshare.cpp \
     $$PWD/qohfunctions.cpp \
+    # $$PWD/qopenharmonyextrasload.cpp \
     $$PWD/qopenharmonyability.cpp \
     $$PWD/qohwidgethelper.cpp
            
