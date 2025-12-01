@@ -112,18 +112,18 @@ index 00000000000..965819df6d7
 +QMAKE_CXXFLAGS_USE_PRECOMPILE = $$QMAKE_CFLAGS_USE_PRECOMPILE
 diff --git a/mkspecs/common/oh-base-tail.conf b/mkspecs/common/oh-base-tail.conf
 new file mode 100644
-index 00000000000..58ec4ab67d1
+index 00000000000..a5e2b9e43e7
 --- /dev/null
 +++ b/mkspecs/common/oh-base-tail.conf
 @@ -0,0 +1,79 @@
 +equals(OHOS_ARCH, armeabi-v7a): \
-+    QMAKE_CFLAGS += -march=armv7a -msoft-float -mfpu=vfp -fno-builtin-memmove
++    QMAKE_CFLAGS += -march=armv7a -mfloat-abi=softfp -mfpu=neon -fno-builtin-memmove
 +else: equals(OHOS_ARCH, arm64-v8a): \
-+    QMAKE_CFLAGS += -march=armv8a -msoft-float -mfpu=vfp -fno-builtin-memmove
++    QMAKE_CFLAGS += -march=armv8a -mfloat-abi=softfp -mfpu=neon -fno-builtin-memmove
 +else: equals(OHOS_ARCH, x86-64): \
 +    QMAKE_CFLAGS += -march=x86-64
 +else: \
-+    QMAKE_CFLAGS += -march=armv7a -msoft-float -mfpu=vfp -fno-builtin-memmove
++    QMAKE_CFLAGS += -march=armv7a -mfloat-abi=softfp -mfpu=neon -fno-builtin-memmove
 +
 +
 +equals(OHOS_ARCH, armeabi-v7a) | equals(OHOS_ARCH, armeabi) {
@@ -260,10 +260,10 @@ index 1ef1dcfd1cb..6ecde8f0269 100644
  }
 diff --git a/mkspecs/oh-clang/qmake.conf b/mkspecs/oh-clang/qmake.conf
 new file mode 100644
-index 00000000000..b838d9301e9
+index 00000000000..fe6f053285f
 --- /dev/null
 +++ b/mkspecs/oh-clang/qmake.conf
-@@ -0,0 +1,39 @@
+@@ -0,0 +1,41 @@
 +# qmake configuration for building with oh-clang
 +MAKEFILE_GENERATOR      = UNIX
 +QMAKE_PLATFORM          = openharmony
@@ -281,11 +281,13 @@ index 00000000000..b838d9301e9
 +QMAKE_CXX     = $${CROSS_COMPILE}clang++
 +
 +equals(OHOS_ARCH, armeabi-v7a): \
-+        QMAKE_CFLAGS += -target arm-linux-ohos
++    QMAKE_CFLAGS += -target arm-linux-ohos
 +else:equals(OHOS_ARCH,arm64-v8a): \
-+        QMAKE_CFLAGS += -target aarch64-linux-ohos
++    QMAKE_CFLAGS += -target aarch64-linux-ohos
 +else:equals(OHOS_ARCH,x86-64): \
-+        QMAKE_CFLAGS += -target x86_64-linux-ohos
++    QMAKE_CFLAGS += -target x86_64-linux-ohos
++else:equals(OHOS_ARCH, x86): \
++    QMAKE_CFLAGS += -target i686-linux-ohos
 +
 +#QMAKE_CFLAGS+=--gcc-toolchain=$$NDK_LLVM_PATH
 +QMAKE_LINK += -Wl,--exclude-libs,$$shell_path($$SDK_ROOT/native/llvm/lib/$$NDK_TOOLCHAIN_PREFIX/libunwind.a)
@@ -8411,11 +8413,60 @@ index 6b6544f9320..119fccdbc3d 100644
 -
 +set(CMAKE_CXX_FLAGS \"${CMAKE_CXX_FLAGS} -std=c++17\")
  _qt5_Core_check_file_exists(\"${CMAKE_CURRENT_LIST_DIR}/Qt5ConfigVersion.cmake\")
+diff --git a/src/corelib/codecs/qicucodec.cpp b/src/corelib/codecs/qicucodec.cpp
+index 1a727ebb519..5d334ab8ab2 100644
+--- a/src/corelib/codecs/qicucodec.cpp
++++ b/src/corelib/codecs/qicucodec.cpp
+@@ -575,6 +575,10 @@ QIcuCodec::~QIcuCodec()
+     structure. Updates its invalid characters count and calls a default
+     callback, that replaces the invalid characters properly.
+ */
++#ifdef Q_OS_OPENHARMONY
++static UConverterFromUCallback g_originalCallback = nullptr;
++static const void *g_context = nullptr;
++#endif
+ static void customFromUnicodeSubstitutionCallback(const void *context,
+                                                   UConverterFromUnicodeArgs *fromUArgs,
+                                                   const UChar *codeUnits,
+@@ -588,7 +592,12 @@ static void customFromUnicodeSubstitutionCallback(const void *context,
+         state->invalidChars++;
+     // Call the default callback that replaces all illegal or unrecognized
+     // sequences with the substitute string
++#ifndef Q_OS_OPENHARMONY
+     UCNV_FROM_U_CALLBACK_SUBSTITUTE(nullptr, fromUArgs, codeUnits, length, codePoint, reason, err);
++#else
++    if (g_originalCallback != nullptr)
++        g_originalCallback(g_context, fromUArgs, codeUnits, length, codePoint, reason, err);
++#endif
+ }
+ 
+ UConverter *QIcuCodec::getConverter(QTextCodec::ConverterState *state) const
+@@ -605,6 +614,10 @@ UConverter *QIcuCodec::getConverter(QTextCodec::ConverterState *state) const
+                                state->flags & QTextCodec::ConvertInvalidToNull ? "\0" : "?", 1, &error);
+             if (!U_FAILURE(error)) {
+                 error = U_ZERO_ERROR;
++#ifdef Q_OS_OPENHARMONY
++                if (g_originalCallback == nullptr)
++                    ucnv_getFromUCallBack(static_cast<UConverter *>(state->d), &g_originalCallback, &g_context);
++#endif
+                 ucnv_setFromUCallBack(static_cast<UConverter *>(state->d),
+                                       customFromUnicodeSubstitutionCallback, state, nullptr,
+                                       nullptr, &error);
 diff --git a/src/corelib/configure.json b/src/corelib/configure.json
-index a9025a2dd29..7ca8252828c 100644
+index a9025a2dd29..517c68421ce 100644
 --- a/src/corelib/configure.json
 +++ b/src/corelib/configure.json
-@@ -692,7 +692,7 @@
+@@ -114,7 +114,8 @@
+                     "condition": "config.win32 && !features.shared"
+                 },
+                 { "libs": "-licuin -licuuc -licudt", "condition": "config.win32 && features.shared" },
+-                { "libs": "-licui18n -licuuc -licudata", "condition": "!config.win32" }
++                { "libs": "-licui18n -licuuc -licudata", "condition": "!config.win32 && !config.openharmony" },
++                { "libs": "-licu", "condition": "config.openharmony" }
+             ],
+             "use": [
+                 { "lib": "libdl", "condition": "features.dlopen" }
+@@ -692,7 +693,7 @@
          "ipc_posix": {
              "label": "Using POSIX IPC",
              "autoDetect": "!config.win32",
@@ -8805,10 +8856,10 @@ index ee378f6434c..1798a905c64 100644
          QString equivalentPath = scheme + filePath.path();
          QString selectedPath = d->select(equivalentPath);
 diff --git a/src/corelib/io/qfilesystemengine_unix.cpp b/src/corelib/io/qfilesystemengine_unix.cpp
-index 01aed7ad14e..486d124f507 100644
+index 01aed7ad14e..930d66d8185 100644
 --- a/src/corelib/io/qfilesystemengine_unix.cpp
 +++ b/src/corelib/io/qfilesystemengine_unix.cpp
-@@ -44,7 +44,15 @@
+@@ -44,11 +44,20 @@
  #include "qfile.h"
  #include "qstorageinfo.h"
  #include "qtextstream.h"
@@ -8825,7 +8876,12 @@ index 01aed7ad14e..486d124f507 100644
  
  #include <QtCore/qoperatingsystemversion.h>
  #include <QtCore/private/qcore_unix_p.h>
-@@ -1333,7 +1341,29 @@ bool QFileSystemEngine::moveFileToTrash(const QFileSystemEntry &source,
+ #include <QtCore/qvarlengtharray.h>
++#include <QtCore/qurl.h>
+ #ifndef QT_BOOTSTRAPPED
+ # include <QtCore/qstandardpaths.h>
+ #endif // QT_BOOTSTRAPPED
+@@ -1333,7 +1342,29 @@ bool QFileSystemEngine::moveFileToTrash(const QFileSystemEntry &source,
          return false;
      }
      const QString sourcePath = sourceInfo.absoluteFilePath();
@@ -8855,7 +8911,7 @@ index 01aed7ad14e..486d124f507 100644
      QDir trashDir(freeDesktopTrashLocation(sourcePath));
      if (!trashDir.exists())
          return false;
-@@ -1423,7 +1453,7 @@ bool QFileSystemEngine::moveFileToTrash(const QFileSystemEntry &source,
+@@ -1423,7 +1454,7 @@ bool QFileSystemEngine::moveFileToTrash(const QFileSystemEntry &source,
      out << "DeletionDate="
          << QDateTime::currentDateTime().toString(QLatin1String("yyyy-MM-ddThh:mm:ss")) << Qt::endl;
      infoFile.close();
@@ -12741,12 +12797,26 @@ index 00000000000..0d0283d1702
 +QT =
 +
 +load(qt_module)
+diff --git a/src/corelib/text/qcollator_icu.cpp b/src/corelib/text/qcollator_icu.cpp
+index 0dca1ee9c99..2847ebda694 100644
+--- a/src/corelib/text/qcollator_icu.cpp
++++ b/src/corelib/text/qcollator_icu.cpp
+@@ -46,7 +46,9 @@
+ #include <unicode/utypes.h>
+ #include <unicode/ucol.h>
+ #include <unicode/ustring.h>
++#ifndef Q_OS_OPENHARMONY
+ #include <unicode/ures.h>
++#endif
+ 
+ #include "qdebug.h"
+ 
 diff --git a/src/corelib/text/qlocale_harmony.cpp b/src/corelib/text/qlocale_harmony.cpp
 new file mode 100644
-index 00000000000..f2d7839e1ba
+index 00000000000..6202c7a68da
 --- /dev/null
 +++ b/src/corelib/text/qlocale_harmony.cpp
-@@ -0,0 +1,283 @@
+@@ -0,0 +1,273 @@
 +#include "qvariant.h"
 +#include "qlocale_p.h"
 +#include "qdatetime.h"
@@ -12757,14 +12827,6 @@ index 00000000000..f2d7839e1ba
 +
 +#include "qjsmodule.h"
 +#include "qopenharmonydefines.h"
-+
-+static bool isGuiApplication()
-+{
-+    if (qApp)
-+        return qApp->inherits("QGuiApplication");
-+
-+    return false;
-+}
 +
 +QT_BEGIN_NAMESPACE
 +
@@ -12777,6 +12839,7 @@ index 00000000000..f2d7839e1ba
 +          , lc_monetary(QLocale::C)
 +          , lc_messages(QLocale::C)
 +          , m_ohSystemi18n(nullptr)
++          , m_inited{ false }
 +    {
 +        readEnvironment();
 +    }
@@ -12793,14 +12856,12 @@ index 00000000000..f2d7839e1ba
 +    QByteArray lc_measurement_var;
 +    QByteArray lc_collate_var;
 +    QStringList uiLanguages;
++    QAtomicInteger<bool> m_inited;
 +    QScopedPointer<QJsObject> m_ohSystemi18n;
 +};
 +
 +void QSystemLocaleData::readEnvironment()
 +{
-+    if (!isGuiApplication())
-+        return;
-+
 +    QWriteLocker locker(&lock);
 +    QtOh::runOnJsUIThreadAndWait([this]{
 +        if (m_ohSystemi18n.isNull()) {
@@ -12852,6 +12913,7 @@ index 00000000000..f2d7839e1ba
 +        lc_monetary = QLocale(QString::fromLatin1(monetary));
 +        lc_messages = QLocale(QString::fromLatin1(lc_messages_var));
 +    });
++    m_inited.storeRelease(true);
 +}
 +
 +Q_GLOBAL_STATIC(QSystemLocaleData, qSystemLocaleData)
@@ -12862,8 +12924,6 @@ index 00000000000..f2d7839e1ba
 +QLocale QSystemLocale::fallbackUiLocale() const
 +{
 +    QLocale locale(QLocale::C);
-+    if (!isGuiApplication())
-+        return locale;
 +
 +    QtOh::runOnJsUIThreadAndWait([&locale]{
 +        Napi::Value value = qSystemLocaleData()->m_ohSystemi18n->call("getSystemLocale");
@@ -12991,27 +13051,27 @@ index 00000000000..f2d7839e1ba
 +    case UILanguages: {
 +        if (!d->uiLanguages.isEmpty())
 +            return d->uiLanguages;
-+        if (isGuiApplication()) {
-+            QtOh::runOnJsUIThreadAndWait([d]{
-+                Napi::Value value = qSystemLocaleData()->m_ohSystemi18n->call("getSystemLanguages");
-+                Napi::Array lst = value.As<Napi::Array>();
-+                if (lst.IsNull())
-+                    return;
++        if (!d->m_inited.loadAcquire())
++            d->readEnvironment();
++        QtOh::runOnJsUIThreadAndWait([d]{
++            Napi::Value value = qSystemLocaleData()->m_ohSystemi18n->call("getSystemLanguages");
++            Napi::Array lst = value.As<Napi::Array>();
++            if (lst.IsNull())
++                return;
 +
-+                for (uint32_t i = 0; i < lst.Length(); ++i) {
-+                    Napi::Value value = lst[i];
-+                    const QString &name = QString::fromStdString(std::string(value.As<Napi::String>()));
-+                    QString lang, script, cntry;
-+                    if (qt_splitLocaleName(name, lang, script, cntry)) {
-+                        if (!cntry.length())
-+                            d->uiLanguages.append(lang);
-+                        else
-+                            d->uiLanguages.append(lang % QLatin1Char('-') % cntry);
-+                    }
++            for (uint32_t i = 0; i < lst.Length(); ++i) {
++                Napi::Value value = lst[i];
++                const QString &name = QString::fromStdString(std::string(value.As<Napi::String>()));
++                QString lang, script, cntry;
++                if (qt_splitLocaleName(name, lang, script, cntry)) {
++                    if (!cntry.length())
++                        d->uiLanguages.append(lang);
++                    else
++                        d->uiLanguages.append(lang % QLatin1Char('-') % cntry);
 +                }
-+                d->uiLanguages.removeDuplicates();
-+            });
-+        }
++            }
++            d->uiLanguages.removeDuplicates();
++        });
 +        return d->uiLanguages.isEmpty() ? QVariant() : QVariant(d->uiLanguages);
 +    }
 +    case StringToStandardQuotation:
@@ -15084,10 +15144,10 @@ index 00000000000..c7cb121e116
 +}
 diff --git a/src/openharmony/entryability/EntryAbility.ets b/src/openharmony/entryability/EntryAbility.ets
 new file mode 100644
-index 00000000000..4576db51467
+index 00000000000..5b37164bb7b
 --- /dev/null
 +++ b/src/openharmony/entryability/EntryAbility.ets
-@@ -0,0 +1,63 @@
+@@ -0,0 +1,64 @@
 +import AbilityConstant from '@ohos.app.ability.AbilityConstant';
 +import UIAbility from '@ohos.app.ability.UIAbility';
 +import Window from '@ohos.window'
@@ -15103,6 +15163,7 @@ index 00000000000..4576db51467
 +  private launchParams = ""
 +
 +  onCreate(want: Want, launchParam: AbilityConstant.LaunchParam) {
++    super.onCreate(want, launchParam)
 +  }
 +
 +  newLocalStorage() {
@@ -17342,7 +17403,7 @@ index 00000000000..51cbeb1f668
 +    $$PWD/qohdragevent.cpp
 diff --git a/src/plugins/platforms/openharmony/arkui/qohdragevent.cpp b/src/plugins/platforms/openharmony/arkui/qohdragevent.cpp
 new file mode 100644
-index 00000000000..032d72c445e
+index 00000000000..1f91253edb4
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/arkui/qohdragevent.cpp
 @@ -0,0 +1,108 @@
@@ -17382,9 +17443,9 @@ index 00000000000..032d72c445e
 +    OH_ArkUI_DragEvent_SetDragResult(m_dragEvent, ARKUI_DRAG_RESULT_FAILED);
 +}
 +
-+void QOhDragEvent::setSuggestedDropOperation(bool isAccepted)
++void QOhDragEvent::setSuggestedDropOperation(Qt::DropAction action)
 +{
-+    OH_ArkUI_DragEvent_SetSuggestedDropOperation(m_dragEvent, isAccepted ?
++    OH_ArkUI_DragEvent_SetSuggestedDropOperation(m_dragEvent, Qt::CopyAction == action ?
 +                                                     ::ArkUI_DropOperation::ARKUI_DROP_OPERATION_COPY :
 +                                                     ::ArkUI_DropOperation::ARKUI_DROP_OPERATION_MOVE);
 +}
@@ -17456,7 +17517,7 @@ index 00000000000..032d72c445e
 +QT_END_NAMESPACE
 diff --git a/src/plugins/platforms/openharmony/arkui/qohdragevent.h b/src/plugins/platforms/openharmony/arkui/qohdragevent.h
 new file mode 100644
-index 00000000000..72454373ab9
+index 00000000000..750d950bd65
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/arkui/qohdragevent.h
 @@ -0,0 +1,34 @@
@@ -17481,7 +17542,7 @@ index 00000000000..72454373ab9
 +
 +    void failed();
 +
-+    void setSuggestedDropOperation(bool isAccepted);
++    void setSuggestedDropOperation(Qt::DropAction action);
 +
 +    void setResult(bool isAccepted);
 +
@@ -19174,10 +19235,10 @@ index 00000000000..4c6949c07e4
 +#endif // QJSABILITYINFO_H
 diff --git a/src/plugins/platforms/openharmony/jsclass/qjsabilitystage.cpp b/src/plugins/platforms/openharmony/jsclass/qjsabilitystage.cpp
 new file mode 100644
-index 00000000000..f32b59e0679
+index 00000000000..b6dddc6d714
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/jsclass/qjsabilitystage.cpp
-@@ -0,0 +1,143 @@
+@@ -0,0 +1,158 @@
 +#include <mutex>
 +#include <qpa/qwindowsysteminterface.h>
 +
@@ -19239,8 +19300,23 @@ index 00000000000..f32b59e0679
 +    Napi::Function onAcceptWant = Napi::Function::New(info.Env(), [](const Napi::CallbackInfo& info){
 +        if (info.Length() < 1)
 +            return Napi::String::From(info.Env(), QJsWant::defaultWindowName.toUtf8().constData());
++        static bool first = true;
++        QString key;
 +        QJsWant want(info[0].As<Napi::Object>());
-+        QString key = want.windowName();
++        if (!want.hasWindowName()) {
++            if (first) {
++                first = false;
++                key = QJsWant::defaultWindowName;
++            } else {
++                auto ability = qNativeWindowManager->defaultAbility();
++                if (ability == nullptr)
++                    key = QJsWant::defaultWindowName;
++                else
++                    key = ability->name();
++            }
++        } else {
++            key = want.windowName();
++        }
 +        return Napi::String::From(info.Env(), key.toUtf8().constData());
 +    });
 +    QJsAbilityStage::instance()->set("onAcceptWant", onAcceptWant);
@@ -21959,10 +22035,10 @@ index 00000000000..749fd54d8ea
 +#endif // QJSUIEXTENSIONCONTEXTSESSION_H
 diff --git a/src/plugins/platforms/openharmony/jsclass/qjswant.cpp b/src/plugins/platforms/openharmony/jsclass/qjswant.cpp
 new file mode 100644
-index 00000000000..f8778e2ed2e
+index 00000000000..40f8d13139a
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/jsclass/qjswant.cpp
-@@ -0,0 +1,124 @@
+@@ -0,0 +1,132 @@
 +#include "qjswant.h"
 +#include <qnapi.h>
 +#include <private/qopenharmony_p.h>
@@ -22086,13 +22162,21 @@ index 00000000000..f8778e2ed2e
 +    return QString::fromStdString(ret.ToString());
 +}
 +
++bool QJsWant::hasWindowName() const
++{
++    if (!object().Has("parameters"))
++        return false;
++    Napi::Object jsParameters = get("parameters").As<Napi::Object>();
++    return jsParameters.Has("windowName");
++}
++
 +QT_END_NAMESPACE
 diff --git a/src/plugins/platforms/openharmony/jsclass/qjswant.h b/src/plugins/platforms/openharmony/jsclass/qjswant.h
 new file mode 100644
-index 00000000000..758b9d32f19
+index 00000000000..0cde8641731
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/jsclass/qjswant.h
-@@ -0,0 +1,34 @@
+@@ -0,0 +1,36 @@
 +#ifndef QJSWANT_H
 +#define QJSWANT_H
 +
@@ -22116,6 +22200,8 @@ index 00000000000..758b9d32f19
 +    QString moduleName() const;
 +
 +    QString windowName() const;
++
++    bool hasWindowName() const;
 +
 +    QByteArray uri() const;
 +
@@ -25549,10 +25635,10 @@ index 00000000000..0ad19b99f52
 +#endif // QOHDISPLAYMANAGER_H
 diff --git a/src/plugins/platforms/openharmony/qohdrag.cpp b/src/plugins/platforms/openharmony/qohdrag.cpp
 new file mode 100644
-index 00000000000..da5917380d1
+index 00000000000..d003203536d
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qohdrag.cpp
-@@ -0,0 +1,392 @@
+@@ -0,0 +1,394 @@
 +#include "qohdrag.h"
 +#include "qohmain.h"
 +#include "qohdisplay.h"
@@ -25663,6 +25749,7 @@ index 00000000000..da5917380d1
 +        // timeout
 +        dragEvent.failed();
 +    } else {
++        dragEvent.setSuggestedDropOperation(dragResponse.acceptedAction());
 +        dragEvent.setResult(dragResponse.isAccepted());
 +    }
 +}
@@ -25731,6 +25818,7 @@ index 00000000000..da5917380d1
 +    if (QtOh::wait(loop.data(), 500)) {
 +        dragEvent.failed();
 +    } else {
++        dragEvent.setSuggestedDropOperation(dragResponse.acceptedAction());
 +        dragEvent.setResult(dragResponse.isAccepted());
 +    }
 +}
@@ -26004,7 +26092,7 @@ index 00000000000..3550b836064
 +#endif // QOHDRAG_H
 diff --git a/src/plugins/platforms/openharmony/qohevent.h b/src/plugins/platforms/openharmony/qohevent.h
 new file mode 100644
-index 00000000000..59e8eccf284
+index 00000000000..86e3d29e96a
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qohevent.h
 @@ -0,0 +1,180 @@
@@ -26139,12 +26227,12 @@ index 00000000000..59e8eccf284
 +{
 +public:
 +    TabletEvent():InputEvent(Tablet){}
-+    bool down;
 +    qreal presure;
-+    QPointF local;
 +    QPointF global;
 +    qint64 uniqueID;
 +    int xTilt, yTilt;
++    double rotation;
++    Qt::MouseButton btn;
 +};
 +
 +class GestureEvent : public InputEvent
@@ -26190,10 +26278,10 @@ index 00000000000..59e8eccf284
 +#endif // QOHEVENT_H
 diff --git a/src/plugins/platforms/openharmony/qoheventdispatcher.cpp b/src/plugins/platforms/openharmony/qoheventdispatcher.cpp
 new file mode 100644
-index 00000000000..2bd5e07c608
+index 00000000000..6dcece36de6
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qoheventdispatcher.cpp
-@@ -0,0 +1,1029 @@
+@@ -0,0 +1,1071 @@
 +#include <cmath>
 +#include <math.h>
 +#include <errno.h>
@@ -26338,6 +26426,13 @@ index 00000000000..2bd5e07c608
 +overload(Ts...)->overload<Ts...>;
 +#endif
 +
++QPoint translatePoint(const QPointF &global, QWindow *w)
++{
++    auto pw = w->handle();
++    QPoint local = pw->mapFromGlobal(global.toPoint());
++    return local;
++}
++
 +using WheelEvents = QMultiHash<QtOh::EventType, QSharedPointer<QtOh::WheelEvent>>;
 +class QOhEventDispatcherPrivate : public QEventDispatcherUNIXPrivate
 +{
@@ -26359,7 +26454,7 @@ index 00000000000..2bd5e07c608
 +#if OHOS_SDK_VERSION >= 17
 +    void operator()(QSharedPointer<QtOh::NewKeyEvent> e);
 +#endif
-+    void handleKeyEvent(QWindow *window, QEvent::Type type, int32_t code, bool autorep = false);
++    void handleKeyEvent(QWindow *window, QEvent::Type type, int32_t code, Qt::KeyboardModifiers mod, bool autorep = false);
 +
 +protected:
 +    void uniqueGeometryChangeEvent();
@@ -26367,13 +26462,13 @@ index 00000000000..2bd5e07c608
 +    void wakeUpWheelPinch(QSharedPointer<QtOh::WheelEvent> event);
 +    void reduceWheelEvent(QSharedPointer<QtOh::WheelEvent> event);
 +    void reduceWheelEventImple(QSharedPointer<QtOh::WheelEvent> event);
-+    void mouseMove(QWindow *window, const QPointF &local, const QPointF &global, Qt::MouseButton button);
-+    void mousePress(QWindow *window, const QPointF &local, const QPointF &global, Qt::MouseButton button);
-+    void mouseRelease(QWindow *window, const QPointF &local, const QPointF &global, Qt::MouseButton button);
++    void mouseMove(QSharedPointer<QtOh::MouseEvent> event);
++    void mousePress(QSharedPointer<QtOh::MouseEvent> event);
++    void mouseRelease(QSharedPointer<QtOh::MouseEvent> event);
 +
-+    void nonClientAreaMouseMove(QWindow *window, const QPointF &local, const QPointF &global, Qt::MouseButton button);
-+    void nonClientAreaMousePress(QWindow *window, const QPointF &local, const QPointF &global, Qt::MouseButton button);
-+    void nonClientAreaMouseRelease(QWindow *window, const QPointF &local, const QPointF &global, Qt::MouseButton button);
++    void nonClientAreaMouseMove(QSharedPointer<QtOh::MouseEvent> event);
++    void nonClientAreaMousePress(QSharedPointer<QtOh::MouseEvent> event);
++    void nonClientAreaMouseRelease(QSharedPointer<QtOh::MouseEvent> event);
 +
 +    QPointF getLastTouchPoint(int id) const;
 +    void updateLastTouchPoints(int id, const QPointF &point);
@@ -26451,7 +26546,13 @@ index 00000000000..2bd5e07c608
 +    QWindow *w = e->window.data();
 +    if (UI_TOUCH_EVENT_ACTION_CANCEL == e->actionType) {
 +        QWindowSystemInterface::handleTouchCancelEvent(w, q_func()->touchDevice(),
-+                                                       QGuiApplication::queryKeyboardModifiers());
++#if OHOS_SDK_VERSION >= 17
++                                                       e->keyboardModifiers
++#else
++                                                       QOhKeys::keyboardModifiers()
++#endif
++                                                       );
++        updateCursorPos(QPoint());
 +        return;
 +    }
 +
@@ -26473,7 +26574,12 @@ index 00000000000..2bd5e07c608
 +     */
 +    dev->setType(e->deviceType);
 +    QWindowSystemInterface::handleTouchEvent(w, dev, e->touchPoints,
-+                                             QOhKeys::keyboardModifiers());
++#if OHOS_SDK_VERSION >= 17
++                                             e->keyboardModifiers
++#else
++                                             QOhKeys::keyboardModifiers()
++#endif
++                                             );
 +
 +}
 +
@@ -26484,7 +26590,7 @@ index 00000000000..2bd5e07c608
 +
 +    QPoint p = e->scPos.toPoint();
 +    updateCursorPos(p);
-+
++    QOhPlatformInputContext::ohInputContext()->setRequestKeyboardReason(InputMethod::RequestKeyboardReason::MOUSE);
 +    static QEvent::Type s_lastPressEventType = QEvent::None;
 +
 +    if (s_lastPressEventType == QEvent::MouseButtonPress) {
@@ -26502,20 +26608,20 @@ index 00000000000..2bd5e07c608
 +    }
 +
 +    if (e->mouseEventType == QEvent::MouseMove) {
-+        mouseMove(e->window, e->xcPos, e->scPos, e->mouseButton);
++        mouseMove(e);
 +    } else if (e->mouseEventType == QEvent::MouseButtonPress) {
-+        mousePress(e->window, e->xcPos, e->scPos, e->mouseButton);
++        mousePress(e);
 +        s_lastPressEventType = e->mouseEventType;
 +    } else if (e->mouseEventType == QEvent::MouseButtonRelease) {
-+        mouseRelease(e->window, e->xcPos, e->scPos, e->mouseButton);
++        mouseRelease(e);
 +        s_lastPressEventType = QEvent::None;
 +    } else if (e->mouseEventType == QEvent::NonClientAreaMouseMove) {
-+        nonClientAreaMouseMove(e->window, e->xcPos, e->scPos, e->mouseButton);
++        nonClientAreaMouseMove(e);
 +    } else if (e->mouseEventType == QEvent::NonClientAreaMouseButtonPress) {
-+        nonClientAreaMousePress(e->window, e->xcPos, e->scPos, e->mouseButton);
++        nonClientAreaMousePress(e);
 +        s_lastPressEventType = e->mouseEventType;
 +    } else if (e->mouseEventType == QEvent::NonClientAreaMouseButtonRelease) {
-+        nonClientAreaMouseRelease(e->window, e->xcPos, e->scPos, e->mouseButton);
++        nonClientAreaMouseRelease(e);
 +        s_lastPressEventType = QEvent::None;
 +    }
 +}
@@ -26525,10 +26631,23 @@ index 00000000000..2bd5e07c608
 +    if (e.isNull() || e->window.isNull())
 +        return;
 +
-+    QWindowSystemInterface::handleTabletEvent(e->window, e->timestamp, e->down, e->local, e->global,
-+                                              QTabletEvent::Stylus, QTabletEvent::Pen,e->presure,
-+                                              e->xTilt, e->yTilt, 0, 0, 0, e->uniqueID,
-+                                              QOhKeys::keyboardModifiers());
++    updateCursorPos(e->global.toPoint());
++    /* NOTE 双击判断使用的是毫秒级别计算
++     * 鸿蒙的时间戳为纳秒级别
++     * 1s【秒】 = 1000ms【毫秒】
++     * 1ms【毫秒】 = 1000μs【微秒】
++    * 1μs【微秒】 = 1000ns【纳秒】
++     * 1ns 【纳秒】 = 1000ps【皮秒】
++     */
++    QWindowSystemInterface::handleTabletEvent(e->window, e->timestamp/1000000, translatePoint(e->global, e->window), e->global,
++                                              QTabletEvent::Stylus, QTabletEvent::Pen, e->btn, e->presure,
++                                              e->xTilt, e->yTilt, 0, e->rotation, 0, e->uniqueID,
++#if OHOS_SDK_VERSION >= 17
++                                              e->keyboardModifiers
++#else
++                                              QOhKeys::keyboardModifiers()
++#endif
++                                              );
 +}
 +
 +void QOhEventDispatcherPrivate::operator()(QSharedPointer<QtOh::GestureEvent> e)
@@ -26607,10 +26726,10 @@ index 00000000000..2bd5e07c608
 +     */
 +    bool ar = QOhKeys::autoRepeat(action, code);
 +
-+    handleKeyEvent(receiver, t, code, ar);
++    handleKeyEvent(receiver, t, code, QOhKeys::keyboardModifiers(), ar);
 +}
 +
-+void QOhEventDispatcherPrivate::handleKeyEvent(QWindow *window, QEvent::Type type, int32_t code, bool autorep)
++void QOhEventDispatcherPrivate::handleKeyEvent(QWindow *window, QEvent::Type type, int32_t code, Qt::KeyboardModifiers mod, bool autorep)
 +{
 +    if (autorep && type == QEvent::KeyPress) {
 +         /* 不重复发送按下的辅助按键 */
@@ -26619,8 +26738,8 @@ index 00000000000..2bd5e07c608
 +                || code == KEY_ALT_LEFT || code == KEY_ALT_RIGHT)
 +            return;
 +    }
-+    auto nativeModifier = QOhKeys::keyboardModifiers();
 +
++    auto nativeModifier = mod;
 +    int state = 0;
 +    state |= (nativeModifier & Qt::ShiftModifier ? int(Qt::ShiftModifier) : 0);
 +    state |= (nativeModifier & Qt::ControlModifier ? int(Qt::ControlModifier) : 0);
@@ -26687,7 +26806,13 @@ index 00000000000..2bd5e07c608
 +//    bool autoRepeat = e->type == ARKUI_KEY_EVENT_LONG_PRESS;
 +    bool autoRepeat = QOhKeys::autoRepeat(type == QEvent::KeyPress ? 0 : 1, code);
 +    
-+    handleKeyEvent(receiver, type, code, autoRepeat);
++    handleKeyEvent(receiver, type, code,
++#if OHOS_SDK_VERSION >= 17
++                   e->keyboardModifiers
++#else
++                   QOhKeys::keyboardModifiers()
++#endif
++                   , autoRepeat);
 +}
 +#endif
 +
@@ -26817,7 +26942,7 @@ index 00000000000..2bd5e07c608
 +    QWindowSystemInterface::handleWheelEvent(tlw, event->timestamp/1000000,
 +                                             localPos, event->global,
 +                                             pixelDelta, angleDelta,
-+                                             mf | QOhKeys::keyboardModifiers()
++                                             mf | event->keyboardModifiers
 +#if OHOS_SDK_VERSION >= 15
 +                                             , (UI_INPUT_EVENT_TOOL_TYPE_MOUSE == event->toolType) ? Qt::NoScrollPhase : ohAxisActionToQtScrollPhase(event->axisAction)
 +#else
@@ -26943,50 +27068,48 @@ index 00000000000..2bd5e07c608
 +    replaceWheelEvent(event);
 +}
 +
-+QPoint translatePoint(const QPointF &global, QWindow *w)
++void QOhEventDispatcherPrivate::mouseMove(QSharedPointer<QtOh::MouseEvent> event)
 +{
-+    auto pw = w->handle();
-+    QPoint local = pw->mapFromGlobal(global.toPoint());
-+    return local;
-+}
-+
-+void QOhEventDispatcherPrivate::mouseMove(QWindow *window, const QPointF &local, const QPointF &global, Qt::MouseButton button)
-+{
++    QWindow *window = event->window;
 +    if (window == nullptr || QOhPlatformInputContext::ohInputContext()->ignoreMouse())
 +        return;
 +    QWindow *tlw = QOhWindowContext::mouseGrabberWindow();
 +    bool windowChanged = (tlw != nullptr && tlw != window);
 +    if (!tlw)
 +        tlw = window;
-+    QPoint _local = local.toPoint();
++    QPoint _local = event->xcPos.toPoint();
++    const QPointF global = event->scPos;
 +    if (windowChanged) {
 +        _local = translatePoint(global, tlw);
 +    }
 +    QOhWindowContext::setUnderMouseWindow(window, _local, global.toPoint());
 +
-+    QWindowSystemInterface::handleMouseEvent(tlw, _local, global.toPoint(), Qt::MouseButtons(button),
++    QWindowSystemInterface::handleMouseEvent(tlw, _local, global.toPoint(), Qt::MouseButtons(event->mouseButton),
 +                                             Qt::NoButton, QEvent::MouseMove,
-+                                             QOhKeys::keyboardModifiers());
++                                             event->keyboardModifiers);
 +}
 +
-+void QOhEventDispatcherPrivate::mousePress(QWindow *window, const QPointF &local, const QPointF &global, Qt::MouseButton button)
++void QOhEventDispatcherPrivate::mousePress(QSharedPointer<QtOh::MouseEvent> event)
 +{
++    QWindow *window = event->window;
 +    if (window == nullptr || QOhPlatformInputContext::ohInputContext()->ignoreMouse())
 +        return;
 +
 +    QWindow *grabber = QOhWindowContext::mouseGrabberWindow();
-+    QPoint _local = local.toPoint();
++    QPoint _local = event->xcPos.toPoint();
++    const QPointF global = event->scPos;
 +    if (grabber != nullptr && grabber != window) {
 +        _local = translatePoint(global, grabber);
 +    }
 +    QOhWindowContext::setUnderMouseWindow(window, _local, global.toPoint());
-+    QWindowSystemInterface::handleMouseEvent(grabber == nullptr ? window : grabber, _local, global.toPoint(), Qt::MouseButtons(button),
-+                                             button, QEvent::MouseButtonPress,
-+                                             QOhKeys::keyboardModifiers());
++    QWindowSystemInterface::handleMouseEvent(grabber == nullptr ? window : grabber, _local, global.toPoint(), Qt::MouseButtons(event->mouseButton),
++                                             event->mouseButton, QEvent::MouseButtonPress,
++                                             event->keyboardModifiers);
 +}
 +
-+void QOhEventDispatcherPrivate::mouseRelease(QWindow *window, const QPointF &local, const QPointF &global, Qt::MouseButton button)
++void QOhEventDispatcherPrivate::mouseRelease(QSharedPointer<QtOh::MouseEvent> event)
 +{
++    QWindow *window = event->window;
 +    if (window == nullptr || QOhPlatformInputContext::ohInputContext()->ignoreMouse())
 +        return;
 +
@@ -26995,7 +27118,8 @@ index 00000000000..2bd5e07c608
 +    if (!tlw)
 +        tlw = window;
 +
-+    QPoint _local = local.toPoint();
++    QPoint _local = event->xcPos.toPoint();
++    const QPointF global = event->scPos;
 +    if (windowChanged) {
 +        _local = translatePoint(global, tlw);
 +    }
@@ -27004,12 +27128,13 @@ index 00000000000..2bd5e07c608
 +
 +    QWindowSystemInterface::handleMouseEvent(tlw, _local, global.toPoint(),
 +                                             Qt::MouseButtons(Qt::NoButton),
-+                                             button, QEvent::MouseButtonRelease,
-+                                             QOhKeys::keyboardModifiers());
++                                             event->mouseButton, QEvent::MouseButtonRelease,
++                                             event->keyboardModifiers);
 +}
 +
-+void QOhEventDispatcherPrivate::nonClientAreaMouseMove(QWindow *window, const QPointF &local, const QPointF &global, Qt::MouseButton button)
++void QOhEventDispatcherPrivate::nonClientAreaMouseMove(QSharedPointer<QtOh::MouseEvent> event)
 +{
++    QWindow *window = event->window;
 +    if (window == nullptr || QOhPlatformInputContext::ohInputContext()->ignoreMouse())
 +        return;
 +
@@ -27017,40 +27142,44 @@ index 00000000000..2bd5e07c608
 +    bool windowChanged = (tlw != nullptr && tlw != window);
 +    if (!tlw)
 +        tlw = window;
-+    QPoint _local = local.toPoint();
++    QPoint _local = event->xcPos.toPoint();
++    const QPointF global = event->scPos;
 +    if (windowChanged) {
 +        _local = translatePoint(global, tlw);
 +    }
 +
-+    QWindowSystemInterface::handleFrameStrutMouseEvent(tlw, _local, global.toPoint(), Qt::MouseButtons(button),
++    QWindowSystemInterface::handleFrameStrutMouseEvent(tlw, _local, global.toPoint(), Qt::MouseButtons(event->mouseButton),
 +                                             Qt::NoButton, QEvent::NonClientAreaMouseMove,
-+                                             QOhKeys::keyboardModifiers());
++                                             event->keyboardModifiers);
 +}
 +
-+void QOhEventDispatcherPrivate::nonClientAreaMousePress(QWindow *window, const QPointF &local, const QPointF &global, Qt::MouseButton button)
++void QOhEventDispatcherPrivate::nonClientAreaMousePress(QSharedPointer<QtOh::MouseEvent> event)
 +{
++    QWindow *window = event->window;
 +    if (window == nullptr || QOhPlatformInputContext::ohInputContext()->ignoreMouse())
 +        return;
 +
 +    QWindow *grabber = QOhWindowContext::mouseGrabberWindow();
 +    bool windowChanged = (grabber != nullptr && grabber != window);
 +    QWindow *send = grabber == nullptr ? window : grabber;
-+    QPoint _local = local.toPoint();
++    QPoint _local = event->xcPos.toPoint();
++    const QPointF global = event->scPos;
 +    if (windowChanged) {
 +        _local = translatePoint(global, send);
-+        QWindowSystemInterface::handleMouseEvent(send, _local, global.toPoint(), Qt::MouseButtons(button),
-+                                                           button, QEvent::MouseButtonPress,
-+                                                           QOhKeys::keyboardModifiers());
++        QWindowSystemInterface::handleMouseEvent(send, _local, global.toPoint(), Qt::MouseButtons(event->mouseButton),
++                                                           event->mouseButton, QEvent::MouseButtonPress,
++                                                           event->keyboardModifiers);
 +        return;
 +    }
 +
-+    QWindowSystemInterface::handleFrameStrutMouseEvent(send, _local, global.toPoint(), Qt::MouseButtons(button),
-+                                             button, QEvent::NonClientAreaMouseButtonPress,
-+                                             QOhKeys::keyboardModifiers());
++    QWindowSystemInterface::handleFrameStrutMouseEvent(send, _local, global.toPoint(), Qt::MouseButtons(event->mouseButton),
++                                             event->mouseButton, QEvent::NonClientAreaMouseButtonPress,
++                                             event->keyboardModifiers);
 +}
 +
-+void QOhEventDispatcherPrivate::nonClientAreaMouseRelease(QWindow *window, const QPointF &local, const QPointF &global, Qt::MouseButton button)
++void QOhEventDispatcherPrivate::nonClientAreaMouseRelease(QSharedPointer<QtOh::MouseEvent> event)
 +{
++    QWindow *window = event->window;
 +    if (window == nullptr || QOhPlatformInputContext::ohInputContext()->ignoreMouse())
 +        return;
 +
@@ -27058,15 +27187,16 @@ index 00000000000..2bd5e07c608
 +    bool windowChanged = (tlw != nullptr && tlw != window);
 +    if (!tlw)
 +        tlw = window;
-+    QPoint _local = local.toPoint();
++    QPoint _local = event->xcPos.toPoint();
++    const QPointF global = event->scPos;
 +    if (windowChanged) {
 +        _local = translatePoint(global, tlw);
 +    }
 +
 +    QWindowSystemInterface::handleFrameStrutMouseEvent(tlw, _local, global.toPoint(),
-+                                             Qt::MouseButtons(Qt::NoButton),
-+                                             button, QEvent::NonClientAreaMouseButtonRelease,
-+                                             QOhKeys::keyboardModifiers());
++                                                       Qt::MouseButtons(Qt::NoButton),
++                                                       event->mouseButton, QEvent::NonClientAreaMouseButtonRelease,
++                                                       event->keyboardModifiers);
 +}
 +
 +QPointF QOhEventDispatcherPrivate::getLastTouchPoint(int id) const
@@ -28645,10 +28775,10 @@ index 00000000000..ee8f483c3fb
 +#endif // QOHJSONLISTENER_H
 diff --git a/src/plugins/platforms/openharmony/qohkeys.cpp b/src/plugins/platforms/openharmony/qohkeys.cpp
 new file mode 100644
-index 00000000000..dd392ef3dd8
+index 00000000000..3760b435888
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qohkeys.cpp
-@@ -0,0 +1,835 @@
+@@ -0,0 +1,844 @@
 +#include "qohkeys.h"
 +#include "qohwindowcontext.h"
 +#include "qohobjectholder.h"
@@ -29461,6 +29591,15 @@ index 00000000000..dd392ef3dd8
 +    return mods;
 +}
 +
++Qt::KeyboardModifiers QOhKeys::metaModifier()
++{
++    Qt::KeyboardModifiers mods(Qt::NoModifier);
++    if (isKeyPressed(KEY_META_LEFT) || isKeyPressed(KEY_META_RIGHT)) {
++        mods |= Qt::MetaModifier;
++    }
++    return mods;
++}
++
 +Qt::KeyboardModifiers QOhKeys::ohKeys2Qt(int64_t keys)
 +{
 +    Qt::KeyboardModifiers km = Qt::NoModifier;
@@ -29486,10 +29625,10 @@ index 00000000000..dd392ef3dd8
 +
 diff --git a/src/plugins/platforms/openharmony/qohkeys.h b/src/plugins/platforms/openharmony/qohkeys.h
 new file mode 100644
-index 00000000000..2ff6491adc6
+index 00000000000..1dfe3b816ab
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qohkeys.h
-@@ -0,0 +1,36 @@
+@@ -0,0 +1,38 @@
 +#ifndef QOHKEYS_H
 +#define QOHKEYS_H
 +
@@ -29517,6 +29656,8 @@ index 00000000000..2ff6491adc6
 +    static QString key2String(Qt::Key key, Qt::KeyboardModifiers modifiers);
 +
 +    static Qt::KeyboardModifiers keyboardModifiers();
++
++    static Qt::KeyboardModifiers metaModifier();
 +
 +    static Qt::KeyboardModifiers ohKeys2Qt(int64_t keys);
 +
@@ -31657,10 +31798,10 @@ index 00000000000..ada5db1f7f4
 +#endif // QOHNATIVEWINDOW_H
 diff --git a/src/plugins/platforms/openharmony/qohnativewindowmanager.cpp b/src/plugins/platforms/openharmony/qohnativewindowmanager.cpp
 new file mode 100644
-index 00000000000..a2d844a5d64
+index 00000000000..1642a972dbb
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qohnativewindowmanager.cpp
-@@ -0,0 +1,426 @@
+@@ -0,0 +1,427 @@
 +#include "qdebug.h"
 +#include "qohmain.h"
 +#include "qohnativewindow.h"
@@ -31900,13 +32041,14 @@ index 00000000000..a2d844a5d64
 +QOhNativeWindow *QOhNativeWindowManager::createTopWindow(QOhPlatformOpenGLWindow *platformWindow, const QRect &rect)
 +{
 +    QOhNativeWindow *window = nullptr;
-+    QString name = platformWindow->windowName();
 +    if (m_firstTopWindow != nullptr) {
 +        window = m_firstTopWindow;
 +        m_firstTopWindow = nullptr;
++        platformWindow->setWindowName(window->name());
 +        // 第一个窗口系统创建，监听不到ACTIVE事件，自动触发
 +        QOhWindowContext::setFocusWindow(platformWindow->window());
 +    } else {
++        QString name = platformWindow->windowName();
 +        m_topWindowPromise = std::make_shared<std::promise<QOhNativeWindow *>>();
 +        auto feature = m_topWindowPromise->get_future();
 +        QJsAbility *ability = m_allAbilities.first();
@@ -32168,10 +32310,10 @@ index 00000000000..e96e77d3ccf
 +#endif // QOHNATIVEWINDOWMANAGER_H
 diff --git a/src/plugins/platforms/openharmony/qohnormalwindow.cpp b/src/plugins/platforms/openharmony/qohnormalwindow.cpp
 new file mode 100644
-index 00000000000..6089309bb58
+index 00000000000..043081246d2
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qohnormalwindow.cpp
-@@ -0,0 +1,859 @@
+@@ -0,0 +1,862 @@
 +#include <QTimer>
 +#include <QCloseEvent>
 +#include <QGuiApplication>
@@ -32179,6 +32321,7 @@ index 00000000000..6089309bb58
 +#include <private/qohhiappevent_p.h>
 +
 +#include <qnapi.h>
++#include "qohkeys.h"
 +#include "qohmain.h"
 +#include "qjscontext.h"
 +#include "qjswindowstage.h"
@@ -32877,7 +33020,8 @@ index 00000000000..6089309bb58
 +    auto displayX = OH_Input_GetMouseEventDisplayX(mouseEvent);
 +    auto displayY = OH_Input_GetMouseEventDisplayY(mouseEvent);
 +    auto displayId = OH_Input_GetMouseEventDisplayId(mouseEvent);
-+    QtOh::runOnQtMainThread([displayId, winId, action, btn, displayX, displayY]{
++    auto keys = QOhKeys::keyboardModifiers();
++    QtOh::runOnQtMainThread([displayId, winId, action, btn, displayX, displayY, keys]{
 +        auto platformScreen = QOhDisplayManager::instance()->platformScreenOrNull(displayId);
 +        auto screenTopLeft = QPoint();
 +        if (platformScreen) {
@@ -32942,6 +33086,7 @@ index 00000000000..6089309bb58
 +        event->window = pw->window();
 +        event->xcPos = QPointF(localPos);
 +        event->scPos = QPointF(globalPos);
++        event->keyboardModifiers = keys;
 +
 +        QOhEventDispatcher *dispatcher = QOhEventDispatcher::instance();
 +        dispatcher->appendOhEvent(event);
@@ -34559,10 +34704,10 @@ index 00000000000..6ade55b8543
 +#endif // QOHPLATFORMCURSOR_H
 diff --git a/src/plugins/platforms/openharmony/qohplatformdialoghelpers.cpp b/src/plugins/platforms/openharmony/qohplatformdialoghelpers.cpp
 new file mode 100644
-index 00000000000..b2a7c40c7e1
+index 00000000000..43299f79706
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qohplatformdialoghelpers.cpp
-@@ -0,0 +1,412 @@
+@@ -0,0 +1,686 @@
 +#include <QDebug>
 +#include <QTimer>
 +#include <QRegExp>
@@ -34584,6 +34729,50 @@ index 00000000000..b2a7c40c7e1
 +#include "qjscontext.h"
 +#include "qohnativewindowmanager.h"
 +#include "qohplatformdialoghelpers.h"
++
++QT_BEGIN_NAMESPACE
++
++class QOhNativeDialogBase : public QObject
++{
++    Q_OBJECT
++public:
++    QOhNativeDialogBase() {}
++    virtual ~QOhNativeDialogBase() {}
++    void exec(QWindow *parent) { doExec(parent); m_executed = true; }
++    bool executed() const { return m_executed; }
++signals:
++    void accepted();
++    void rejected();
++protected:
++    virtual void doExec(QWindow *parent) = 0;
++private:
++    bool m_executed = false;
++};
++
++class QOhPlatformMessageDialogHelper: public QPlatformMessageDialogHelper
++{
++    Q_OBJECT
++public:
++    QOhPlatformMessageDialogHelper();
++    ~QOhPlatformMessageDialogHelper();
++    void exec() override;
++    bool show(Qt::WindowFlags windowFlags,
++              Qt::WindowModality windowModality,
++              QWindow *parent) override;
++    void hide() override;
++
++public slots:
++    void setDialogResult(int buttonID);
++
++private:
++    void addButtons(QSharedPointer<QMessageDialogOptions> opt, ButtonRole role);
++
++private:
++    int m_buttonId;
++    bool m_shown;
++    QStringList m_buttons;
++    QList<int> m_buttonIds;
++};
 +
 +QOhPlatformMessageDialogHelper::QOhPlatformMessageDialogHelper()
 +    : m_buttonId(-1)
@@ -34691,123 +34880,142 @@ index 00000000000..b2a7c40c7e1
 +    emit clicked(standardButton, role);
 +}
 +
-+QOhPlatformFileDialogHelper::QOhPlatformFileDialogHelper()
-+    : m_shown(false)
-+    , m_picker(nullptr)
++class OhFileData
 +{
-+    m_picker.reset(new QJsModule("@ohos.file.picker"));
-+}
++public:
++    OhFileData() : m_data(new Data) {}
++    void fromOptions(const QSharedPointer<QFileDialogOptions> &o);
 +
-+QOhPlatformFileDialogHelper::~QOhPlatformFileDialogHelper()
-+{
-+}
-+
-+bool QOhPlatformFileDialogHelper::defaultNameFilterDisables() const
-+{
-+    return true;
-+}
-+
-+void QOhPlatformFileDialogHelper::setDirectory(const QUrl &directory)
-+{    
-+    m_dir = directory;
-+}
-+
-+QUrl QOhPlatformFileDialogHelper::directory() const
-+{
-+    return m_dir;
-+}
-+
-+void QOhPlatformFileDialogHelper::selectFile(const QUrl &filename)
-+{
-+#if 1
-+    QFileInfo fi(filename.toLocalFile());
-+    m_saveFile = fi.fileName();
-+    QDir fid = fi.dir();    
-+#endif
-+    if (m_saveFile.contains("/")) {
-+        int index = m_saveFile.lastIndexOf("/");
-+        m_saveFile = m_saveFile.right(m_saveFile.length() - index - 1);
-+    }
-+}
-+
-+QList<QUrl> QOhPlatformFileDialogHelper::selectedFiles() const
-+{
-+    return selectedTargets(false);
-+}
-+
-+QList<QUrl> QOhPlatformFileDialogHelper::selectedUris() const
-+{
-+    return selectedTargets(true);
-+}
-+
-+void QOhPlatformFileDialogHelper::setFilter()
-+{
-+
-+}
-+
-+void QOhPlatformFileDialogHelper::selectNameFilter(const QString &filter)
-+{
-+    m_filter = filter;
-+}
-+
-+QString QOhPlatformFileDialogHelper::selectedNameFilter() const
-+{
-+    return m_filter;
-+}
-+
-+void QOhPlatformFileDialogHelper::exec()
-+{
-+    if (!m_shown)
-+        show(Qt::Dialog, Qt::ApplicationModal, nullptr);
-+
-+    m_eventLoop.exec();
-+}
-+
-+bool QOhPlatformFileDialogHelper::show(Qt::WindowFlags windowFlags, Qt::WindowModality windowModality, QWindow *parent)
-+{
-+    Q_UNUSED(windowFlags)
-+    Q_UNUSED(parent)
-+    if (m_shown)
-+        return true;
-+    Q_UNUSED(windowModality)
-+    QSharedPointer<QFileDialogOptions> opt = options();
-+    if (!opt.data())
-+        return false;
-+    bool open = (opt->acceptMode() == QFileDialogOptions::AcceptOpen);
-+    if (open)
-+        openFileDialog(opt->nameFilters(), opt->fileMode(), m_dir.path(), parent);
-+    else
-+        saveFileDialog(m_saveFile, m_dir.toLocalFile(), opt->useDefaultNameFilters() ? QStringList() : opt->nameFilters(), parent);
-+    m_shown = true;
-+    return true;
-+}
-+
-+void QOhPlatformFileDialogHelper::hide()
-+{
-+    m_shown = false;
-+}
-+
-+void QOhPlatformFileDialogHelper::setFileResult(const QStringList &file)
-+{
-+    m_files.clear();
-+    if (!file.isEmpty()) {
-+        m_files << file;
-+    }
-+    if (m_files.isEmpty())
-+        emit reject();
-+    else
-+        emit accept();
-+}
-+
-+namespace {
-+enum class OHSelectMode {
-+    FILE,
-+    FOLDER,
-+    MIXED
++    QUrl directory() const;
++    void setDirectory(const QUrl &);
++    QString selectedNameFilter() const;
++    void setSelectedNameFilter(const QString &);
++    QList<QUrl> selectedFiles() const;
++    void setSelectedFiles(const QList<QUrl> &);
++    void setResult(const QStringList &files);
++    QString selectedFile() const;
++private:
++    class Data : public QSharedData {
++    public:
++        QUrl directory;
++        QString selectedNameFilter;
++        QList<QUrl> selectedFiles;
++        QMutex mutex;
++    };
++    QExplicitlySharedDataPointer<Data> m_data;
 +};
++
++inline QUrl OhFileData::directory() const
++{
++    m_data->mutex.lock();
++    const QUrl result = m_data->directory;
++    m_data->mutex.unlock();
++    return result;
 +}
 +
-+static OHSelectMode qt_mode_to_oh_mode(QFileDialogOptions::FileMode mode)
++inline void OhFileData::setDirectory(const QUrl &d)
++{
++    QMutexLocker locker(&m_data->mutex);
++    m_data->directory = d;
++}
++
++inline QString OhFileData::selectedNameFilter() const
++{
++    m_data->mutex.lock();
++    const QString result = m_data->selectedNameFilter;
++    m_data->mutex.unlock();
++    return result;
++}
++
++inline void OhFileData::setSelectedNameFilter(const QString &f)
++{
++    QMutexLocker locker(&m_data->mutex);
++    m_data->selectedNameFilter = f;
++}
++
++inline QList<QUrl> OhFileData::selectedFiles() const
++{
++    m_data->mutex.lock();
++    const auto result = m_data->selectedFiles;
++    m_data->mutex.unlock();
++    return result;
++}
++
++inline QString OhFileData::selectedFile() const
++{
++    const auto files = selectedFiles();
++    return files.isEmpty() ? QString() : files.front().toLocalFile();
++}
++
++inline void OhFileData::setSelectedFiles(const QList<QUrl> &urls)
++{
++    QMutexLocker locker(&m_data->mutex);
++    m_data->selectedFiles = urls;
++}
++
++void OhFileData::setResult(const QStringList &files)
++{
++    QList<QUrl> result;
++    std::transform(files.constBegin(), files.constEnd(), std::back_inserter(result), [](const QString &url){
++        return QUrl(url);
++    });
++    setSelectedFiles(result);
++}
++
++inline void OhFileData::fromOptions(const QSharedPointer<QFileDialogOptions> &o)
++{
++    QMutexLocker locker(&m_data->mutex);
++    m_data->directory = o->initialDirectory();
++    m_data->selectedFiles = o->initiallySelectedFiles();
++    m_data->selectedNameFilter = o->initiallySelectedNameFilter();
++}
++
++class QOhNativeFileDialog : public QOhNativeDialogBase
++{
++    Q_OBJECT
++public:
++    enum class OHSelectMode {
++        FILE,
++        FOLDER,
++        MIXED
++    };
++    explicit QOhNativeFileDialog(const OhFileData &data) : m_open(false), m_maxNumber(1), m_data(data) {}
++    inline void setMode(QFileDialogOptions::FileMode mode, QFileDialogOptions::AcceptMode acceptMode, QFileDialogOptions::FileDialogOptions options);
++    inline void setDirectory(const QUrl &directory);
++    inline void updateDirectory() { setDirectory(m_data.directory()); }
++    inline QString directory() const;
++    virtual void setNameFilters(const QStringList &f);
++    void selectNameFilter(const QString &filter);
++    void setUserSelectedNameFilter(int index);
++    inline void updateSelectedNameFilter() { selectNameFilter(m_data.selectedNameFilter()); }
++    inline QString selectedNameFilter() const;
++    void selectFile(const QString &fileName);
++
++protected:
++    void doExec(QWindow *parent);
++    const OhFileData &data() const { return m_data; }
++    OhFileData &data() { return m_data; }
++
++private:
++    std::pair<Napi::Value, Napi::Value> validContextAndWindow(QWindow *window) const;
++    std::shared_ptr<QJsObject> documentPicker(QWindow *parent) const;
++    OHSelectMode qtMode2OhMode(QFileDialogOptions::FileMode mode);
++    int selectMaxSelectNumber(QFileDialogOptions::FileMode mode);
++    Napi::Value documentSelectOptions() const;
++    Napi::Value documentSaveOptions() const;
++    void open(QWindow *parent);
++    void save(QWindow *parent);
++private:
++    bool m_open;
++    OHSelectMode m_mode;
++    int m_maxNumber;
++    QString m_saveFile;
++    QStringList m_nameFilters;
++    OhFileData m_data;
++    QEventLoop m_eventLoop;
++};
++
++QOhNativeFileDialog::OHSelectMode QOhNativeFileDialog::qtMode2OhMode(QFileDialogOptions::FileMode mode)
 +{
 +    switch (mode) {
 +    case QFileDialogOptions::AnyFile:
@@ -34824,7 +35032,7 @@ index 00000000000..b2a7c40c7e1
 +    return OHSelectMode::FILE;
 +}
 +
-+static int selectMaxSelectNumber(QFileDialogOptions::FileMode mode)
++int QOhNativeFileDialog::selectMaxSelectNumber(QFileDialogOptions::FileMode mode)
 +{
 +    switch (mode) {
 +    case QFileDialogOptions::ExistingFiles:
@@ -34836,7 +35044,54 @@ index 00000000000..b2a7c40c7e1
 +    return 1;
 +}
 +
-+static std::pair<Napi::Value, Napi::Value> validContextAndWindow(QWindow *window)
++void QOhNativeFileDialog::setMode(QFileDialogOptions::FileMode mode, QFileDialogOptions::AcceptMode acceptMode, QFileDialogOptions::FileDialogOptions options)
++{
++    m_open = acceptMode == QFileDialogOptions::AcceptOpen;
++    m_mode = qtMode2OhMode(mode);
++    m_maxNumber = selectMaxSelectNumber(mode);
++}
++
++void QOhNativeFileDialog::setDirectory(const QUrl &directory)
++{
++    Q_UNUSED(directory)
++    Q_UNIMPLEMENTED();
++}
++
++void QOhNativeFileDialog::setNameFilters(const QStringList &f)
++{
++    m_nameFilters = f;
++}
++
++void QOhNativeFileDialog::selectNameFilter(const QString &filter)
++{
++    Q_UNUSED(filter)
++    Q_UNIMPLEMENTED();
++}
++
++void QOhNativeFileDialog::selectFile(const QString &fileName)
++{
++    m_saveFile = fileName;
++}
++
++void QOhNativeFileDialog::setUserSelectedNameFilter(int index)
++{
++    if (index >= 0 && index < m_nameFilters.count()) {
++        const QString filter = m_nameFilters.at(index);
++        if (!filter.isEmpty())
++            m_data.setSelectedNameFilter(filter);
++    }
++}
++
++void QOhNativeFileDialog::doExec(QWindow *parent)
++{
++    if (m_open)
++        open(parent);
++    else
++        save(parent);
++    m_eventLoop.exec();
++}
++
++std::pair<Napi::Value, Napi::Value> QOhNativeFileDialog::validContextAndWindow(QWindow *window) const
 +{
 +    QWindow *_window = window;
 +    if (_window == nullptr)
@@ -34845,44 +35100,73 @@ index 00000000000..b2a7c40c7e1
 +        _window = QGuiApplication::topLevelWindows().empty() ? nullptr : QGuiApplication::topLevelWindows().last();
 +    }
 +    if (_window == nullptr)
-+        return std::make_pair(Napi::Value(), Napi::Value());
++        return {};
 +
 +    QPlatformNativeInterface *platform = QGuiApplication::platformNativeInterface();
 +    QJsObject *nativeWindow = static_cast<QJsObject *>(platform->nativeResourceForWindow("nativeWindow", _window));
 +    if (nativeWindow == nullptr)
-+        return std::make_pair(Napi::Value(), Napi::Value());
++        return {};
 +    QJsContext *context = qNativeWindowManager->context(_window);
-+    return std::make_pair(context->object(), nativeWindow->object());
++    return {context->object(), nativeWindow->object()};
 +}
 +
-+void QOhPlatformFileDialogHelper::openFileDialog(const QStringList &filters, QFileDialogOptions::FileMode mode, const QString &path, QWindow *parent)
++std::shared_ptr<QJsObject> QOhNativeFileDialog::documentPicker(QWindow *parent) const
 +{
-+    QStringList _filters = filters;
++    static QJsModule picker("@ohos.file.picker");
++    Napi::Value documentPickerConstructor = picker.get("DocumentViewPicker");
++    auto args = validContextAndWindow(parent);
++    return std::make_shared<QJsObject>(documentPickerConstructor, std::initializer_list<napi_value>{args.first, args.second});
++}
++
++Napi::Value QOhNativeFileDialog::documentSelectOptions() const
++{
++    static QJsModule picker("@ohos.file.picker");
++    QStringList _filters = m_nameFilters;
 +    if (_filters.length() >= 100 || _filters.isEmpty()) {
 +        _filters = QStringList() << ".*";
 +    }
++    Napi::Value documentSelectOptionsConstructor = picker.get("DocumentSelectOptions");
++    QJsObject documentSelectOptions(documentSelectOptionsConstructor);
++    documentSelectOptions.set("fileSuffixFilters", QNapi::create(_filters));
++    documentSelectOptions.set("selectMode", m_mode);
++    documentSelectOptions.set("maxSelectNumber", m_maxNumber);
++    const QString path = m_data.directory().toLocalFile();
++    QString defaultPath = QString("%1/%2").arg(path, m_data.selectedFile());
++    if (!QFile::exists(defaultPath)) {
++        defaultPath = path;
++    }
 +
-+    auto args = validContextAndWindow(parent);
-+    auto callJsFunc = [this, mode, path, _filters, args]{
-+        Napi::Value documentPickerConstructor = m_picker->get("DocumentViewPicker");
-+        QJsObject documentPicker(documentPickerConstructor, { args.first, args.second });
++    QString data = QtOh::uriFromPath(defaultPath);
++    if (!data.isEmpty()) {
++        documentSelectOptions.set("defaultFilePathUri", data);
++    }
++    return documentSelectOptions.object();
++}
 +
-+        Napi::Value documentSelectOptionsConstructor = m_picker->get("DocumentSelectOptions");
-+        QJsObject documentSelectOptions(documentSelectOptionsConstructor);
-+        documentSelectOptions.set("fileSuffixFilters", QNapi::create(_filters));
-+        documentSelectOptions.set("selectMode", (int)qt_mode_to_oh_mode(mode));
-+        documentSelectOptions.set("maxSelectNumber", selectMaxSelectNumber(mode));
-+        QString defaultPath = QString("%1/%2").arg(path, m_saveFile);
-+        if (!QFile::exists(defaultPath)) {
-+            defaultPath = path;
-+        }
++Napi::Value QOhNativeFileDialog::documentSaveOptions() const
++{
++    static QJsModule picker("@ohos.file.picker");
++    Napi::Value documentSaveOptionsConstructor = picker.get("DocumentSaveOptions");
++    QJsObject documentSaveOptions(documentSaveOptionsConstructor);
++    documentSaveOptions.set("newFileNames", QNapi::create(QStringList() << m_saveFile));
++    documentSaveOptions.set("fileSuffixChoices", QNapi::create(m_nameFilters));
++    const QString path = m_data.directory().toLocalFile();
++    QString defaultPath = QString("%1/%2").arg(path, m_saveFile);
++    if (!QFile::exists(defaultPath)) {
++        defaultPath = path;
++    }
++    QString data = QtOh::uriFromPath(defaultPath);
++    if (!data.isEmpty()) {
++        documentSaveOptions.set("defaultFilePathUri", data);
++    }
++    return documentSaveOptions.object();
++}
 +
-+        QString data = QtOh::uriFromPath(defaultPath);
-+        if (!data.isEmpty()) {
-+            documentSelectOptions.set("defaultFilePathUri", Napi::Value::From(m_picker->env(), data.toStdString()));
-+        }
-+
-+        Napi::Promise result = documentPicker.call("select", {documentSelectOptions.object()}).As<Napi::Promise>();
++void QOhNativeFileDialog::open(QWindow *parent)
++{
++    auto callJsFunc = [this, parent]{
++        auto documentPicker = this->documentPicker(parent);
++        Napi::Promise result = documentPicker->call("select", documentSelectOptions()).As<Napi::Promise>();
 +        QJsPromise promise(result);
 +        promise.onThen([this](const Napi::CallbackInfo& info) {
 +                   QEventLoopLocker locker(&m_eventLoop);
@@ -34890,172 +35174,271 @@ index 00000000000..b2a7c40c7e1
 +                       return;
 +                   }
 +                   QStringList filePaths = QNapi::getFirst<QStringList>(info);
-+                   setFileResult(filePaths);
++                   if (!filePaths.isEmpty()) {
++                       m_data.setResult(filePaths);
++                       emit accepted();
++                   } else {
++                       emit rejected();
++                   }
 +               }).onCatch([this](const Napi::CallbackInfo& info){
 +                    Q_UNUSED(info)
 +                    QEventLoopLocker locker(&m_eventLoop);
++                    emit rejected();
 +                });
 +    };
 +
 +    QtOh::runOnJsUIThreadNoWait(callJsFunc);
 +}
 +
-+void QOhPlatformFileDialogHelper::saveFileDialog(const QString &fileName, const QString &dir, const QStringList &filter, QWindow *parent)
-+{     
-+    auto args = validContextAndWindow(parent);
-+    auto callJsFunc = [this, fileName, dir, filter, args]{
-+        Napi::Value documentSaveOptionsConstructor = m_picker->get("DocumentSaveOptions");
-+        QJsObject documentSaveOptions(documentSaveOptionsConstructor);
-+        documentSaveOptions.set("newFileNames", QNapi::create(QStringList() << fileName));
-+        documentSaveOptions.set("fileSuffixChoices", QNapi::create(filter));
-+        QString defaultPath = QString("%1/%2").arg(dir, m_saveFile);
-+        if (!QFile::exists(defaultPath)) {
-+            defaultPath = dir;
-+        }
-+        QString data = QtOh::uriFromPath(defaultPath);
-+        if (!data.isEmpty()) {
-+            documentSaveOptions.set("defaultFilePathUri", data);
-+        }
-+
-+        Napi::Value documentPickerConstructor = m_picker->get("DocumentViewPicker");
-+        QJsObject documentPicker(documentPickerConstructor, { args.first, args.second } );
-+
-+        Napi::Promise result = documentPicker.call("save", { documentSaveOptions.object()}).As<Napi::Promise>();
++void QOhNativeFileDialog::save(QWindow *parent)
++{
++    auto callJsFunc = [this, parent]{
++        auto documentPicker = this->documentPicker(parent);
++        Napi::Promise result = documentPicker->call("save", documentSaveOptions()).As<Napi::Promise>();
 +        QJsPromise promise(result);
-+        promise.onThen([this](const Napi::CallbackInfo& info){
++        promise.onThen([this, documentPicker](const Napi::CallbackInfo& info){
 +                   QEventLoopLocker locker(&m_eventLoop);
-+                   if (info.Length() < 1) {                       
++                   if (info.Length() < 1) {
 +                       return;
 +                   }
++                   int index = QNapi::get<int>(documentPicker->call("getSelectedIndex"));
++                   setUserSelectedNameFilter(index);
 +                   QStringList filePaths = QNapi::getFirst<QStringList>(info);
-+                   setFileResult(filePaths);
++                   if (!filePaths.isEmpty()) {
++                       m_data.setResult(filePaths);
++                       emit accepted();
++                   } else {
++                       emit rejected();
++                   }
 +               }).onCatch([this](const Napi::CallbackInfo& info){
 +                    Q_UNUSED(info)
 +                    QEventLoopLocker locker(&m_eventLoop);
++                    emit rejected();
 +                });
 +    };
 +
 +    QtOh::runOnJsUIThreadNoWait(callJsFunc);
 +}
 +
-+QList<QUrl> QOhPlatformFileDialogHelper::selectedTargets(bool nativeUri) const
++class QOhPlatformFileDialogHelper: public QOhDialogHelperBase<QPlatformFileDialogHelper>
 +{
-+    QList<QUrl> result;
-+    for (int i = 0; i < m_files.count(); ++i) {
-+        const QUrl &url = m_files.at(i);
-+        if(nativeUri){
-+            result << url;
-+            continue;
-+        }
++    Q_OBJECT
++public:
++    virtual bool defaultNameFilterDisables() const override { return true; }
++    virtual void setDirectory(const QUrl &directory) override;
++    virtual QUrl directory() const override;
++    virtual void selectFile(const QUrl &filename) override;
++    virtual QList<QUrl> selectedFiles() const override;
++    virtual QList<QUrl> selectedUris() const override;
++    virtual void setFilter() override;
++    virtual void selectNameFilter(const QString &filter) override;
++    virtual QString selectedNameFilter() const override;
++    virtual QOhNativeDialogBase *createNativeDialog() override;
++private:
++    inline QOhNativeFileDialog *nativeFileDialog() const
++    { return static_cast<QOhNativeFileDialog *>(nativeDialog()); }
++    OhFileData m_data;
++};
 +
-+        const QString &path = url.toString();
++void QOhPlatformFileDialogHelper::setDirectory(const QUrl &directory)
++{
++    m_data.setDirectory(directory);
++    if (hasNativeDialog())
++        nativeFileDialog()->updateDirectory();
++}
++
++QUrl QOhPlatformFileDialogHelper::directory() const
++{
++    return m_data.directory();
++}
++
++void QOhPlatformFileDialogHelper::selectFile(const QUrl &filename)
++{
++    QFileInfo fi(filename.toLocalFile());
++    QString saveFile = fi.fileName();
++    if (saveFile.contains("/")) {
++        int index = saveFile.lastIndexOf("/");
++        saveFile = saveFile.right(saveFile.length() - index - 1);
++    }
++
++    if (hasNativeDialog())
++        nativeFileDialog()->selectFile(saveFile);
++}
++
++QList<QUrl> QOhPlatformFileDialogHelper::selectedFiles() const
++{
++    auto files = m_data.selectedFiles();
++    QList<QUrl> result;
++    for (auto file: files) {
++        const QString &path = file.toString();
 +        QString data = QtOh::pathFromUri(path);
 +        if (!data.isEmpty()) {
 +            result << QUrl::fromLocalFile(data);
-+        } else {
-+            // file://docs/storage/Users/currentUser/xxx/  多了一个docs取消
-+            QUrl temp = QUrl(m_files.at(i));
-+            result << QUrl::fromLocalFile(temp.path());
-+        }
-+    }
-+
-+    QSharedPointer<QFileDialogOptions> opt = options();
-+    if (opt.data()) {
-+        bool save = (opt->acceptMode() == QFileDialogOptions::AcceptSave);
-+        if (save) {
-+            // 由于鸿蒙系统会创建一个空白的文件出来，导致Qt逻辑问题，先把鸿蒙系统创建出来的删除掉,等待文件创建出来，100可调整
-+            QThread::msleep(100);
-+            for (int i = 0; i < result.count(); ++i) {
-+                QString file = result.at(i).toLocalFile();
-+                if (QFile(file).exists())
-+                    QFile::remove(file);
-+            }
 +        }
 +    }
 +    return result;
 +}
 +
++QList<QUrl> QOhPlatformFileDialogHelper::selectedUris() const
++{
++    return m_data.selectedFiles();
++}
++
++void QOhPlatformFileDialogHelper::setFilter()
++{
++
++}
++
++void QOhPlatformFileDialogHelper::selectNameFilter(const QString &filter)
++{
++    m_data.setSelectedNameFilter(filter);
++    if (hasNativeDialog())
++        nativeFileDialog()->updateSelectedNameFilter();
++}
++
++QString QOhPlatformFileDialogHelper::selectedNameFilter() const
++{
++    return m_data.selectedNameFilter();
++}
++
++QOhNativeDialogBase *QOhPlatformFileDialogHelper::createNativeDialog()
++{
++    const QSharedPointer<QFileDialogOptions> &opts = options();
++    m_data.fromOptions(opts);
++    auto result = new QOhNativeFileDialog(m_data);
++    QObject::connect(result, &QOhNativeDialogBase::accepted, this, &QPlatformDialogHelper::accept);
++    QObject::connect(result, &QOhNativeDialogBase::rejected, this, &QPlatformDialogHelper::reject);
++    const QFileDialogOptions::FileMode mode = opts->fileMode();
++    result->setMode(mode, opts->acceptMode(), opts->options());
++    const QStringList nameFilters = opts->nameFilters();
++    if (!nameFilters.isEmpty())
++        result->setNameFilters(nameFilters);
++    result->updateDirectory();
++    result->updateSelectedNameFilter();
++    const QList<QUrl> initialSelection = opts->initiallySelectedFiles();
++    if (!initialSelection.empty()) {
++        const QUrl &url = initialSelection.constFirst();
++        if (url.isLocalFile()) {
++            QFileInfo info(url.toLocalFile());
++            if (!info.isDir())
++                result->selectFile(info.fileName());
++        } else {
++            result->selectFile(url.path());
++        }
++    }
++    if (mode != QFileDialogOptions::Directory && mode != QFileDialogOptions::DirectoryOnly) {
++        const QString initialNameFilter = opts->initiallySelectedNameFilter();
++        if (!initialNameFilter.isEmpty())
++            result->selectNameFilter(initialNameFilter);
++    }
++    return result;
++}
++
++template<class BaseClass>
++void QOhDialogHelperBase<BaseClass>::exec()
++{
++    if (QOhNativeDialogBase *nd = nativeDialog()) {
++        nd->exec(m_parent);
++        m_nativeDialog.clear();
++    }
++}
++
++template<class BaseClass>
++bool QOhDialogHelperBase<BaseClass>::show(Qt::WindowFlags windowFlags, Qt::WindowModality windowModality, QWindow *parent)
++{
++    Q_UNUSED(windowFlags)
++    const bool modal = (windowModality != Qt::NonModal);
++    Q_UNUSED(modal);
++    m_parent = parent;
++    if (!ensureNativeDialog())
++        return false;
++    return true;
++}
++
++template<class BaseClass>
++void QOhDialogHelperBase<BaseClass>::hide()
++{
++//    if (m_nativeDialog)
++//        m_nativeDialog->hide();
++    m_parent = nullptr;
++}
++
++template <class BaseClass>
++QOhNativeDialogBase *QOhDialogHelperBase<BaseClass>::nativeDialog() const
++{
++    if (m_nativeDialog.isNull()) {
++        return nullptr;
++    }
++    return m_nativeDialog.data();
++}
++
++template <class BaseClass>
++QOhNativeDialogBase *QOhDialogHelperBase<BaseClass>::ensureNativeDialog()
++{
++    if (m_nativeDialog.isNull() || m_nativeDialog->executed())
++        m_nativeDialog = QOhNativeDialogBasePtr(createNativeDialog());
++    return m_nativeDialog.data();
++}
++
++QPlatformDialogHelper *QOhPlatformDialogHelpers::createHelper(QPlatformTheme::DialogType type)
++{
++    switch (type) {
++        //    case QPlatformTheme::MessageDialog:
++        //        return new QOhPlatformMessageDialogHelper;
++    case QPlatformTheme::FileDialog:
++        return new QOhPlatformFileDialogHelper();
++    default:
++        return nullptr;
++    }
++}
++
++QT_END_NAMESPACE
++#include "qohplatformdialoghelpers.moc"
 diff --git a/src/plugins/platforms/openharmony/qohplatformdialoghelpers.h b/src/plugins/platforms/openharmony/qohplatformdialoghelpers.h
 new file mode 100644
-index 00000000000..0d15938bf9a
+index 00000000000..f30c1c25648
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qohplatformdialoghelpers.h
-@@ -0,0 +1,76 @@
+@@ -0,0 +1,40 @@
 +#ifndef QOHPLATFORMDIALOGHELPERS_H
 +#define QOHPLATFORMDIALOGHELPERS_H
 +
-+#include <QList>
-+#include <QSharedPointer>
-+#include <QEventLoop>
-+#include <QScopedPointer>
 +#include <qpa/qplatformdialoghelper.h>
++#include <qpa/qplatformtheme.h>
 +
-+class QOhPlatformMessageDialogHelper: public QPlatformMessageDialogHelper
++QT_BEGIN_NAMESPACE
++
++class QOhNativeDialogBase;
++template <class BaseClass>
++class QOhDialogHelperBase : public BaseClass
 +{
-+    Q_OBJECT
++    Q_DISABLE_COPY_MOVE(QOhDialogHelperBase)
 +public:
-+    QOhPlatformMessageDialogHelper();
-+    ~QOhPlatformMessageDialogHelper();
++    using QOhNativeDialogBasePtr = QSharedPointer<QOhNativeDialogBase>;
++
 +    void exec() override;
 +    bool show(Qt::WindowFlags windowFlags,
 +              Qt::WindowModality windowModality,
 +              QWindow *parent) override;
 +    void hide() override;
 +
-+public slots:
-+    void setDialogResult(int buttonID);
++protected:
++    QOhDialogHelperBase() = default;
++    QOhNativeDialogBase *nativeDialog() const;
++    inline bool hasNativeDialog() const { return m_nativeDialog; }
 +
 +private:
-+    void addButtons(QSharedPointer<QMessageDialogOptions> opt, ButtonRole role);
-+
-+private:
-+    int m_buttonId;
-+    bool m_shown;
-+    QStringList m_buttons;
-+    QList<int> m_buttonIds;
++    virtual QOhNativeDialogBase *createNativeDialog() = 0;
++    inline QOhNativeDialogBase *ensureNativeDialog();
++    QOhNativeDialogBasePtr m_nativeDialog;
++    QPointer<QWindow> m_parent;
 +};
 +
-+class QJsModule;
-+class QOhPlatformFileDialogHelper: public QPlatformFileDialogHelper
-+{
-+    Q_OBJECT
-+public:
-+    QOhPlatformFileDialogHelper();
-+    ~QOhPlatformFileDialogHelper();
++namespace QOhPlatformDialogHelpers {
++    QPlatformDialogHelper *createHelper(QPlatformTheme::DialogType type);
++}
 +
-+    virtual bool defaultNameFilterDisables() const override;
-+    virtual void setDirectory(const QUrl &directory) override;
-+    virtual QUrl directory() const override;
-+    virtual void selectFile(const QUrl &filename) override;
-+    virtual QList<QUrl> selectedFiles() const override;
-+    virtual QList<QUrl> selectedUris() const;
-+    virtual void setFilter() override;
-+    virtual void selectNameFilter(const QString &filter) override;
-+    virtual QString selectedNameFilter() const override;
-+
-+    virtual void exec() override;
-+    virtual bool show(Qt::WindowFlags windowFlags,
-+                          Qt::WindowModality windowModality,
-+                          QWindow *parent) override;
-+    virtual void hide() override;
-+
-+public slots:
-+    void setFileResult(const QStringList &file);
-+private:
-+    void openFileDialog(const QStringList &filters, QFileDialogOptions::FileMode mode, const QString &path, QWindow *parent);
-+    void saveFileDialog(const QString &fileName, const QString &dir, const QStringList &filter, QWindow *parent);
-+
-+    QList<QUrl> selectedTargets(bool nativeUri = false) const;
-+private:
-+    bool m_shown;
-+    QStringList m_files;
-+    QString m_saveFile;
-+    QUrl m_dir;
-+    QString m_filter;
-+    QScopedPointer<QJsModule> m_picker;
-+    QEventLoop m_eventLoop;
-+};
-+
++QT_END_NAMESPACE
 +#endif // QOHPLATFORMDIALOGHELPERS_H
 diff --git a/src/plugins/platforms/openharmony/qohplatformforeignwindow.cpp b/src/plugins/platforms/openharmony/qohplatformforeignwindow.cpp
 new file mode 100644
@@ -35125,10 +35508,10 @@ index 00000000000..c14f493b5d0
 +#endif // QOHPLATFORMFOREIGNWINDOW_H
 diff --git a/src/plugins/platforms/openharmony/qohplatforminputcontext.cpp b/src/plugins/platforms/openharmony/qohplatforminputcontext.cpp
 new file mode 100644
-index 00000000000..6b403aa74d2
+index 00000000000..76eb89055b7
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qohplatforminputcontext.cpp
-@@ -0,0 +1,574 @@
+@@ -0,0 +1,575 @@
 +#include "qohmain.h"
 +#include "qohevent.h"
 +#include "qohplatformscreen.h"
@@ -35406,8 +35789,8 @@ index 00000000000..6b403aa74d2
 + */
 +void QOhPlatformInputContext::showInputPanel()
 +{
-+    // if (!inputMethodAccepted())
-+    //     return;
++     if (!inputMethodAccepted())
++         return;
 +
 +    QSharedPointer<QInputMethodQueryEvent> query = focusObjectInputMethodQuery();
 +    if (query.isNull())
@@ -35447,6 +35830,7 @@ index 00000000000..6b403aa74d2
 +        if (m_controller->textEditorProxy()->isKeyboardVisible() && m_controller->inputMethodProxy())
 +            m_controller->inputMethodProxy()->hideKeyboard();
 +        m_controller->detach();
++        setRequestKeyboardReason(InputMethod::RequestKeyboardReason::NONE);
 +    }    
 +}
 +/*!
@@ -37778,7 +38162,7 @@ index 00000000000..81589a3bb86
 +
 diff --git a/src/plugins/platforms/openharmony/qohplatformscreen.cpp b/src/plugins/platforms/openharmony/qohplatformscreen.cpp
 new file mode 100644
-index 00000000000..6a37f6abbfc
+index 00000000000..f0e76a91c74
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qohplatformscreen.cpp
 @@ -0,0 +1,430 @@
@@ -38089,7 +38473,7 @@ index 00000000000..6a37f6abbfc
 +{
 +    auto allWindows = QOhWindowContext::allWindows();
 +    for (auto *window : allWindows) {
-+        if (QOhPlatformOpenGLWindow *w = std::bit_cast<QOhPlatformOpenGLWindow*>(window);
++        if (QOhPlatformOpenGLWindow *w = dynamic_cast<QOhPlatformOpenGLWindow*>(window);
 +            window->isTopLevelWindow() && w && w->nativeWindow()) {
 +            if (w->screen() != this || Qt::WindowMinimized & w->windowStates())
 +                continue;
@@ -38455,10 +38839,10 @@ index 00000000000..a363f3c4538
 +#endif
 diff --git a/src/plugins/platforms/openharmony/qohplatformtheme.cpp b/src/plugins/platforms/openharmony/qohplatformtheme.cpp
 new file mode 100644
-index 00000000000..006a3e02df5
+index 00000000000..da79b125895
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qohplatformtheme.cpp
-@@ -0,0 +1,1490 @@
+@@ -0,0 +1,1483 @@
 +#include <qcolor.h>
 +#include <qpalette.h>
 +#include <QCoreApplication>
@@ -39703,14 +40087,7 @@ index 00000000000..006a3e02df5
 +
 +QPlatformDialogHelper *QOhPlatformTheme::createPlatformDialogHelper(QPlatformTheme::DialogType type) const
 +{
-+    switch (type) {
-+//    case MessageDialog:
-+//        return new QOhPlatformMessageDialogHelper;
-+    case FileDialog:
-+        return new QOhPlatformFileDialogHelper();
-+    default:
-+        return 0;
-+    }
++    return QOhPlatformDialogHelpers::createHelper(type);
 +}
 +
 +const QFont *QOhPlatformTheme::font(Font type) const
@@ -40072,10 +40449,10 @@ index 00000000000..edca46b8ab7
 +#endif // QOHPLATFORMVULKANINSTANCE_H
 diff --git a/src/plugins/platforms/openharmony/qohplatformwindow.cpp b/src/plugins/platforms/openharmony/qohplatformwindow.cpp
 new file mode 100644
-index 00000000000..3e9f791154b
+index 00000000000..45d0356f3ed
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qohplatformwindow.cpp
-@@ -0,0 +1,404 @@
+@@ -0,0 +1,409 @@
 +#include <QTimer>
 +#include <QMetaObject>
 +#include <qguiapplication.h>
@@ -40244,6 +40621,11 @@ index 00000000000..3e9f791154b
 +{
 +    QString title = window()->title();
 +    return formatWindowTitle(title, " - ");
++}
++
++void QOhPlatformWindow::setWindowName(const QString &name)
++{
++    m_name = name;
 +}
 +
 +QString QOhPlatformWindow::windowName() const
@@ -40482,10 +40864,10 @@ index 00000000000..3e9f791154b
 +QT_END_NAMESPACE
 diff --git a/src/plugins/platforms/openharmony/qohplatformwindow.h b/src/plugins/platforms/openharmony/qohplatformwindow.h
 new file mode 100644
-index 00000000000..f3d127011bd
+index 00000000000..e1cbc5da40a
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qohplatformwindow.h
-@@ -0,0 +1,92 @@
+@@ -0,0 +1,93 @@
 +#ifndef QOHPLATFORMWINDOW_H
 +#define QOHPLATFORMWINDOW_H
 +#include <qrect.h>
@@ -40526,6 +40908,7 @@ index 00000000000..f3d127011bd
 +    QOhPlatformScreen *platformScreen() const;
 +
 +    QString windowTitle() const;
++    void setWindowName(const QString &name);
 +    QString windowName() const;
 +
 +    bool isRaster() const;
@@ -41609,10 +41992,10 @@ index 00000000000..b28137111c7
 +#endif // QOHWIDOWCONTEXT_H
 diff --git a/src/plugins/platforms/openharmony/qohwindownode.cpp b/src/plugins/platforms/openharmony/qohwindownode.cpp
 new file mode 100644
-index 00000000000..7dbc39b2bb3
+index 00000000000..086d9555cbf
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qohwindownode.cpp
-@@ -0,0 +1,952 @@
+@@ -0,0 +1,955 @@
 +#include <QUrl>
 +#include <QTimer>
 +#include <QDebug>
@@ -41702,6 +42085,9 @@ index 00000000000..7dbc39b2bb3
 +    if (m_id != nullptr && m_isIdCreateByQt) {
 +        delete m_id;
 +        m_id = nullptr;
++    }
++    if (m_parent != nullptr) {
++        m_parent->m_children.removeOne(this);
 +    }
 +}
 +
@@ -41945,7 +42331,7 @@ index 00000000000..7dbc39b2bb3
 +        auto api = wn->nodeApi();
 +        api->attach(wn->m_stack);
 +        api->attach<QOhNativeNodeAPI::XCompoentType>(wn->m_xcomponent);
-+        return QtOh::runOnJsUIThreadWithResult([&]{
++        return QtOh::runOnJsUIThreadWithResult([=]{
 +            if (wn->m_stack == nullptr) {
 +                wn->m_stack = api->createNode(ARKUI_NODE_STACK);
 +                api->setAttribute(NODE_ACCESSIBILITY_ROLE, (uint32_t)ARKUI_NODE_STACK);
@@ -42685,10 +43071,10 @@ index 00000000000..ce6d3a7dc8a
 +#endif // QOHWINDOWNODE_H
 diff --git a/src/plugins/platforms/openharmony/qohwindownodeeventhandler.cpp b/src/plugins/platforms/openharmony/qohwindownodeeventhandler.cpp
 new file mode 100644
-index 00000000000..e4278c79072
+index 00000000000..f117847d980
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qohwindownodeeventhandler.cpp
-@@ -0,0 +1,870 @@
+@@ -0,0 +1,896 @@
 +#include "qohwindownodeeventhandler.h"
 +#include "qohplatformwindow.h"
 +#include "qoheventdispatcher.h"
@@ -42890,6 +43276,15 @@ index 00000000000..e4278c79072
 +    dispatcher->appendOhEvent(e);
 +}
 +
++#if OHOS_SDK_VERSION >= 17
++static inline Qt::KeyboardModifiers keyboardModifiersFromEvent(ArkUI_UIInputEvent *event)
++{
++    uint64_t keys = 0;
++    OH_ArkUI_UIInputEvent_GetModifierKeyStates(event, &keys);
++    return QOhKeys::ohKeys2Qt(keys) | QOhKeys::metaModifier();
++}
++#endif
++
 +void QOhWindowNodeEventHandler::mouseEvent(ArkUI_UIInputEvent *event)
 +{
 +    int32_t displayId = OH_ArkUI_UIInputEvent_GetTargetDisplayId(event);
@@ -42903,8 +43298,7 @@ index 00000000000..e4278c79072
 +    auto action  = OH_ArkUI_MouseEvent_GetMouseAction(event);
 +    auto button  = OH_ArkUI_MouseEvent_GetMouseButton(event);
 +#if OHOS_SDK_VERSION >= 17
-+    uint64_t keys = 0;
-+    OH_ArkUI_UIInputEvent_GetModifierKeyStates(event, &keys);
++    auto keys = keyboardModifiersFromEvent(event);
 +#endif
 +
 +
@@ -42979,7 +43373,7 @@ index 00000000000..e4278c79072
 +            break;
 +        }
 +#if OHOS_SDK_VERSION >= 17
-+        event->keyboardModifiers = QOhKeys::ohKeys2Qt(keys);
++        event->keyboardModifiers = keys;
 +#endif
 +        if (m_node->isExternal()) {
 +            handleExternalNodeMouseEvent(globalPos, event->mouseEventType,
@@ -43293,6 +43687,9 @@ index 00000000000..e4278c79072
 +            e->window = pw->window();
 +            e->actionType = action;
 +            e->timestamp = time;
++#if OHOS_SDK_VERSION >= 17
++            e->keyboardModifiers = keyboardModifiersFromEvent(inputEvent);
++#endif
 +            e->deviceType = sourceType == UI_INPUT_EVENT_SOURCE_TYPE_TOUCH_SCREEN
 +                    ? QTouchDevice::TouchScreen
 +                    : (toolType == UI_INPUT_EVENT_TOOL_TYPE_TOUCHPAD ? QTouchDevice::TouchPad
@@ -43313,35 +43710,48 @@ index 00000000000..e4278c79072
 +        return;
 +    }
 +    int32_t displayId = OH_ArkUI_UIInputEvent_GetTargetDisplayId(inputEvent);
-+    float lx = OH_ArkUI_PointerEvent_GetWindowX(inputEvent);
-+    float ly = OH_ArkUI_PointerEvent_GetWindowY(inputEvent);
-+    float tiltX = OH_ArkUI_PointerEvent_GetTiltX(inputEvent, 0);
-+    float tiltY = OH_ArkUI_PointerEvent_GetTiltY(inputEvent, 0);
-+    int32_t action = OH_ArkUI_UIInputEvent_GetAction(inputEvent);
-+
-+    int32_t deviceId = OH_ArkUI_UIInputEvent_GetDeviceId(inputEvent);
-+    float presure = OH_ArkUI_PointerEvent_GetPressure(inputEvent, 0);
-+
-+    float gx = OH_ArkUI_PointerEvent_GetDisplayXByIndex(inputEvent, 0);
-+    float gy = OH_ArkUI_PointerEvent_GetDisplayYByIndex(inputEvent, 0);
-+
 +    auto platformScreen = QOhDisplayManager::instance()->platformScreenOrNull(displayId);
 +    if (Q_UNLIKELY(!platformScreen)) {
 +        LOGW("platformScreen is null. displayId: %{public}d", displayId);
++        return;
 +    }
 +    // arkui节点的默认单位为vp，因此需要做单位变换
 +    const qreal scale = QtOh::densityPixels(platformScreen);
-+    gx *= scale;
-+    gy *= scale;
++
++    /* NOTE window坐标包含了标题栏的高度,使用全局坐标转换 */
++    // float lx = OH_ArkUI_PointerEvent_GetWindowX(inputEvent);
++    // float ly = OH_ArkUI_PointerEvent_GetWindowY(inputEvent);
++
++    float tiltX = OH_ArkUI_PointerEvent_GetTiltX(inputEvent, 0);
++    float tiltY = OH_ArkUI_PointerEvent_GetTiltY(inputEvent, 0);
++
++    int32_t action = OH_ArkUI_UIInputEvent_GetAction(inputEvent);
++    float presure = OH_ArkUI_PointerEvent_GetPressure(inputEvent, 0);
++
++
++    float displayX = scale * OH_ArkUI_PointerEvent_GetDisplayXByIndex(inputEvent, 0);
++    float displayY = scale * OH_ArkUI_PointerEvent_GetDisplayYByIndex(inputEvent, 0);
++
++
++    int32_t deviceId = OH_ArkUI_UIInputEvent_GetDeviceId(inputEvent);
++
++    QRect screenGeometry = platformScreen->geometry();
++    QPointF globalPointF = QPointF(displayX, displayY);
++    QPoint globalPos = globalPointF.toPoint() + screenGeometry.topLeft();
++
 +    int64_t time = OH_ArkUI_UIInputEvent_GetEventTime(inputEvent);
 +    QSharedPointer<QtOh::TabletEvent> e(new QtOh::TabletEvent());
 +    e->timestamp = time;
 +    e->presure = presure;
++    e->global = globalPos;
 +    e->uniqueID = deviceId;
++    e->btn = UI_TOUCH_EVENT_ACTION_UP == action ? Qt::NoButton : Qt::LeftButton;
 +    e->window = pw->window();
-+    e->local = QPointF(lx, ly);
-+    e->global = QPointF(gx, gy) + platformScreen->geometry().topLeft();
-+    e->down = UI_TOUCH_EVENT_ACTION_DOWN == action ? true : false;
++#if OHOS_SDK_VERSION >= 17
++    OH_ArkUI_PointerEvent_GetRollAngle(inputEvent, &e->rotation);
++#else
++    e->rotation = 0;
++#endif
 +    QOhEventDispatcher::instance()->appendOhEvent(e);
 +}
 +#endif
@@ -43356,8 +43766,7 @@ index 00000000000..e4278c79072
 +    auto keyCode = OH_ArkUI_KeyEvent_GetKeyCode(keyEvent);
 +    auto deviceId = OH_ArkUI_UIInputEvent_GetDeviceId(keyEvent);
 +    auto text = QString::fromUtf8(OH_ArkUI_KeyEvent_GetKeyText(keyEvent));
-+    uint64_t keys = 0;
-+    OH_ArkUI_UIInputEvent_GetModifierKeyStates(keyEvent, &keys);
++    auto keys = keyboardModifiersFromEvent(keyEvent);
 +
 +    QtOh::runOnQtMainThread([this, type, keyCode, text, deviceId, keys] {
 +        if (QOhWindowNode::nodeDestroyed(m_node) || !QOhEventDispatcher::instance())
@@ -43371,7 +43780,7 @@ index 00000000000..e4278c79072
 +        e->code = keyCode;
 +        e->text = text;
 +        e->type = type;
-+        e->keyboardModifiers = QOhKeys::ohKeys2Qt(keys);
++        e->keyboardModifiers = keys;
 +
 +        QOhEventDispatcher::instance()->appendOhEvent(e);
 +    });
@@ -43468,6 +43877,7 @@ index 00000000000..e4278c79072
 +         horizontalValue, verticalValue,
 +         scale, sourceType, toolType);
 +#endif
++    auto keys = keyboardModifiersFromEvent(event);
 +
 +    QtOh::runOnQtMainThread([=, this] {
 +        if (QOhWindowNode::nodeDestroyed(m_node))
@@ -43496,6 +43906,7 @@ index 00000000000..e4278c79072
 +
 +            e->verticalValue = verticalValue;
 +            e->horizontalValue = horizontalValue;
++            e->keyboardModifiers = keys;
 +            dispatcher->appendOhEvent(e);
 +        }
 +    });
@@ -43549,8 +43960,9 @@ index 00000000000..e4278c79072
 +     * UI_INPUT_EVENT_TOOL_TYPE_JOYSTICK = 5
 +     */
 +    int32_t toolType = OH_ArkUI_UIInputEvent_GetToolType(inputEvent);
-+
-+    if (UI_INPUT_EVENT_TOOL_TYPE_PEN == toolType) {
++    int32_t sourceType = OH_ArkUI_UIInputEvent_GetSourceType(inputEvent);
++    if (UI_INPUT_EVENT_TOOL_TYPE_PEN == sourceType &&
++        UI_INPUT_EVENT_TOOL_TYPE_FINGER != toolType) {
 +        translatePenEvent(inputEvent);
 +    } else {
 +        translateMouseEvent(inputEvent);

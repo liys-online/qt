@@ -1270,10 +1270,3 @@ index f5e3f2e864..b146749e9d 100644
          pendingUpdate |= SyncRequest;
          if (se->syncInExpose) {
              qCDebug(QSG_LOG_RENDERLOOP, QSG_RT_PAD, "- triggered from expose");
-diff --git a/tests/auto/qml/ecmascripttests/test262 b/tests/auto/qml/ecmascripttests/test262
-index 6b0c42c63c..a0efb7e1ab 160000
---- a/tests/auto/qml/ecmascripttests/test262
-+++ b/tests/auto/qml/ecmascripttests/test262
-@@ -1 +1 @@
--Subproject commit 6b0c42c63c2492bd0a7a96d3179d122b5f71793f
-+Subproject commit a0efb7e1ab1cee24c387abe1897ff18fa116c17d
