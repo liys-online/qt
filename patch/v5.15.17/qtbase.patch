@@ -8545,7 +8545,7 @@ index 5ad82c259de..75cf9cfa87f 100644
      const int majorVersion = version.majorVersion();
      const QString versionString = QString::number(majorVersion) + QLatin1Char('.')
 diff --git a/src/corelib/global/qlogging.cpp b/src/corelib/global/qlogging.cpp
-index 93c4731cc57..d31b347236d 100644
+index 93c4731cc57..d9473e7ca93 100644
 --- a/src/corelib/global/qlogging.cpp
 +++ b/src/corelib/global/qlogging.cpp
 @@ -1681,6 +1681,39 @@ static bool android_default_message_handler(QtMsgType type,
@@ -8561,7 +8561,7 @@ index 93c4731cc57..d31b347236d 100644
 +                                                const QMessageLogContext &context,
 +                                                const QString &message)
 +{
-+/* FIXME �ݲ��ж�,��Ϊhad�豸���ն��ļ� */
++/* FIXME 暂不判断,因为had设备有终端文件 */
 +#if 0
 +    if (shouldLogToStderr())
 +        return false; // Leave logging up to stderr handler
@@ -8856,14 +8856,13 @@ index ee378f6434c..1798a905c64 100644
          QString equivalentPath = scheme + filePath.path();
          QString selectedPath = d->select(equivalentPath);
 diff --git a/src/corelib/io/qfilesystemengine_unix.cpp b/src/corelib/io/qfilesystemengine_unix.cpp
-index 01aed7ad14e..930d66d8185 100644
+index 01aed7ad14e..3cb48273063 100644
 --- a/src/corelib/io/qfilesystemengine_unix.cpp
 +++ b/src/corelib/io/qfilesystemengine_unix.cpp
-@@ -44,11 +44,20 @@
- #include "qfile.h"
- #include "qstorageinfo.h"
+@@ -46,9 +46,20 @@
  #include "qtextstream.h"
--#include "qurl.h"
+ #include "qurl.h"
+ 
 +#ifdef Q_OS_OPENHARMONY
 +#if OHOS_SDK_VERSION >= 17
 +#include "qjsmodule.h"
@@ -8873,7 +8872,7 @@ index 01aed7ad14e..930d66d8185 100644
 +#include <filemanagement/file_uri/oh_file_uri.h>
 +#endif
 +#endif
- 
++
  #include <QtCore/qoperatingsystemversion.h>
  #include <QtCore/private/qcore_unix_p.h>
  #include <QtCore/qvarlengtharray.h>
@@ -8881,7 +8880,7 @@ index 01aed7ad14e..930d66d8185 100644
  #ifndef QT_BOOTSTRAPPED
  # include <QtCore/qstandardpaths.h>
  #endif // QT_BOOTSTRAPPED
-@@ -1333,7 +1342,29 @@ bool QFileSystemEngine::moveFileToTrash(const QFileSystemEntry &source,
+@@ -1333,7 +1344,29 @@ bool QFileSystemEngine::moveFileToTrash(const QFileSystemEntry &source,
          return false;
      }
      const QString sourcePath = sourceInfo.absoluteFilePath();
@@ -8911,7 +8910,7 @@ index 01aed7ad14e..930d66d8185 100644
      QDir trashDir(freeDesktopTrashLocation(sourcePath));
      if (!trashDir.exists())
          return false;
-@@ -1423,7 +1454,7 @@ bool QFileSystemEngine::moveFileToTrash(const QFileSystemEntry &source,
+@@ -1423,7 +1456,7 @@ bool QFileSystemEngine::moveFileToTrash(const QFileSystemEntry &source,
      out << "DeletionDate="
          << QDateTime::currentDateTime().toString(QLatin1String("yyyy-MM-ddThh:mm:ss")) << Qt::endl;
      infoFile.close();
@@ -10101,10 +10100,10 @@ index 00000000000..3e5c1081090
 +#endif // QJSMODULE_H
 diff --git a/src/corelib/kernel/qjsobject.cpp b/src/corelib/kernel/qjsobject.cpp
 new file mode 100644
-index 00000000000..34d44cea547
+index 00000000000..aed821f6c27
 --- /dev/null
 +++ b/src/corelib/kernel/qjsobject.cpp
-@@ -0,0 +1,249 @@
+@@ -0,0 +1,183 @@
 +#include <QDebug>
 +#include <QMapIterator>
 +
@@ -10245,70 +10244,6 @@ index 00000000000..34d44cea547
 +    return !d->isCallFromUiThread();
 +}
 +
-+#if 1
-+static void printNapiArgs(napi_env env, const std::initializer_list<napi_value>& args) {
-+    int index = 0;
-+    for (const napi_value& arg : args) {
-+        napi_valuetype type;
-+        napi_status status = napi_typeof(env, arg, &type);
-+        if (status != napi_ok) {
-+            qWarning() << "Failed to get argument type at index" << index;
-+            continue;
-+        }
-+
-+        switch (type) {
-+        case napi_string: {
-+            char str[1024];
-+            size_t str_len;
-+            status = napi_get_value_string_utf8(env, arg, str, sizeof(str), &str_len);
-+            if (status == napi_ok) {
-+                qWarning() << "Argument" << index << "(string):" << str;
-+            } else {
-+                qWarning() << "Failed to read string at index" << index;
-+            }
-+            break;
-+        }
-+        case napi_number: {
-+            double num;
-+            status = napi_get_value_double(env, arg, &num);
-+            if (status == napi_ok) {
-+                qWarning() << "Argument" << index << "(number):" << num;
-+            } else {
-+                qWarning() << "Failed to read number at index" << index;
-+            }
-+            break;
-+        }
-+        case napi_boolean: {
-+            bool b;
-+            status = napi_get_value_bool(env, arg, &b);
-+            if (status == napi_ok) {
-+                qWarning() << "Argument" << index << "(boolean):" << b;
-+            } else {
-+                qWarning() << "Failed to read boolean at index" << index;
-+            }
-+            break;
-+        }
-+        case napi_null:
-+            qWarning() << "Argument" << index << ": null";
-+            break;
-+        case napi_undefined:
-+            qWarning() << "Argument" << index << ": undefined";
-+            break;
-+        case napi_object:
-+            qWarning() << "Argument" << index << ": [object]";
-+            break;
-+        case napi_function:
-+            qWarning() << "Argument" << index << ": [function]";
-+            break;
-+        default:
-+            qWarning() << "Argument" << index << ": [unknown type]";
-+            break;
-+        }
-+        index++;
-+    }
-+}
-+#endif
-+
 +Napi::Value QJsObject::call(const QString &function, const std::initializer_list<napi_value>& args) const
 +{
 +    return QtOh::runOnJsUIThread([this, function, args]{
@@ -10327,12 +10262,10 @@ index 00000000000..34d44cea547
 +        if (func.IsNull())
 +            return env().Null();
 +
-+        LOGW("call js func: '%{public}s'", qPrintable(function));
 +        Napi::Value result = func.Call(object(), args);
 +        if (hasError()) {
 +            clearError();
 +            LOGE("call %{public}s has error: %{public}s", qPrintable(function), qPrintable(lastError()));
-+            printNapiArgs(env(), args);
 +        }
 +        return result;
 +    });
@@ -26278,10 +26211,10 @@ index 00000000000..86e3d29e96a
 +#endif // QOHEVENT_H
 diff --git a/src/plugins/platforms/openharmony/qoheventdispatcher.cpp b/src/plugins/platforms/openharmony/qoheventdispatcher.cpp
 new file mode 100644
-index 00000000000..6dcece36de6
+index 00000000000..8d8cffa4b83
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qoheventdispatcher.cpp
-@@ -0,0 +1,1071 @@
+@@ -0,0 +1,958 @@
 +#include <cmath>
 +#include <math.h>
 +#include <errno.h>
@@ -26311,119 +26244,6 @@ index 00000000000..6dcece36de6
 +
 +#if OHOS_SDK_VERSION >= 17
 +#include <arkui/native_key_event.h>
-+#endif
-+
-+#if 0
-+struct QOhPipe
-+{
-+    QOhPipe();
-+    ~QOhPipe();
-+
-+    bool init();
-+    pollfd prepare() const;
-+
-+    void wakeUp();
-+    int check(const pollfd &pfd);
-+
-+    // note for eventfd(7) support:
-+    // if fds[1] is -1, then eventfd(7) is in use and is stored in fds[0]
-+    int fds[2];
-+    QAtomicInt wakeUps;
-+};
-+
-+
-+QOhPipe::QOhPipe()
-+{
-+    fds[0] = -1;
-+    fds[1] = -1;
-+}
-+
-+QOhPipe::~QOhPipe()
-+{
-+    if (fds[0] >= 0)
-+        close(fds[0]);
-+
-+    if (fds[1] >= 0)
-+        close(fds[1]);
-+}
-+
-+bool QOhPipe::init()
-+{
-+#if defined(Q_OS_NACL) || defined(Q_OS_WASM)
-+    // do nothing.
-+#else
-+#  ifndef QT_NO_EVENTFD
-+    if ((fds[0] = eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC)) >= 0)
-+        return true;
-+#  endif
-+    if (qt_safe_pipe(fds, O_NONBLOCK) == -1) {
-+        perror("QOhPipe: Unable to create pipe");
-+        return false;
-+    }
-+#endif
-+
-+    return true;
-+}
-+
-+pollfd QOhPipe::prepare() const
-+{
-+    return qt_make_pollfd(fds[0], POLLIN);
-+}
-+
-+void QOhPipe::wakeUp()
-+{
-+    if (wakeUps.testAndSetAcquire(0, 1)) {
-+#ifndef QT_NO_EVENTFD
-+        if (fds[1] == -1) {
-+            // eventfd
-+            eventfd_t value = 1;
-+            int ret;
-+            EINTR_LOOP(ret, eventfd_write(fds[0], value));
-+            return;
-+        }
-+#endif
-+        char c = 0;
-+        qt_safe_write(fds[1], &c, 1);
-+    }
-+}
-+
-+int QOhPipe::check(const pollfd &pfd)
-+{
-+    Q_ASSERT(pfd.fd == fds[0]);
-+
-+    char c[16];
-+    const int readyread = pfd.revents & POLLIN;
-+
-+    if (readyread) {
-+        // consume the data on the thread pipe so that
-+        // poll doesn't immediately return next time
-+#  ifndef QT_NO_EVENTFD
-+        if (fds[1] == -1) {
-+            // eventfd
-+            eventfd_t value;
-+            eventfd_read(fds[0], &value);
-+        } else
-+#  endif
-+        {
-+            while (::read(fds[0], c, sizeof(c)) > 0) {}
-+        }
-+
-+        if (!wakeUps.testAndSetRelease(1, 0)) {
-+            // hopefully, this is dead code
-+            qWarning("QOhPipe: internal error, wakeUps.testAndSetRelease(1, 0) failed!");
-+        }
-+    }
-+
-+    return readyread;
-+}
-+#endif
-+
-+#if 0
-+template <class ...Ts>
-+struct overload : Ts... { using Ts::operator()...; };
-+
-+template <class ...Ts>
-+overload(Ts...)->overload<Ts...>;
 +#endif
 +
 +QPoint translatePoint(const QPointF &global, QWindow *w)
@@ -27082,7 +26902,7 @@ index 00000000000..6dcece36de6
 +    if (windowChanged) {
 +        _local = translatePoint(global, tlw);
 +    }
-+    QOhWindowContext::setUnderMouseWindow(window, _local, global.toPoint());
++    QOhWindowContext::setUnderMouseWindow(event->window, _local, global.toPoint());
 +
 +    QWindowSystemInterface::handleMouseEvent(tlw, _local, global.toPoint(), Qt::MouseButtons(event->mouseButton),
 +                                             Qt::NoButton, QEvent::MouseMove,
@@ -27101,7 +26921,7 @@ index 00000000000..6dcece36de6
 +    if (grabber != nullptr && grabber != window) {
 +        _local = translatePoint(global, grabber);
 +    }
-+    QOhWindowContext::setUnderMouseWindow(window, _local, global.toPoint());
++    QOhWindowContext::setUnderMouseWindow(event->window, _local, global.toPoint());
 +    QWindowSystemInterface::handleMouseEvent(grabber == nullptr ? window : grabber, _local, global.toPoint(), Qt::MouseButtons(event->mouseButton),
 +                                             event->mouseButton, QEvent::MouseButtonPress,
 +                                             event->keyboardModifiers);
@@ -27124,7 +26944,7 @@ index 00000000000..6dcece36de6
 +        _local = translatePoint(global, tlw);
 +    }
 +
-+    QOhWindowContext::setUnderMouseWindow(window, _local, global.toPoint());
++    QOhWindowContext::setUnderMouseWindow(event->window, _local, global.toPoint());
 +
 +    QWindowSystemInterface::handleMouseEvent(tlw, _local, global.toPoint(),
 +                                             Qt::MouseButtons(Qt::NoButton),
@@ -30464,10 +30284,10 @@ index 00000000000..5bbb88eb2e8
 +#endif // QOHNATIVEVSYNC_H
 diff --git a/src/plugins/platforms/openharmony/qohnativewindow.cpp b/src/plugins/platforms/openharmony/qohnativewindow.cpp
 new file mode 100644
-index 00000000000..1f777eb8062
+index 00000000000..63c98fcf13e
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qohnativewindow.cpp
-@@ -0,0 +1,1112 @@
+@@ -0,0 +1,1114 @@
 +#include <QDebug>
 +#include <QMargins>
 +#include <QBitArray>
@@ -30556,7 +30376,7 @@ index 00000000000..1f777eb8062
 +    m_ability = ability;
 +    if (ability == nullptr)
 +        return;
-+    if (QtOh::isTabletDevice() && isTopWindow()) {
++    if (isTopWindow()) {
 +        QJsSettings::instance()->registerKeyObserver("window_pcmode_switch_status", [this]{
 +                    bool pcMode = QJsSettings::instance()->isFreeWindowEnable();
 +                    if (pcMode) {
@@ -30579,12 +30399,13 @@ index 00000000000..1f777eb8062
 +        return m_ability;
 +    // 子窗口没有ability,查找父窗口的
 +    QOhNativeWindow *p = m_parentNativeWindow;
-+    QJsAbility *ab = p ? p->ability() : nullptr;
-+    while(p && ab == nullptr){
++    while (p) {
++        if (p->m_ability)
++            return p->m_ability;
 +        p = p->m_parentNativeWindow;
-+        ab = p->ability();
 +    }
-+    return ab;
++
++    return nullptr;
 +}
 +
 +QOhNativeWindow *QOhNativeWindow::createSubWindow(QOhPlatformOpenGLWindow *window)
@@ -31007,9 +30828,10 @@ index 00000000000..1f777eb8062
 +
 +void QOhNativeWindow::stopListener()
 +{
-+    QJsAbility *theAbility = ability();
-+    if (QtOh::isTabletDevice() && isTopWindow() && theAbility) {
-+        QJsSettings::instance()->unregisterKeyObserver("window_pcmode_switch_status", true, theAbility->context());
++    if (QtOh::isTabletDevice() && isTopWindow()) {
++        QJsAbility *theAbility = ability();
++        if (theAbility != nullptr)
++            QJsSettings::instance()->unregisterKeyObserver("window_pcmode_switch_status", true, theAbility->context());
 +    }
 +    for (int i = 0; i < m_listeners.count(); ++i) {
 +        if (m_isWindowDestroyed.loadAcquire())
@@ -41640,10 +41462,10 @@ index 00000000000..af274207ce2
 +#endif // QOHSYSTEMTRAYICON_H
 diff --git a/src/plugins/platforms/openharmony/qohwindowcontext.cpp b/src/plugins/platforms/openharmony/qohwindowcontext.cpp
 new file mode 100644
-index 00000000000..47bcfd012fc
+index 00000000000..247848518f7
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qohwindowcontext.cpp
-@@ -0,0 +1,285 @@
+@@ -0,0 +1,286 @@
 +#include "qohwindowcontext.h"
 +#include "qohplatformscreen.h"
 +#include "qohplatformwindow.h"
@@ -41785,26 +41607,27 @@ index 00000000000..47bcfd012fc
 +    return m_mouseGrabber.data();
 +}
 +
-+void QOhWindowContext::setUnderMouseWindow(QWindow *window, const QPoint &local, const QPoint &global)
++void QOhWindowContext::setUnderMouseWindow(QPointer<QWindow> window, const QPoint &local, const QPoint &global)
 +{
-+    static auto applyCursor = [](QWindow *window)
++    static auto applyCursor = [](QPointer<QWindow> window)
 +    {
++        if (window.isNull())
++            return;
 +        if (QOhPlatformOpenGLWindow *pw = dynamic_cast<QOhPlatformOpenGLWindow *>(window->handle())) {
 +            pw->applyCursor();
 +        }
 +    };
 +    
-+    static auto handleEnterLeave = [](QWindow *window, const QPoint &local, const QPoint &global)
++    static auto handleEnterLeave = [](QPointer<QWindow> window, const QPoint &local, const QPoint &global)
 +    {
 +        if (m_underMouseWindow != window) {
 +            QWindow *leave = m_underMouseWindow.data();
 +            m_underMouseWindow = window;
 +            QWindowSystemInterface::handleEnterLeaveEvent(window, leave, local, global);
-+            QWindowSystemInterface::flushWindowSystemEvents();
 +            applyCursor(window);
 +        }
 +    };
-+    
++
 +    static QPointer<QWindow> currentUnderMouseWindow;
 +    if (m_mouseGrabber.isNull()) {
 +        handleEnterLeave(window, local, global);
@@ -41815,8 +41638,8 @@ index 00000000000..47bcfd012fc
 +            currentUnderMouseWindow = window;
 +            showApplyCursor = true;
 +        }
-+        
-+         if (showApplyCursor && !m_mouseGrabber.isNull() && currentUnderMouseWindow != nullptr) {
++
++        if (showApplyCursor && !m_mouseGrabber.isNull() && currentUnderMouseWindow != nullptr) {
 +            QWindow *topLevelWindow = topLevelOf(currentUnderMouseWindow);
 +            QOhPlatformOpenGLWindow *overrideWindow = dynamic_cast<QOhPlatformOpenGLWindow *>(topLevelWindow->handle());
 +            QOhPlatformOpenGLWindow *cursorWindow = dynamic_cast<QOhPlatformOpenGLWindow *>(m_mouseGrabber->handle());
@@ -41931,7 +41754,7 @@ index 00000000000..47bcfd012fc
 +QT_END_NAMESPACE
 diff --git a/src/plugins/platforms/openharmony/qohwindowcontext.h b/src/plugins/platforms/openharmony/qohwindowcontext.h
 new file mode 100644
-index 00000000000..b28137111c7
+index 00000000000..81ecf9ce7ad
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qohwindowcontext.h
 @@ -0,0 +1,55 @@
@@ -41965,7 +41788,7 @@ index 00000000000..b28137111c7
 +    static QString uniqueName(const QOhPlatformWindow *window);
 +    static void setMouseGrabberWindow(QWindow *window);
 +    static QWindow *mouseGrabberWindow();
-+    static void  setUnderMouseWindow(QWindow *window, const QPoint &local, const QPoint &global);
++    static void  setUnderMouseWindow(QPointer<QWindow> window, const QPoint &local, const QPoint &global);
 +    static QWindow *underMouseWindow();
 +    static void setKeyGrabberWindow(QWindow *window);
 +    static QWindow *keyGrabberWindow();
@@ -43071,10 +42894,10 @@ index 00000000000..ce6d3a7dc8a
 +#endif // QOHWINDOWNODE_H
 diff --git a/src/plugins/platforms/openharmony/qohwindownodeeventhandler.cpp b/src/plugins/platforms/openharmony/qohwindownodeeventhandler.cpp
 new file mode 100644
-index 00000000000..f117847d980
+index 00000000000..16c92114e22
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qohwindownodeeventhandler.cpp
-@@ -0,0 +1,896 @@
+@@ -0,0 +1,949 @@
 +#include "qohwindownodeeventhandler.h"
 +#include "qohplatformwindow.h"
 +#include "qoheventdispatcher.h"
@@ -43092,6 +42915,7 @@ index 00000000000..f117847d980
 +
 +#include <QTimer>
 +#include <QGuiApplication>
++#include <QElapsedTimer>
 +#include <private/qguiapplication_p.h>
 +#include <qpa/qplatformcursor.h>
 +#include <qpa/qplatformscreen.h>
@@ -43105,6 +42929,22 @@ index 00000000000..f117847d980
 +#endif
 +
 +QT_BEGIN_NAMESPACE
++
++/* FIXME 性能监控打印宏 */
++#define TOUCH_PERF_DEBUG 0
++#if TOUCH_PERF_DEBUG
++#define PERF_START() QElapsedTimer perfTimer; perfTimer.start()
++#define PERF_LOG(phase) \
++    do { \
++        qint64 elapsed = perfTimer.nsecsElapsed(); \
++        if (elapsed > 1000000) { /* 超过1ms才打印 */ \
++            LOGW("Touch[%{public}s]: %{public}d us", phase, elapsed / 1000); \
++        } \
++    } while(0)
++#else
++#define PERF_START()
++#define PERF_LOG(phase)
++#endif
 +
 +QWindow *QOhWindowNodeEventHandler::m_lastActiveWindow = nullptr;
 +
@@ -43301,99 +43141,92 @@ index 00000000000..f117847d980
 +    auto keys = keyboardModifiersFromEvent(event);
 +#endif
 +
++    if (!QOhEventDispatcher::instance())
++        return;
++    auto platformScreen = QOhDisplayManager::instance()->platformScreenOrNull(displayId);
++    if (Q_UNLIKELY(!platformScreen)) {
++        qDebug() << "platformScreen is null. displayId: " << displayId;
++        return;
++    }
++    // arkui节点的默认单位为vp，因此需要做单位变换
++    auto scale = 1.0f;
++    auto screenTopLeft = QPoint();
++    if (platformScreen) {
++        scale = QtOh::densityPixels(platformScreen);
++        screenTopLeft = platformScreen->geometry().topLeft();
++    }
++    auto pw = m_node->platformWindow();
++    if (!pw) {
++        qWarning() << "platformWindow is null";
++        return;
++    }
 +
-+    QtOh::runOnQtMainThread([this, displayId, displayX, displayY, action, button
-+                        #if OHOS_SDK_VERSION >= 17
-+                            , keys
-+                        #endif
-+                            ]{
-+        if (QOhWindowNode::nodeDestroyed(m_node) || !QOhEventDispatcher::instance())
++    auto globalPos = QPointF { displayX, displayY };
++    globalPos = globalPos * scale;
++    globalPos += screenTopLeft;
++
++    if (QOhNativeWindow *nativeWindow = m_node->ownerWindow()) {
++        // 如果是在系统按钮的区域内，由系统响应不上传给Qt
++        if (nativeWindow->hitTest(globalPos.toPoint(), scale) == QOhNativeWindow::SystemButton)
 +            return;
-+        auto platformScreen = QOhDisplayManager::instance()->platformScreenOrNull(displayId);
-+        if (Q_UNLIKELY(!platformScreen)) {
-+            qDebug() << "platformScreen is null. displayId: " << displayId;
-+            return;
-+        }
-+        // arkui节点的默认单位为vp，因此需要做单位变换
-+        auto scale = 1.0f;
-+        auto screenTopLeft = QPoint();
-+        if (platformScreen) {
-+            scale = QtOh::densityPixels(platformScreen);
-+            screenTopLeft = platformScreen->geometry().topLeft();
-+        }
-+        auto pw = m_node->platformWindow();
-+        if (!pw) {
-+            qWarning() << "platformWindow is null";
-+            return;
-+        }
++    }
 +
-+        auto globalPos = QPointF { displayX, displayY };
-+        globalPos = globalPos * scale;
-+        globalPos += screenTopLeft;
++    QSharedPointer<QtOh::MouseEvent> mouseEvent(new QtOh::MouseEvent());
++    switch (action) {
++    case UI_MOUSE_EVENT_ACTION_MOVE:
++        mouseEvent->mouseEventType = QEvent::MouseMove;
++        break;
++    case UI_MOUSE_EVENT_ACTION_PRESS:
++        mouseEvent->mouseEventType = QEvent::MouseButtonPress;
++        break;
++    case UI_MOUSE_EVENT_ACTION_RELEASE:
++        mouseEvent->mouseEventType = QEvent::MouseButtonRelease;
++        break;
++    default:
++        return;
++    }
 +
-+        if (QOhNativeWindow *nativeWindow = m_node->ownerWindow()) {
-+            // 如果是在系统按钮的区域内，由系统响应不上传给Qt
-+            if (nativeWindow->hitTest(globalPos.toPoint(), scale) == QOhNativeWindow::SystemButton)
-+                return;
-+        }
-+
-+        QSharedPointer<QtOh::MouseEvent> event(new QtOh::MouseEvent());
-+        switch (action) {
-+        case UI_MOUSE_EVENT_ACTION_MOVE:
-+            event->mouseEventType = QEvent::MouseMove;
-+            break;
-+        case UI_MOUSE_EVENT_ACTION_PRESS:
-+            event->mouseEventType = QEvent::MouseButtonPress;
-+            break;
-+        case UI_MOUSE_EVENT_ACTION_RELEASE:
-+            event->mouseEventType = QEvent::MouseButtonRelease;
-+            break;
-+        default:
-+            return;
-+        }
-+
-+        switch (button) {
-+        case UI_MOUSE_EVENT_BUTTON_NONE:
-+            event->mouseButton = Qt::NoButton;
-+            break;
-+        case UI_MOUSE_EVENT_BUTTON_LEFT:
-+            event->mouseButton = Qt::LeftButton;
-+            break;
-+        case UI_MOUSE_EVENT_BUTTON_MIDDLE:
-+            event->mouseButton = Qt::MiddleButton;
-+            break;
-+        case UI_MOUSE_EVENT_BUTTON_RIGHT:
-+            event->mouseButton = Qt::RightButton;
-+            break;
-+        case UI_MOUSE_EVENT_BUTTON_FORWARD:
-+            event->mouseButton = Qt::ForwardButton;
-+            break;
-+        case UI_MOUSE_EVENT_BUTTON_BACK:
-+            event->mouseButton = Qt::BackButton;
-+            break;
-+        }
++    switch (button) {
++    case UI_MOUSE_EVENT_BUTTON_NONE:
++        mouseEvent->mouseButton = Qt::NoButton;
++        break;
++    case UI_MOUSE_EVENT_BUTTON_LEFT:
++        mouseEvent->mouseButton = Qt::LeftButton;
++        break;
++    case UI_MOUSE_EVENT_BUTTON_MIDDLE:
++        mouseEvent->mouseButton = Qt::MiddleButton;
++        break;
++    case UI_MOUSE_EVENT_BUTTON_RIGHT:
++        mouseEvent->mouseButton = Qt::RightButton;
++        break;
++    case UI_MOUSE_EVENT_BUTTON_FORWARD:
++        mouseEvent->mouseButton = Qt::ForwardButton;
++        break;
++    case UI_MOUSE_EVENT_BUTTON_BACK:
++        mouseEvent->mouseButton = Qt::BackButton;
++        break;
++    }
 +#if OHOS_SDK_VERSION >= 17
-+        event->keyboardModifiers = keys;
++    mouseEvent->keyboardModifiers = keys;
 +#endif
-+        if (m_node->isExternal()) {
-+            handleExternalNodeMouseEvent(globalPos, event->mouseEventType,
-+                                         event->mouseButton, event->keyboardModifiers);
-+            return;
-+        }
-+        QWindow *window = pw->window();
-+        while (window && (window->flags() & Qt::WindowTransparentForInput))
-+            window = window->parent();
-+        if (!window)
-+            return;
++    if (m_node->isExternal()) {
++        handleExternalNodeMouseEvent(globalPos, mouseEvent->mouseEventType,
++                                     mouseEvent->mouseButton, mouseEvent->keyboardModifiers);
++        return;
++    }
++    QWindow *window = pw->window();
++    while (window && (window->flags() & Qt::WindowTransparentForInput))
++        window = window->parent();
++    if (!window)
++        return;
 +
-+        QPointF localPos = pw->mapFromGlobal(globalPos.toPoint());
-+        event->window = pw->window();
-+        event->xcPos = localPos;
-+        event->scPos = globalPos;
++    QPointF localPos = pw->mapFromGlobal(globalPos.toPoint());
++    mouseEvent->window = pw->window();
++    mouseEvent->xcPos = localPos;
++    mouseEvent->scPos = globalPos;
 +
-+        QOhEventDispatcher *dispatcher = QOhEventDispatcher::instance();
-+        dispatcher->appendOhEvent(event);
-+    });
++    QOhEventDispatcher *dispatcher = QOhEventDispatcher::instance();
++    dispatcher->appendOhEvent(mouseEvent);
 +}
 +
 +void QOhWindowNodeEventHandler::handleExternalNodeMouseEvent(const QPointF &global, QEvent::Type type,
@@ -43422,243 +43255,262 @@ index 00000000000..f117847d980
 +}
 +
 +#if OHOS_SDK_VERSION > 14
++
++/* 轻量级触摸点数据结构，用于跨线程传递 
++ * 使用POD类型确保高效拷贝 */
++struct TouchPointData {
++    int32_t pointerId;
++    float displayX;
++    float displayY;
++    float pressure;
++    
++    TouchPointData() = default;
++    TouchPointData(int32_t id, float x, float y, float p) 
++        : pointerId(id), displayX(x), displayY(y), pressure(p) {}
++};
++
 +void QOhWindowNodeEventHandler::translateMouseEvent(ArkUI_UIInputEvent *inputEvent)
 +{
++    PERF_START();
++    
 +    auto pw = m_node->platformWindow();
-+    if (!pw) {
-+        LOGW("platformWindow is null");
++    if (Q_UNLIKELY(!pw)) {
 +        return;
 +    }
 +
-+    /* 输入事件来源
-+     * UI_INPUT_EVENT_SOURCE_TYPE_UNKNOWN = 0
-+     * UI_INPUT_EVENT_SOURCE_TYPE_MOUSE = 1
-+     * UI_INPUT_EVENT_SOURCE_TYPE_TOUCH_SCREEN = 2
-+     */
-+    int32_t sourceType = OH_ArkUI_UIInputEvent_GetSourceType(inputEvent);
++    /* 快速过滤鼠标事件 */
++    const int32_t sourceType = OH_ArkUI_UIInputEvent_GetSourceType(inputEvent);
 +    if (sourceType == UI_INPUT_EVENT_SOURCE_TYPE_MOUSE) {
-+        LOGD("ignore mouse source event");
 +        return;
 +    }
 +
-+    int32_t action = OH_ArkUI_UIInputEvent_GetAction(inputEvent);
-+    uint32_t pointCount = OH_ArkUI_PointerEvent_GetPointerCount(inputEvent);
-+
-+    /* 特殊事件处理：取消事件 */
-+    if (action == UI_TOUCH_EVENT_ACTION_CANCEL) {
-+        if (auto *dispatcher = QOhEventDispatcher::instance()) {
-+            QSharedPointer<QtOh::TouchEvent> e(new QtOh::TouchEvent());
-+            e->window = pw->window();
-+            e->actionType = action;
-+            dispatcher->appendOhEvent(e);
-+        }
-+
-+        m_lastTouchPoints.clear();
-+        m_pointerIdToTouchId.clear();
++    const int32_t action = OH_ArkUI_UIInputEvent_GetAction(inputEvent);
++    
++    /* 特殊事件处理：取消事件 - 立即处理并清除状态 */
++    if (Q_UNLIKELY(action == UI_TOUCH_EVENT_ACTION_CANCEL)) {
++        QWindow *window = pw->window();
++        QtOh::runOnQtMainThread([this, window]{
++            if (QOhWindowNode::nodeDestroyed(m_node))
++                return;
++            if (auto *dispatcher = QOhEventDispatcher::instance()) {
++                QSharedPointer<QtOh::TouchEvent> e(new QtOh::TouchEvent());
++                e->window = window;
++                e->actionType = UI_TOUCH_EVENT_ACTION_CANCEL;
++                dispatcher->appendOhEvent(e);
++            }
++            m_lastTouchPoints.clear();
++            m_pointerIdToTouchId.clear();
++        });
 +        return;
 +    }
 +
-+    int64_t time = OH_ArkUI_UIInputEvent_GetEventTime(inputEvent);
++    const uint32_t pointCount = OH_ArkUI_PointerEvent_GetPointerCount(inputEvent);
++    if (Q_UNLIKELY(pointCount == 0)) {
++        return;
++    }
++
++#if TOUCH_PERF_DEBUG
++    QElapsedTimer apiTimer;
++    apiTimer.start();
++#endif
++
++    /* 在JS线程中只提取必要的原始数据 - 批量提取减少API调用 */
++    const int64_t time = OH_ArkUI_UIInputEvent_GetEventTime(inputEvent);
 +    int32_t changedPointerId = 0;
-+    if (ARKUI_ERROR_CODE_NO_ERROR != OH_ArkUI_PointerEvent_GetChangedPointerId(inputEvent, (uint32_t*)&changedPointerId)) {
++    if (Q_UNLIKELY(ARKUI_ERROR_CODE_NO_ERROR != OH_ArkUI_PointerEvent_GetChangedPointerId(inputEvent, (uint32_t*)&changedPointerId))) {
 +        LOGE("get changedPointerId failed");
 +        return;
 +    }
 +
-+    int32_t displayId = OH_ArkUI_UIInputEvent_GetTargetDisplayId(inputEvent);
-+    auto platformScreen = QOhDisplayManager::instance()->platformScreenOrNull(displayId);
-+    if (Q_UNLIKELY(!platformScreen)) {
-+        LOGW("platformScreen is null. displayId: %{public}d", displayId);
-+        return;
++    const int32_t displayId = OH_ArkUI_UIInputEvent_GetTargetDisplayId(inputEvent);
++    const int32_t toolType = OH_ArkUI_UIInputEvent_GetToolType(inputEvent);
++
++#if OHOS_SDK_VERSION >= 17
++    const Qt::KeyboardModifiers keys = keyboardModifiersFromEvent(inputEvent);
++#endif
++
++#if TOUCH_PERF_DEBUG
++    qint64 apiElapsed = apiTimer.nsecsElapsed();
++#endif
++
++    /* 直接使用QVector，通过reserve预分配内存，Lambda捕获时会进行值拷贝 */
++    QVector<TouchPointData> rawPoints;
++    rawPoints.reserve(pointCount);
++    
++#if TOUCH_PERF_DEBUG
++    QElapsedTimer loopTimer;
++    loopTimer.start();
++#endif
++    
++    for (uint32_t i = 0; i < pointCount; i++) {
++        rawPoints.append(TouchPointData(
++            OH_ArkUI_PointerEvent_GetPointerId(inputEvent, i),
++            OH_ArkUI_PointerEvent_GetDisplayXByIndex(inputEvent, i),
++            OH_ArkUI_PointerEvent_GetDisplayYByIndex(inputEvent, i),
++            OH_ArkUI_PointerEvent_GetPressure(inputEvent, i)
++        ));
 +    }
 +
-+    const qreal scale = QtOh::densityPixels(platformScreen);
-+    int32_t toolType = OH_ArkUI_UIInputEvent_GetToolType(inputEvent);
-+
-+    QList<QWindowSystemInterface::TouchPoint> touchPoints;
-+    Qt::TouchPointStates allStates = 0;
-+    QSet<int> currentTouchIds;
-+    QSet<int32_t> currentPointerIds;
-+
-+    /* 记录当前事件中的所有指针ID */
-+    for (uint32_t i = 0; i < pointCount; i++) {
-+        int32_t pointerId = OH_ArkUI_PointerEvent_GetPointerId(inputEvent, i);
-+        currentPointerIds.insert(pointerId);
++#if TOUCH_PERF_DEBUG
++    qint64 loopElapsed = loopTimer.nsecsElapsed();
++    qint64 totalElapsed = perfTimer.nsecsElapsed();
++    if (totalElapsed > 1000000) { /* 超过1ms才打印 */
++        LOGW("Touch[JS_Extract]: Total=%{public}lld us, API=%{public}lld us, Loop=%{public}lld us, Points=%{public}u",
++             totalElapsed / 1000, apiElapsed / 1000, loopElapsed / 1000, pointCount);
 +    }
++#else
++    PERF_LOG("JS_Thread_Extract");
++#endif
 +
-+    /* 第一阶段：处理映射关系（关键修复） */
-+    for (uint32_t i = 0; i < pointCount; i++) {
-+        int32_t pointerId = OH_ArkUI_PointerEvent_GetPointerId(inputEvent, i);
++    /* 将处理逻辑投递到Qt主线程
++     * rawPoints会被Lambda值捕获，确保数据在Qt线程中有效 */
++    QtOh::runOnQtMainThread([this, action, pointCount, changedPointerId, displayId, time, sourceType, toolType,
++                            rawPoints = std::move(rawPoints)
++#if OHOS_SDK_VERSION >= 17
++                            , keys
++#endif
++                            ]() mutable {
++        PERF_START();
++        if (Q_UNLIKELY(QOhWindowNode::nodeDestroyed(m_node) || !QOhEventDispatcher::instance()))
++            return;
 +
-+        /* 映射指针ID到触摸点ID */
-+        int touchId = -1;
-+        if (m_pointerIdToTouchId.contains(pointerId)) {
-+            touchId = m_pointerIdToTouchId.value(pointerId);
-+        } else {
-+            /* 新触摸点：只在按下事件时创建 */
-+            if (action == UI_TOUCH_EVENT_ACTION_DOWN) {
-+                touchId = m_pointerIdToTouchId.size();
-+                m_pointerIdToTouchId.insert(pointerId, touchId);
-+                LOGD("New touch mapping: pointerId %{public}d -> touchId %{public}d", pointerId, touchId);
++        auto pw = m_node->platformWindow();
++        if (Q_UNLIKELY(!pw)) {
++            return;
++        }
++
++        auto platformScreen = QOhDisplayManager::instance()->platformScreenOrNull(displayId);
++        if (Q_UNLIKELY(!platformScreen)) {
++            return;
++        }
++
++        const qreal scale = QtOh::densityPixels(platformScreen);
++        const QRect screenGeometry = platformScreen->geometry();
++        const qreal screenWidth = screenGeometry.width();
++        const qreal screenHeight = screenGeometry.height();
++        const QPoint screenTopLeft = screenGeometry.topLeft();
++        const bool isDownAction = (action == UI_TOUCH_EVENT_ACTION_DOWN);
++        const bool isUpAction = (action == UI_TOUCH_EVENT_ACTION_UP);
++        const bool isMoveAction = (action == UI_TOUCH_EVENT_ACTION_MOVE);
++
++        /* 预分配内存，避免动态扩展 */
++        QList<QWindowSystemInterface::TouchPoint> touchPoints;
++        touchPoints.reserve(pointCount + m_lastTouchPoints.size());
++        
++        QSet<int> currentTouchIds;
++        currentTouchIds.reserve(pointCount);
++
++        /* 优化：合并阶段一和阶段二，减少循环次数 */
++        for (uint32_t i = 0; i < pointCount; i++) {
++            const TouchPointData &rawData = rawPoints[i];
++            const int32_t pointerId = rawData.pointerId;
++
++            /* 映射或创建touchId */
++            int touchId;
++            auto pointerIt = m_pointerIdToTouchId.find(pointerId);
++            if (pointerIt != m_pointerIdToTouchId.end()) {
++                touchId = pointerIt.value();
 +            } else {
-+                /* 对于非按下事件的未知触摸点，忽略或创建新ID */
-+                LOGW("Unknown pointerId %{public}d for non-down event, creating new mapping", pointerId);
 +                touchId = m_pointerIdToTouchId.size();
 +                m_pointerIdToTouchId.insert(pointerId, touchId);
 +            }
-+        }
++            currentTouchIds.insert(touchId);
 +
-+        currentTouchIds.insert(touchId);
-+    }
++            /* 计算位置 - 减少重复计算 */
++            const float displayX = rawData.displayX * scale;
++            const float displayY = rawData.displayY * scale;
++            const QPointF globalPointF(displayX, displayY);
++            const QPoint globalPos = globalPointF.toPoint() + screenTopLeft;
 +
-+    /* 第二阶段：处理每个触摸点的状态（关键修复） */
-+    for (uint32_t i = 0; i < pointCount; i++) {
-+        int32_t pointerId = OH_ArkUI_PointerEvent_GetPointerId(inputEvent, i);
-+        int touchId = m_pointerIdToTouchId.value(pointerId, -1);
-+        if (touchId == -1) {
-+            LOGW("Failed to find touchId for pointerId: %{public}d", pointerId);
-+            continue;
-+        }
++            /* 构建触摸点 */
++            QWindowSystemInterface::TouchPoint touchPoint;
++            touchPoint.id = touchId;
++            touchPoint.pressure = rawData.pressure;
++            touchPoint.rotation = 0;
++            touchPoint.normalPosition = QPointF(globalPointF.x() / screenWidth, 
++                                                globalPointF.y() / screenHeight);
++            touchPoint.area.setSize(QSize(10, 10));
++            touchPoint.area.moveCenter(globalPos);
++            touchPoint.rawPositions = QVector<QPointF> { globalPos, globalPointF };
 +
-+        float displayX = OH_ArkUI_PointerEvent_GetDisplayXByIndex(inputEvent, i);
-+        float displayY = OH_ArkUI_PointerEvent_GetDisplayYByIndex(inputEvent, i);
-+        displayX *= scale;
-+        displayY *= scale;
++            const bool isChangedPointer = (pointerId == changedPointerId);
 +
-+        float pressure = OH_ArkUI_PointerEvent_GetPressure(inputEvent, i);
-+        QWindowSystemInterface::TouchPoint touchPoint;
-+        touchPoint.id = touchId;
-+        touchPoint.pressure = pressure;
-+        touchPoint.rotation = 0;
-+
-+        QRect screenGeometry = platformScreen->geometry();
-+        QPointF globalPointF = QPointF(displayX, displayY);
-+        QPoint globalPos = globalPointF.toPoint() + screenGeometry.topLeft();
-+
-+        QPointF normalPosition = QPointF(globalPointF.x() / screenGeometry.width(),
-+                                         globalPointF.y() / screenGeometry.height());
-+        touchPoint.normalPosition = normalPosition;
-+
-+        touchPoint.area.setSize(QSize(10, 10));
-+        touchPoint.area.moveCenter(globalPos);
-+        touchPoint.rawPositions = QVector<QPointF> { globalPos, globalPointF };
-+
-+        /* 关键修复：正确的多指触摸状态判断 */
-+        bool isChangedPointer = (pointerId == changedPointerId);
-+
-+        if (action == UI_TOUCH_EVENT_ACTION_DOWN) {
-+            if (isChangedPointer) {
-+                /* 只有主要变化的触摸点标记为Pressed */
-+                touchPoint.state = Qt::TouchPointPressed;
-+                LOGD("Touch DOWN - pointerId: %{public}d -> touchId: %{public}d (primary)", pointerId, touchId);
-+            } else {
-+                /* 其他同时存在的触摸点保持之前的状态 */
-+                if (m_lastTouchPoints.contains(touchId)) {
-+                    touchPoint.state = m_lastTouchPoints.value(touchId).state;
-+                    LOGD("Touch DOWN - pointerId: %{public}d -> touchId: %{public}d (keep state: %{public}d)",
-+                         pointerId, touchId, touchPoint.state);
-+                } else {
-+                    /* 如果没有历史记录，标记为Pressed */
++            /* 优化：使用if-else代替多个独立if，减少判断次数 */
++            if (isDownAction) {
++                if (isChangedPointer) {
 +                    touchPoint.state = Qt::TouchPointPressed;
-+                    LOGD("Touch DOWN - pointerId: %{public}d -> touchId: %{public}d (new secondary)", pointerId, touchId);
++                    m_lastTouchPoints.insert(touchId, touchPoint);
++                } else {
++                    touchPoint.state = m_lastTouchPoints.contains(touchId) 
++                        ? Qt::TouchPointStationary 
++                        : Qt::TouchPointPressed;
++                    if (touchPoint.state == Qt::TouchPointPressed) {
++                        m_lastTouchPoints.insert(touchId, touchPoint);
++                    }
 +                }
-+            }
-+            m_lastTouchPoints.insert(touchId, touchPoint);
-+
-+        } else if (action == UI_TOUCH_EVENT_ACTION_UP) {
-+            if (isChangedPointer) {
-+                /* 只有主要变化的触摸点标记为Released */
-+                touchPoint.state = Qt::TouchPointReleased;
-+                m_lastTouchPoints.remove(touchId);
-+                m_pointerIdToTouchId.remove(pointerId);
-+                LOGD("Touch UP - pointerId: %{public}d -> touchId: %{public}d (primary)", pointerId, touchId);
-+            } else {
-+                /* 其他触摸点保持之前的状态 */
-+                if (m_lastTouchPoints.contains(touchId)) {
-+                    touchPoint.state = m_lastTouchPoints.value(touchId).state;
-+                    LOGD("Touch UP - pointerId: %{public}d -> touchId: %{public}d (keep state: %{public}d)",
-+                         pointerId, touchId, touchPoint.state);
++            } else if (isUpAction) {
++                if (isChangedPointer) {
++                    touchPoint.state = Qt::TouchPointReleased;
++                    m_lastTouchPoints.remove(touchId);
++                    m_pointerIdToTouchId.remove(pointerId);
 +                } else {
 +                    touchPoint.state = Qt::TouchPointStationary;
-+                    LOGW("Touch UP - unknown touchId: %{public}d, set to stationary", touchId);
 +                }
-+            }
-+
-+        } else if (action == UI_TOUCH_EVENT_ACTION_MOVE) {
-+            /* 移动事件：检查位置是否真正变化 */
-+            if (m_lastTouchPoints.contains(touchId)) {
-+                const QPointF& lastPos = m_lastTouchPoints.value(touchId).normalPosition;
-+                qreal dx = qAbs(normalPosition.x() - lastPos.x());
-+                qreal dy = qAbs(normalPosition.y() - lastPos.y());
-+
-+                if (dx < 0.001 && dy < 0.001) {
-+                    touchPoint.state = Qt::TouchPointStationary;
++            } else if (isMoveAction) {
++                /* 移动事件：参考Windows实现，直接比较归一化位置而非使用阈值 */
++                auto lastIt = m_lastTouchPoints.find(touchId);
++                if (lastIt != m_lastTouchPoints.end()) {
++                    const QPointF& lastNormalPos = lastIt.value().normalPosition;
++                    const bool stationaryTouchPoint = (touchPoint.normalPosition == lastNormalPos);
++                    
++                    if (stationaryTouchPoint) {
++                        /* 位置完全相同：复用上次的触摸点数据 */
++                        touchPoint.state = Qt::TouchPointStationary;
++                        touchPoint.normalPosition = lastNormalPos;
++                        touchPoint.rawPositions = lastIt.value().rawPositions;
++                        touchPoint.area = lastIt.value().area;
++                    } else {
++                        /* 位置有变化：标记为移动并更新缓存 */
++                        touchPoint.state = Qt::TouchPointMoved;
++                        m_lastTouchPoints.insert(touchId, touchPoint);
++                    }
 +                } else {
++                    /* 新的触摸点在MOVE事件中出现 */
 +                    touchPoint.state = Qt::TouchPointMoved;
++                    m_lastTouchPoints.insert(touchId, touchPoint);
 +                }
 +            } else {
-+                touchPoint.state = Qt::TouchPointMoved;
-+                LOGW("Move event for unknown touchId: %{public}d", touchId);
-+            }
-+            m_lastTouchPoints.insert(touchId, touchPoint);
-+
-+        } else {
-+            touchPoint.state = Qt::TouchPointStationary;
-+        }
-+
-+        allStates |= touchPoint.state;
-+        touchPoints.append(touchPoint);
-+    }
-+
-+    /* 第三阶段：补充缺失的未释放触摸点（关键修复） */
-+    for (auto it = m_lastTouchPoints.begin(); it != m_lastTouchPoints.end(); ++it) {
-+        int touchId = it.key();
-+        if (!currentTouchIds.contains(touchId)) {
-+            /* 这个触摸点在当前事件中未出现，但之前未释放 */
-+            QWindowSystemInterface::TouchPoint stationaryPoint = it.value();
-+
-+            /* 关键修复：根据事件类型决定状态 */
-+            if (action == UI_TOUCH_EVENT_ACTION_UP) {
-+                /* 在抬起事件中，缺失的点应该保持原状态 */
-+                stationaryPoint.state = stationaryPoint.state;
-+            } else {
-+                /* 其他事件中设置为静止 */
-+                stationaryPoint.state = Qt::TouchPointStationary;
++                touchPoint.state = Qt::TouchPointStationary;
 +            }
 +
-+            allStates |= stationaryPoint.state;
-+            touchPoints.append(stationaryPoint);
-+            LOGD("Added point for missing touchId: %{public}d, state: %{public}d", touchId, stationaryPoint.state);
++            touchPoints.append(touchPoint);
 +        }
-+    }
 +
-+    if (touchPoints.isEmpty()) {
-+        LOGD("No valid touch points to process");
-+        return;
-+    }
++        PERF_LOG("Qt_Thread_Process_Points");
 +
-+    /* 所有触摸点都释放时清除映射 */
-+    bool allReleased = true;
-+    for (const auto& point : touchPoints) {
-+        if (point.state != Qt::TouchPointReleased) {
-+            allReleased = false;
-+            break;
++        /* 优化：补充缺失触摸点 - 只在必要时才遍历 */
++        if (m_lastTouchPoints.size() > currentTouchIds.size()) {
++            for (auto it = m_lastTouchPoints.constBegin(); it != m_lastTouchPoints.constEnd(); ++it) {
++                if (!currentTouchIds.contains(it.key())) {
++                    QWindowSystemInterface::TouchPoint stationaryPoint = it.value();
++                    stationaryPoint.state = Qt::TouchPointStationary;
++                    touchPoints.append(stationaryPoint);
++                }
++            }
 +        }
-+    }
 +
-+    if (allReleased) {
-+        m_pointerIdToTouchId.clear();
-+        m_lastTouchPoints.clear();
-+        LOGD("All touches released, cleared all mappings");
-+    }
++        if (touchPoints.isEmpty()) {
++            return;
++        }
 +
-+    /* 第四阶段：发送触摸事件 */
-+    if (auto *dispatcher = QOhEventDispatcher::instance()) {
-+        /* 简化事件过滤：只对微小移动进行过滤 */
++        /* 优化：清理映射 - 检查是否所有点都释放 */
++        if (isUpAction && m_lastTouchPoints.isEmpty()) {
++            m_pointerIdToTouchId.clear();
++        }
++
++        /* 优化：对于MOVE事件，快速检查是否有真正的移动 */
 +        bool shouldDispatch = true;
-+
-+        if (action == UI_TOUCH_EVENT_ACTION_MOVE && !touchPoints.isEmpty()) {
-+            /* 检查是否有触摸点真正移动 */
++        if (isMoveAction) {
 +            bool hasRealMovement = false;
 +            for (const auto& point : touchPoints) {
 +                if (point.state == Qt::TouchPointMoved) {
@@ -43666,29 +43518,32 @@ index 00000000000..f117847d980
 +                    break;
 +                }
 +            }
-+
-+            if (!hasRealMovement) {
-+                shouldDispatch = false;
-+                LOGD("Filtered move event with no real movement");
-+            }
++            shouldDispatch = hasRealMovement;
 +        }
 +
 +        if (shouldDispatch) {
-+            /* 更新触摸点位置 */
-+            for (const auto &point : touchPoints) {
-+                if (point.state == Qt::TouchPointMoved || point.state == Qt::TouchPointPressed) {
-+                    dispatcher->updateLastTouchPoints(point.id, point.rawPositions.first());
++            auto *dispatcher = QOhEventDispatcher::instance();
++            if (!dispatcher) {
++                return;
++            }
++
++            /* 更新触摸点位置 - 只更新必要的点 */
++            if (isDownAction || isMoveAction) {
++                for (const auto &point : touchPoints) {
++                    if (point.state == Qt::TouchPointMoved || point.state == Qt::TouchPointPressed) {
++                        dispatcher->updateLastTouchPoints(point.id, point.rawPositions.first());
++                    }
 +                }
 +            }
 +
 +            QSharedPointer<QtOh::TouchEvent> e(new QtOh::TouchEvent());
-+            e->id = changedPointerId; /* 使用变化的主要触摸点ID */
++            e->id = changedPointerId;
 +            e->touchPoints = touchPoints;
 +            e->window = pw->window();
 +            e->actionType = action;
 +            e->timestamp = time;
 +#if OHOS_SDK_VERSION >= 17
-+            e->keyboardModifiers = keyboardModifiersFromEvent(inputEvent);
++            e->keyboardModifiers = keys;
 +#endif
 +            e->deviceType = sourceType == UI_INPUT_EVENT_SOURCE_TYPE_TOUCH_SCREEN
 +                    ? QTouchDevice::TouchScreen
@@ -43696,63 +43551,90 @@ index 00000000000..f117847d980
 +                                                                     : QTouchDevice::TouchScreen);
 +
 +            dispatcher->appendOhEvent(e);
-+            LOGD("Dispatched touch event: action=%{public}d, points=%{public}d, primaryId=%{public}d",
-+                 action, touchPoints.size(), changedPointerId);
++            PERF_LOG("Qt_Thread_Total");
 +        }
-+    }
++    });
 +}
 +
 +void QOhWindowNodeEventHandler::translatePenEvent(ArkUI_UIInputEvent *inputEvent)
 +{
++    PERF_START();
++    
 +    auto pw = m_node->platformWindow();
-+    if (!pw) {
-+        LOGW("platformWindow is null");
++    if (Q_UNLIKELY(!pw)) {
 +        return;
 +    }
-+    int32_t displayId = OH_ArkUI_UIInputEvent_GetTargetDisplayId(inputEvent);
-+    auto platformScreen = QOhDisplayManager::instance()->platformScreenOrNull(displayId);
-+    if (Q_UNLIKELY(!platformScreen)) {
-+        LOGW("platformScreen is null. displayId: %{public}d", displayId);
-+        return;
-+    }
-+    // arkui节点的默认单位为vp，因此需要做单位变换
-+    const qreal scale = QtOh::densityPixels(platformScreen);
 +
-+    /* NOTE window坐标包含了标题栏的高度,使用全局坐标转换 */
-+    // float lx = OH_ArkUI_PointerEvent_GetWindowX(inputEvent);
-+    // float ly = OH_ArkUI_PointerEvent_GetWindowY(inputEvent);
-+
-+    float tiltX = OH_ArkUI_PointerEvent_GetTiltX(inputEvent, 0);
-+    float tiltY = OH_ArkUI_PointerEvent_GetTiltY(inputEvent, 0);
-+
-+    int32_t action = OH_ArkUI_UIInputEvent_GetAction(inputEvent);
-+    float presure = OH_ArkUI_PointerEvent_GetPressure(inputEvent, 0);
-+
-+
-+    float displayX = scale * OH_ArkUI_PointerEvent_GetDisplayXByIndex(inputEvent, 0);
-+    float displayY = scale * OH_ArkUI_PointerEvent_GetDisplayYByIndex(inputEvent, 0);
-+
-+
-+    int32_t deviceId = OH_ArkUI_UIInputEvent_GetDeviceId(inputEvent);
-+
-+    QRect screenGeometry = platformScreen->geometry();
-+    QPointF globalPointF = QPointF(displayX, displayY);
-+    QPoint globalPos = globalPointF.toPoint() + screenGeometry.topLeft();
-+
-+    int64_t time = OH_ArkUI_UIInputEvent_GetEventTime(inputEvent);
-+    QSharedPointer<QtOh::TabletEvent> e(new QtOh::TabletEvent());
-+    e->timestamp = time;
-+    e->presure = presure;
-+    e->global = globalPos;
-+    e->uniqueID = deviceId;
-+    e->btn = UI_TOUCH_EVENT_ACTION_UP == action ? Qt::NoButton : Qt::LeftButton;
-+    e->window = pw->window();
++    /* 在JS线程中提取必要的原始数据 */
++    const int32_t displayId = OH_ArkUI_UIInputEvent_GetTargetDisplayId(inputEvent);
++    const int32_t action = OH_ArkUI_UIInputEvent_GetAction(inputEvent);
++    const int32_t deviceId = OH_ArkUI_UIInputEvent_GetDeviceId(inputEvent);
++    const int64_t time = OH_ArkUI_UIInputEvent_GetEventTime(inputEvent);
++    
++    const float displayX = OH_ArkUI_PointerEvent_GetDisplayXByIndex(inputEvent, 0);
++    const float displayY = OH_ArkUI_PointerEvent_GetDisplayYByIndex(inputEvent, 0);
++    const float pressure = OH_ArkUI_PointerEvent_GetPressure(inputEvent, 0);
++    const float tiltX = OH_ArkUI_PointerEvent_GetTiltX(inputEvent, 0);
++    const float tiltY = OH_ArkUI_PointerEvent_GetTiltY(inputEvent, 0);
++    
 +#if OHOS_SDK_VERSION >= 17
-+    OH_ArkUI_PointerEvent_GetRollAngle(inputEvent, &e->rotation);
-+#else
-+    e->rotation = 0;
++    double rotation = 0.f;
++    OH_ArkUI_PointerEvent_GetRollAngle(inputEvent, &rotation);
 +#endif
-+    QOhEventDispatcher::instance()->appendOhEvent(e);
++
++#if TOUCH_PERF_DEBUG
++    qint64 extractElapsed = perfTimer.nsecsElapsed();
++    if (extractElapsed > 1000000) {
++        LOGW("Pen[JS_Extract]: %{public}lld us", extractElapsed / 1000);
++    }
++#else
++    PERF_LOG("Pen_JS_Extract");
++#endif
++
++    QWindow *window = pw->window();
++    
++    /* 将处理逻辑投递到Qt主线程 */
++    QtOh::runOnQtMainThread([this, window, displayId, action, deviceId, time, 
++                            displayX, displayY, pressure, tiltX, tiltY
++#if OHOS_SDK_VERSION >= 17
++                            , rotation
++#endif
++                            ]{
++        PERF_START();
++        
++        if (Q_UNLIKELY(QOhWindowNode::nodeDestroyed(m_node) || !QOhEventDispatcher::instance()))
++            return;
++
++        auto platformScreen = QOhDisplayManager::instance()->platformScreenOrNull(displayId);
++        if (Q_UNLIKELY(!platformScreen)) {
++            return;
++        }
++
++        const qreal scale = QtOh::densityPixels(platformScreen);
++        const QRect screenGeometry = platformScreen->geometry();
++        
++        const float scaledX = displayX * scale;
++        const float scaledY = displayY * scale;
++        const QPointF globalPointF(scaledX, scaledY);
++        const QPoint globalPos = globalPointF.toPoint() + screenGeometry.topLeft();
++
++        QSharedPointer<QtOh::TabletEvent> e(new QtOh::TabletEvent());
++        e->timestamp = time;
++        e->presure = pressure;
++        e->global = globalPos;
++        e->uniqueID = deviceId;
++        e->btn = (action == UI_TOUCH_EVENT_ACTION_UP) ? Qt::NoButton : Qt::LeftButton;
++        e->window = window;
++#if OHOS_SDK_VERSION < 17
++        e->rotation = 0.f;
++#else
++        e->rotation = rotation;
++#endif
++
++        QOhEventDispatcher::instance()->appendOhEvent(e);
++        
++        PERF_LOG("Pen_Qt_Thread");
++    });
 +}
 +#endif
 +
@@ -43820,21 +43702,19 @@ index 00000000000..f117847d980
 +
 +#if OHOS_SDK_VERSION >= 15
 +    int32_t axisAction = 0;
-+    if(QtOh::apiVersion() >= 15){
-+        /* 获取当前轴事件的操作类型的值
-+         * UI_AXIS_EVENT_ACTION_NONE = 0,   // The axis event is abnormal.
-+         * UI_AXIS_EVENT_ACTION_BEGIN = 1,  // The axis event begins.
-+         * UI_AXIS_EVENT_ACTION_UPDATE = 2, // The axis event is updated.
-+         * UI_AXIS_EVENT_ACTION_END = 3,    // The axis event ends.
-+         * UI_AXIS_EVENT_ACTION_CANCEL = 4, // The axis event is canceled.
-+         */
-+        axisAction = OH_ArkUI_AxisEvent_GetAxisAction(event);
++    /* 获取当前轴事件的操作类型的值
++     * UI_AXIS_EVENT_ACTION_NONE = 0,   // The axis event is abnormal.
++     * UI_AXIS_EVENT_ACTION_BEGIN = 1,  // The axis event begins.
++     * UI_AXIS_EVENT_ACTION_UPDATE = 2, // The axis event is updated.
++     * UI_AXIS_EVENT_ACTION_END = 3,    // The axis event ends.
++     * UI_AXIS_EVENT_ACTION_CANCEL = 4, // The axis event is canceled.
++     */
++    axisAction = OH_ArkUI_AxisEvent_GetAxisAction(event);
 +
-+        /* NOTE 鼠标滚轮只处理UPDATE? */
-+        if (UI_INPUT_EVENT_TOOL_TYPE_MOUSE == toolType &&
-+            UI_AXIS_EVENT_ACTION_UPDATE != axisAction) {
-+            return;
-+        }
++    /* NOTE 鼠标滚轮只处理UPDATE? */
++    if (UI_INPUT_EVENT_TOOL_TYPE_MOUSE == toolType &&
++        UI_AXIS_EVENT_ACTION_UPDATE != axisAction) {
++        return;
 +    }
 +#endif
 +
@@ -43879,37 +43759,33 @@ index 00000000000..f117847d980
 +#endif
 +    auto keys = keyboardModifiersFromEvent(event);
 +
-+    QtOh::runOnQtMainThread([=, this] {
-+        if (QOhWindowNode::nodeDestroyed(m_node))
-+            return;
-+        auto pw = m_node->platformWindow();
-+        if (pw == nullptr)
-+            return;
-+        if (QOhEventDispatcher *dispatcher = QOhEventDispatcher::instance()) {
-+            QSharedPointer<QtOh::WheelEvent> e(new QtOh::WheelEvent());
-+            e->pinchScale = scale;
-+            e->toolType = toolType;
-+            e->timestamp = timestamp;
++    auto pw = m_node->platformWindow();
++    if (pw == nullptr)
++        return;
++    if (QOhEventDispatcher *dispatcher = QOhEventDispatcher::instance()) {
++        QSharedPointer<QtOh::WheelEvent> e(new QtOh::WheelEvent());
++        e->pinchScale = scale;
++        e->toolType = toolType;
++        e->timestamp = timestamp;
 +
 +#if OHOS_SDK_VERSION >= 15
-+            e->axisAction = axisAction;
++        e->axisAction = axisAction;
 +#endif
 +
 +#if OHOS_SDK_VERSION >= 17
-+            e->scrollStep = scrollStep;
++        e->scrollStep = scrollStep;
 +#endif
-+            e->sourceType = sourceType;
-+            qreal dpr = QtOh::densityPixels(pw->screen());
-+            e->local = QPointF(lx * dpr, ly * dpr);
-+            e->window = pw->window();
-+            e->global = e->window->handle()->mapToGlobal(e->local.toPoint());
++        e->sourceType = sourceType;
++        qreal dpr = QtOh::densityPixels(pw->screen());
++        e->local = QPointF(lx * dpr, ly * dpr);
++        e->window = pw->window();
++        e->global = e->window->handle()->mapToGlobal(e->local.toPoint());
 +
-+            e->verticalValue = verticalValue;
-+            e->horizontalValue = horizontalValue;
-+            e->keyboardModifiers = keys;
-+            dispatcher->appendOhEvent(e);
-+        }
-+    });
++        e->verticalValue = verticalValue;
++        e->horizontalValue = horizontalValue;
++        e->keyboardModifiers = keys;
++        dispatcher->appendOhEvent(e);
++    }
 +}
 +#endif
 +
@@ -44843,7 +44719,7 @@ index 00000000000..1d0597b7314
 +#include "main.moc"
 diff --git a/src/plugins/printsupport/openharmony/openharmony.pro b/src/plugins/printsupport/openharmony/openharmony.pro
 new file mode 100644
-index 00000000000..d8cef3f5313
+index 00000000000..bc12956139c
 --- /dev/null
 +++ b/src/plugins/printsupport/openharmony/openharmony.pro
 @@ -0,0 +1,22 @@
@@ -44852,43 +44728,6 @@ index 00000000000..d8cef3f5313
 +
 +QT += core-private gui-private printsupport printsupport-private
 +LIBS += -lohprint -lace_napi.z -lohfileuri -lace_ndk.z -lrawfile.z
-+
-+INCLUDEPATH += ../../../printsupport/kernel
-+
-+SOURCES += main.cpp \
-+    QOpenHarmonyPrintDevice.cpp \
-+    qopenharmonyprintersupport.cpp \
-+    qopenharmonyprintengine.cpp
-+
-+HEADERS += qopenharmonyprintersupport_p.h \
-+    QOpenHarmonyPrintDevice.h \
-+    qopenharmonyprintengine_p.h
-+
-+OTHER_FILES += openharmonyprint.json
-+
-+PLUGIN_TYPE = printsupport
-+PLUGIN_CLASS_NAME = QOpenHarmonyPrinterSupportPlugin
-+load(qt_plugin)
-diff --git a/src/plugins/printsupport/openharmony/openharmonyprint.json b/src/plugins/printsupport/openharmony/openharmonyprint.json
-new file mode 100644
-index 00000000000..f9a1786cf7d
---- /dev/null
-+++ b/src/plugins/printsupport/openharmony/openharmonyprint.json
-@@ -0,0 +1,3 @@
-+{
-+    "Keys": [ "openharmonyprintersupport" ]
-+}
-diff --git a/src/plugins/printsupport/openharmony/openharmonyprint.pro b/src/plugins/printsupport/openharmony/openharmonyprint.pro
-new file mode 100644
-index 00000000000..006db3ca755
---- /dev/null
-+++ b/src/plugins/printsupport/openharmony/openharmonyprint.pro
-@@ -0,0 +1,22 @@
-+TARGET = openharmonyprintersupport
-+MODULE = openharmonyprintersupport
-+
-+QT += core-private gui-private printsupport printsupport-private
-+LIBS += -lohprint
 +
 +INCLUDEPATH += ../../../printsupport/kernel
 +
@@ -44906,6 +44745,15 @@ index 00000000000..006db3ca755
 +PLUGIN_TYPE = printsupport
 +PLUGIN_CLASS_NAME = QOpenHarmonyPrinterSupportPlugin
 +load(qt_plugin)
+diff --git a/src/plugins/printsupport/openharmony/openharmonyprint.json b/src/plugins/printsupport/openharmony/openharmonyprint.json
+new file mode 100644
+index 00000000000..f9a1786cf7d
+--- /dev/null
++++ b/src/plugins/printsupport/openharmony/openharmonyprint.json
+@@ -0,0 +1,3 @@
++{
++    "Keys": [ "openharmonyprintersupport" ]
++}
 diff --git a/src/plugins/printsupport/openharmony/qopenharmonyprintdevice.cpp b/src/plugins/printsupport/openharmony/qopenharmonyprintdevice.cpp
 new file mode 100644
 index 00000000000..f6957dac9db
@@ -48730,18 +48578,21 @@ index 542ad1329a2..18b34319c98 100644
 +
 +qtConfig(style-harmonyos): SUBDIRS += harmonyos
 diff --git a/src/printsupport/kernel/qprintengine_pdf_p.h b/src/printsupport/kernel/qprintengine_pdf_p.h
-index c8d8f8e8664..864159ce2d7 100644
+index c8d8f8e8664..771d2eedbd8 100644
 --- a/src/printsupport/kernel/qprintengine_pdf_p.h
 +++ b/src/printsupport/kernel/qprintengine_pdf_p.h
-@@ -124,6 +124,8 @@ private:
+@@ -124,7 +124,10 @@ private:
  
      friend class QCupsPrintEngine;
      friend class QCupsPrintEnginePrivate;
+-
++#ifdef Q_OS_OPENHARMONY
 +    friend class QOpenHarmonyPrintEngine;
 +    friend class QOpenHarmonyPrintEnginePrivate;
- 
++#endif
      QString printerName;
      QString printProgram;
+     QString selectionOption;
 diff --git a/src/src.pro b/src/src.pro
 index 89901097431..dbbc028ca80 100644
 --- a/src/src.pro
@@ -49528,38 +49379,6 @@ index 67becbb6d85..003a8ff39b2 100644
  void QFileDialogPrivate::setFilter_sys()
  {
      if (QPlatformFileDialogHelper *helper = platformFileDialogHelper())
-diff --git a/src/widgets/kernel/qapplication.cpp b/src/widgets/kernel/qapplication.cpp
-index 1a0ac0cc3cb..cf7c063ff15 100644
---- a/src/widgets/kernel/qapplication.cpp
-+++ b/src/widgets/kernel/qapplication.cpp
-@@ -1764,6 +1764,13 @@ bool QApplicationPrivate::tryCloseAllWidgetWindows(QWindowList *processedWindows
-     while (QWidget *w = QApplication::activeModalWidget()) {
-         if (!w->isVisible() || w->data->is_closing)
-             break;
-+
-+         // NOTE:openharmony test special treatment
-+#ifdef Q_OS_OPENHARMONY
-+        if (w->objectName() == QStringLiteral("qttest_guardWindow"))
-+            continue;
-+#endif
-+            
-         QWindow *window = w->windowHandle();
-         if (!window->close()) // Qt::WA_DeleteOnClose may cause deletion.
-             return false;
-@@ -1776,6 +1783,13 @@ retry:
-     for (auto *w : list) {
-         if (w->isVisible() && w->windowType() != Qt::Desktop &&
-                 !w->testAttribute(Qt::WA_DontShowOnScreen) && !w->data->is_closing) {
-+            
-+        // NOTE:openharmony test special treatment
-+#ifdef Q_OS_OPENHARMONY
-+        if (w->objectName() == QStringLiteral("qttest_guardWindow"))
-+            continue;
-+#endif
-+                
-             QWindow *window = w->windowHandle();
-             if (!window->close())  // Qt::WA_DeleteOnClose may cause deletion.
-                 return false;
 diff --git a/src/widgets/kernel/qapplication.h b/src/widgets/kernel/qapplication.h
 index 6de72899f1a..f71c6904ca6 100644
 --- a/src/widgets/kernel/qapplication.h
