@@ -26214,10 +26214,10 @@ index 00000000000..86e3d29e96a
 +#endif // QOHEVENT_H
 diff --git a/src/plugins/platforms/openharmony/qoheventdispatcher.cpp b/src/plugins/platforms/openharmony/qoheventdispatcher.cpp
 new file mode 100644
-index 00000000000..6dcece36de6
+index 00000000000..8d8cffa4b83
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qoheventdispatcher.cpp
-@@ -0,0 +1,1071 @@
+@@ -0,0 +1,958 @@
 +#include <cmath>
 +#include <math.h>
 +#include <errno.h>
@@ -26247,119 +26247,6 @@ index 00000000000..6dcece36de6
 +
 +#if OHOS_SDK_VERSION >= 17
 +#include <arkui/native_key_event.h>
-+#endif
-+
-+#if 0
-+struct QOhPipe
-+{
-+    QOhPipe();
-+    ~QOhPipe();
-+
-+    bool init();
-+    pollfd prepare() const;
-+
-+    void wakeUp();
-+    int check(const pollfd &pfd);
-+
-+    // note for eventfd(7) support:
-+    // if fds[1] is -1, then eventfd(7) is in use and is stored in fds[0]
-+    int fds[2];
-+    QAtomicInt wakeUps;
-+};
-+
-+
-+QOhPipe::QOhPipe()
-+{
-+    fds[0] = -1;
-+    fds[1] = -1;
-+}
-+
-+QOhPipe::~QOhPipe()
-+{
-+    if (fds[0] >= 0)
-+        close(fds[0]);
-+
-+    if (fds[1] >= 0)
-+        close(fds[1]);
-+}
-+
-+bool QOhPipe::init()
-+{
-+#if defined(Q_OS_NACL) || defined(Q_OS_WASM)
-+    // do nothing.
-+#else
-+#  ifndef QT_NO_EVENTFD
-+    if ((fds[0] = eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC)) >= 0)
-+        return true;
-+#  endif
-+    if (qt_safe_pipe(fds, O_NONBLOCK) == -1) {
-+        perror("QOhPipe: Unable to create pipe");
-+        return false;
-+    }
-+#endif
-+
-+    return true;
-+}
-+
-+pollfd QOhPipe::prepare() const
-+{
-+    return qt_make_pollfd(fds[0], POLLIN);
-+}
-+
-+void QOhPipe::wakeUp()
-+{
-+    if (wakeUps.testAndSetAcquire(0, 1)) {
-+#ifndef QT_NO_EVENTFD
-+        if (fds[1] == -1) {
-+            // eventfd
-+            eventfd_t value = 1;
-+            int ret;
-+            EINTR_LOOP(ret, eventfd_write(fds[0], value));
-+            return;
-+        }
-+#endif
-+        char c = 0;
-+        qt_safe_write(fds[1], &c, 1);
-+    }
-+}
-+
-+int QOhPipe::check(const pollfd &pfd)
-+{
-+    Q_ASSERT(pfd.fd == fds[0]);
-+
-+    char c[16];
-+    const int readyread = pfd.revents & POLLIN;
-+
-+    if (readyread) {
-+        // consume the data on the thread pipe so that
-+        // poll doesn't immediately return next time
-+#  ifndef QT_NO_EVENTFD
-+        if (fds[1] == -1) {
-+            // eventfd
-+            eventfd_t value;
-+            eventfd_read(fds[0], &value);
-+        } else
-+#  endif
-+        {
-+            while (::read(fds[0], c, sizeof(c)) > 0) {}
-+        }
-+
-+        if (!wakeUps.testAndSetRelease(1, 0)) {
-+            // hopefully, this is dead code
-+            qWarning("QOhPipe: internal error, wakeUps.testAndSetRelease(1, 0) failed!");
-+        }
-+    }
-+
-+    return readyread;
-+}
-+#endif
-+
-+#if 0
-+template <class ...Ts>
-+struct overload : Ts... { using Ts::operator()...; };
-+
-+template <class ...Ts>
-+overload(Ts...)->overload<Ts...>;
 +#endif
 +
 +QPoint translatePoint(const QPointF &global, QWindow *w)
@@ -27018,7 +26905,7 @@ index 00000000000..6dcece36de6
 +    if (windowChanged) {
 +        _local = translatePoint(global, tlw);
 +    }
-+    QOhWindowContext::setUnderMouseWindow(window, _local, global.toPoint());
++    QOhWindowContext::setUnderMouseWindow(event->window, _local, global.toPoint());
 +
 +    QWindowSystemInterface::handleMouseEvent(tlw, _local, global.toPoint(), Qt::MouseButtons(event->mouseButton),
 +                                             Qt::NoButton, QEvent::MouseMove,
@@ -27037,7 +26924,7 @@ index 00000000000..6dcece36de6
 +    if (grabber != nullptr && grabber != window) {
 +        _local = translatePoint(global, grabber);
 +    }
-+    QOhWindowContext::setUnderMouseWindow(window, _local, global.toPoint());
++    QOhWindowContext::setUnderMouseWindow(event->window, _local, global.toPoint());
 +    QWindowSystemInterface::handleMouseEvent(grabber == nullptr ? window : grabber, _local, global.toPoint(), Qt::MouseButtons(event->mouseButton),
 +                                             event->mouseButton, QEvent::MouseButtonPress,
 +                                             event->keyboardModifiers);
@@ -27060,7 +26947,7 @@ index 00000000000..6dcece36de6
 +        _local = translatePoint(global, tlw);
 +    }
 +
-+    QOhWindowContext::setUnderMouseWindow(window, _local, global.toPoint());
++    QOhWindowContext::setUnderMouseWindow(event->window, _local, global.toPoint());
 +
 +    QWindowSystemInterface::handleMouseEvent(tlw, _local, global.toPoint(),
 +                                             Qt::MouseButtons(Qt::NoButton),
@@ -41578,10 +41465,10 @@ index 00000000000..af274207ce2
 +#endif // QOHSYSTEMTRAYICON_H
 diff --git a/src/plugins/platforms/openharmony/qohwindowcontext.cpp b/src/plugins/platforms/openharmony/qohwindowcontext.cpp
 new file mode 100644
-index 00000000000..47bcfd012fc
+index 00000000000..247848518f7
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qohwindowcontext.cpp
-@@ -0,0 +1,285 @@
+@@ -0,0 +1,286 @@
 +#include "qohwindowcontext.h"
 +#include "qohplatformscreen.h"
 +#include "qohplatformwindow.h"
@@ -41723,26 +41610,27 @@ index 00000000000..47bcfd012fc
 +    return m_mouseGrabber.data();
 +}
 +
-+void QOhWindowContext::setUnderMouseWindow(QWindow *window, const QPoint &local, const QPoint &global)
++void QOhWindowContext::setUnderMouseWindow(QPointer<QWindow> window, const QPoint &local, const QPoint &global)
 +{
-+    static auto applyCursor = [](QWindow *window)
++    static auto applyCursor = [](QPointer<QWindow> window)
 +    {
++        if (window.isNull())
++            return;
 +        if (QOhPlatformOpenGLWindow *pw = dynamic_cast<QOhPlatformOpenGLWindow *>(window->handle())) {
 +            pw->applyCursor();
 +        }
 +    };
 +    
-+    static auto handleEnterLeave = [](QWindow *window, const QPoint &local, const QPoint &global)
++    static auto handleEnterLeave = [](QPointer<QWindow> window, const QPoint &local, const QPoint &global)
 +    {
 +        if (m_underMouseWindow != window) {
 +            QWindow *leave = m_underMouseWindow.data();
 +            m_underMouseWindow = window;
 +            QWindowSystemInterface::handleEnterLeaveEvent(window, leave, local, global);
-+            QWindowSystemInterface::flushWindowSystemEvents();
 +            applyCursor(window);
 +        }
 +    };
-+    
++
 +    static QPointer<QWindow> currentUnderMouseWindow;
 +    if (m_mouseGrabber.isNull()) {
 +        handleEnterLeave(window, local, global);
@@ -41753,8 +41641,8 @@ index 00000000000..47bcfd012fc
 +            currentUnderMouseWindow = window;
 +            showApplyCursor = true;
 +        }
-+        
-+         if (showApplyCursor && !m_mouseGrabber.isNull() && currentUnderMouseWindow != nullptr) {
++
++        if (showApplyCursor && !m_mouseGrabber.isNull() && currentUnderMouseWindow != nullptr) {
 +            QWindow *topLevelWindow = topLevelOf(currentUnderMouseWindow);
 +            QOhPlatformOpenGLWindow *overrideWindow = dynamic_cast<QOhPlatformOpenGLWindow *>(topLevelWindow->handle());
 +            QOhPlatformOpenGLWindow *cursorWindow = dynamic_cast<QOhPlatformOpenGLWindow *>(m_mouseGrabber->handle());
@@ -41869,7 +41757,7 @@ index 00000000000..47bcfd012fc
 +QT_END_NAMESPACE
 diff --git a/src/plugins/platforms/openharmony/qohwindowcontext.h b/src/plugins/platforms/openharmony/qohwindowcontext.h
 new file mode 100644
-index 00000000000..b28137111c7
+index 00000000000..81ecf9ce7ad
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qohwindowcontext.h
 @@ -0,0 +1,55 @@
@@ -41903,7 +41791,7 @@ index 00000000000..b28137111c7
 +    static QString uniqueName(const QOhPlatformWindow *window);
 +    static void setMouseGrabberWindow(QWindow *window);
 +    static QWindow *mouseGrabberWindow();
-+    static void  setUnderMouseWindow(QWindow *window, const QPoint &local, const QPoint &global);
++    static void  setUnderMouseWindow(QPointer<QWindow> window, const QPoint &local, const QPoint &global);
 +    static QWindow *underMouseWindow();
 +    static void setKeyGrabberWindow(QWindow *window);
 +    static QWindow *keyGrabberWindow();
@@ -43009,10 +42897,10 @@ index 00000000000..ce6d3a7dc8a
 +#endif // QOHWINDOWNODE_H
 diff --git a/src/plugins/platforms/openharmony/qohwindownodeeventhandler.cpp b/src/plugins/platforms/openharmony/qohwindownodeeventhandler.cpp
 new file mode 100644
-index 00000000000..58306389706
+index 00000000000..16c92114e22
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/qohwindownodeeventhandler.cpp
-@@ -0,0 +1,962 @@
+@@ -0,0 +1,949 @@
 +#include "qohwindownodeeventhandler.h"
 +#include "qohplatformwindow.h"
 +#include "qoheventdispatcher.h"
@@ -43256,99 +43144,92 @@ index 00000000000..58306389706
 +    auto keys = keyboardModifiersFromEvent(event);
 +#endif
 +
++    if (!QOhEventDispatcher::instance())
++        return;
++    auto platformScreen = QOhDisplayManager::instance()->platformScreenOrNull(displayId);
++    if (Q_UNLIKELY(!platformScreen)) {
++        qDebug() << "platformScreen is null. displayId: " << displayId;
++        return;
++    }
++    // arkui节点的默认单位为vp，因此需要做单位变换
++    auto scale = 1.0f;
++    auto screenTopLeft = QPoint();
++    if (platformScreen) {
++        scale = QtOh::densityPixels(platformScreen);
++        screenTopLeft = platformScreen->geometry().topLeft();
++    }
++    auto pw = m_node->platformWindow();
++    if (!pw) {
++        qWarning() << "platformWindow is null";
++        return;
++    }
 +
-+    QtOh::runOnQtMainThread([this, displayId, displayX, displayY, action, button
-+                        #if OHOS_SDK_VERSION >= 17
-+                            , keys
-+                        #endif
-+                            ]{
-+        if (QOhWindowNode::nodeDestroyed(m_node) || !QOhEventDispatcher::instance())
++    auto globalPos = QPointF { displayX, displayY };
++    globalPos = globalPos * scale;
++    globalPos += screenTopLeft;
++
++    if (QOhNativeWindow *nativeWindow = m_node->ownerWindow()) {
++        // 如果是在系统按钮的区域内，由系统响应不上传给Qt
++        if (nativeWindow->hitTest(globalPos.toPoint(), scale) == QOhNativeWindow::SystemButton)
 +            return;
-+        auto platformScreen = QOhDisplayManager::instance()->platformScreenOrNull(displayId);
-+        if (Q_UNLIKELY(!platformScreen)) {
-+            qDebug() << "platformScreen is null. displayId: " << displayId;
-+            return;
-+        }
-+        // arkui节点的默认单位为vp，因此需要做单位变换
-+        auto scale = 1.0f;
-+        auto screenTopLeft = QPoint();
-+        if (platformScreen) {
-+            scale = QtOh::densityPixels(platformScreen);
-+            screenTopLeft = platformScreen->geometry().topLeft();
-+        }
-+        auto pw = m_node->platformWindow();
-+        if (!pw) {
-+            qWarning() << "platformWindow is null";
-+            return;
-+        }
++    }
 +
-+        auto globalPos = QPointF { displayX, displayY };
-+        globalPos = globalPos * scale;
-+        globalPos += screenTopLeft;
++    QSharedPointer<QtOh::MouseEvent> mouseEvent(new QtOh::MouseEvent());
++    switch (action) {
++    case UI_MOUSE_EVENT_ACTION_MOVE:
++        mouseEvent->mouseEventType = QEvent::MouseMove;
++        break;
++    case UI_MOUSE_EVENT_ACTION_PRESS:
++        mouseEvent->mouseEventType = QEvent::MouseButtonPress;
++        break;
++    case UI_MOUSE_EVENT_ACTION_RELEASE:
++        mouseEvent->mouseEventType = QEvent::MouseButtonRelease;
++        break;
++    default:
++        return;
++    }
 +
-+        if (QOhNativeWindow *nativeWindow = m_node->ownerWindow()) {
-+            // 如果是在系统按钮的区域内，由系统响应不上传给Qt
-+            if (nativeWindow->hitTest(globalPos.toPoint(), scale) == QOhNativeWindow::SystemButton)
-+                return;
-+        }
-+
-+        QSharedPointer<QtOh::MouseEvent> event(new QtOh::MouseEvent());
-+        switch (action) {
-+        case UI_MOUSE_EVENT_ACTION_MOVE:
-+            event->mouseEventType = QEvent::MouseMove;
-+            break;
-+        case UI_MOUSE_EVENT_ACTION_PRESS:
-+            event->mouseEventType = QEvent::MouseButtonPress;
-+            break;
-+        case UI_MOUSE_EVENT_ACTION_RELEASE:
-+            event->mouseEventType = QEvent::MouseButtonRelease;
-+            break;
-+        default:
-+            return;
-+        }
-+
-+        switch (button) {
-+        case UI_MOUSE_EVENT_BUTTON_NONE:
-+            event->mouseButton = Qt::NoButton;
-+            break;
-+        case UI_MOUSE_EVENT_BUTTON_LEFT:
-+            event->mouseButton = Qt::LeftButton;
-+            break;
-+        case UI_MOUSE_EVENT_BUTTON_MIDDLE:
-+            event->mouseButton = Qt::MiddleButton;
-+            break;
-+        case UI_MOUSE_EVENT_BUTTON_RIGHT:
-+            event->mouseButton = Qt::RightButton;
-+            break;
-+        case UI_MOUSE_EVENT_BUTTON_FORWARD:
-+            event->mouseButton = Qt::ForwardButton;
-+            break;
-+        case UI_MOUSE_EVENT_BUTTON_BACK:
-+            event->mouseButton = Qt::BackButton;
-+            break;
-+        }
++    switch (button) {
++    case UI_MOUSE_EVENT_BUTTON_NONE:
++        mouseEvent->mouseButton = Qt::NoButton;
++        break;
++    case UI_MOUSE_EVENT_BUTTON_LEFT:
++        mouseEvent->mouseButton = Qt::LeftButton;
++        break;
++    case UI_MOUSE_EVENT_BUTTON_MIDDLE:
++        mouseEvent->mouseButton = Qt::MiddleButton;
++        break;
++    case UI_MOUSE_EVENT_BUTTON_RIGHT:
++        mouseEvent->mouseButton = Qt::RightButton;
++        break;
++    case UI_MOUSE_EVENT_BUTTON_FORWARD:
++        mouseEvent->mouseButton = Qt::ForwardButton;
++        break;
++    case UI_MOUSE_EVENT_BUTTON_BACK:
++        mouseEvent->mouseButton = Qt::BackButton;
++        break;
++    }
 +#if OHOS_SDK_VERSION >= 17
-+        event->keyboardModifiers = keys;
++    mouseEvent->keyboardModifiers = keys;
 +#endif
-+        if (m_node->isExternal()) {
-+            handleExternalNodeMouseEvent(globalPos, event->mouseEventType,
-+                                         event->mouseButton, event->keyboardModifiers);
-+            return;
-+        }
-+        QWindow *window = pw->window();
-+        while (window && (window->flags() & Qt::WindowTransparentForInput))
-+            window = window->parent();
-+        if (!window)
-+            return;
++    if (m_node->isExternal()) {
++        handleExternalNodeMouseEvent(globalPos, mouseEvent->mouseEventType,
++                                     mouseEvent->mouseButton, mouseEvent->keyboardModifiers);
++        return;
++    }
++    QWindow *window = pw->window();
++    while (window && (window->flags() & Qt::WindowTransparentForInput))
++        window = window->parent();
++    if (!window)
++        return;
 +
-+        QPointF localPos = pw->mapFromGlobal(globalPos.toPoint());
-+        event->window = pw->window();
-+        event->xcPos = localPos;
-+        event->scPos = globalPos;
++    QPointF localPos = pw->mapFromGlobal(globalPos.toPoint());
++    mouseEvent->window = pw->window();
++    mouseEvent->xcPos = localPos;
++    mouseEvent->scPos = globalPos;
 +
-+        QOhEventDispatcher *dispatcher = QOhEventDispatcher::instance();
-+        dispatcher->appendOhEvent(event);
-+    });
++    QOhEventDispatcher *dispatcher = QOhEventDispatcher::instance();
++    dispatcher->appendOhEvent(mouseEvent);
 +}
 +
 +void QOhWindowNodeEventHandler::handleExternalNodeMouseEvent(const QPointF &global, QEvent::Type type,
@@ -43824,21 +43705,19 @@ index 00000000000..58306389706
 +
 +#if OHOS_SDK_VERSION >= 15
 +    int32_t axisAction = 0;
-+    if(QtOh::apiVersion() >= 15){
-+        /* 获取当前轴事件的操作类型的值
-+         * UI_AXIS_EVENT_ACTION_NONE = 0,   // The axis event is abnormal.
-+         * UI_AXIS_EVENT_ACTION_BEGIN = 1,  // The axis event begins.
-+         * UI_AXIS_EVENT_ACTION_UPDATE = 2, // The axis event is updated.
-+         * UI_AXIS_EVENT_ACTION_END = 3,    // The axis event ends.
-+         * UI_AXIS_EVENT_ACTION_CANCEL = 4, // The axis event is canceled.
-+         */
-+        axisAction = OH_ArkUI_AxisEvent_GetAxisAction(event);
++    /* 获取当前轴事件的操作类型的值
++     * UI_AXIS_EVENT_ACTION_NONE = 0,   // The axis event is abnormal.
++     * UI_AXIS_EVENT_ACTION_BEGIN = 1,  // The axis event begins.
++     * UI_AXIS_EVENT_ACTION_UPDATE = 2, // The axis event is updated.
++     * UI_AXIS_EVENT_ACTION_END = 3,    // The axis event ends.
++     * UI_AXIS_EVENT_ACTION_CANCEL = 4, // The axis event is canceled.
++     */
++    axisAction = OH_ArkUI_AxisEvent_GetAxisAction(event);
 +
-+        /* NOTE 鼠标滚轮只处理UPDATE? */
-+        if (UI_INPUT_EVENT_TOOL_TYPE_MOUSE == toolType &&
-+            UI_AXIS_EVENT_ACTION_UPDATE != axisAction) {
-+            return;
-+        }
++    /* NOTE 鼠标滚轮只处理UPDATE? */
++    if (UI_INPUT_EVENT_TOOL_TYPE_MOUSE == toolType &&
++        UI_AXIS_EVENT_ACTION_UPDATE != axisAction) {
++        return;
 +    }
 +#endif
 +
@@ -43883,37 +43762,33 @@ index 00000000000..58306389706
 +#endif
 +    auto keys = keyboardModifiersFromEvent(event);
 +
-+    QtOh::runOnQtMainThread([=, this] {
-+        if (QOhWindowNode::nodeDestroyed(m_node))
-+            return;
-+        auto pw = m_node->platformWindow();
-+        if (pw == nullptr)
-+            return;
-+        if (QOhEventDispatcher *dispatcher = QOhEventDispatcher::instance()) {
-+            QSharedPointer<QtOh::WheelEvent> e(new QtOh::WheelEvent());
-+            e->pinchScale = scale;
-+            e->toolType = toolType;
-+            e->timestamp = timestamp;
++    auto pw = m_node->platformWindow();
++    if (pw == nullptr)
++        return;
++    if (QOhEventDispatcher *dispatcher = QOhEventDispatcher::instance()) {
++        QSharedPointer<QtOh::WheelEvent> e(new QtOh::WheelEvent());
++        e->pinchScale = scale;
++        e->toolType = toolType;
++        e->timestamp = timestamp;
 +
 +#if OHOS_SDK_VERSION >= 15
-+            e->axisAction = axisAction;
++        e->axisAction = axisAction;
 +#endif
 +
 +#if OHOS_SDK_VERSION >= 17
-+            e->scrollStep = scrollStep;
++        e->scrollStep = scrollStep;
 +#endif
-+            e->sourceType = sourceType;
-+            qreal dpr = QtOh::densityPixels(pw->screen());
-+            e->local = QPointF(lx * dpr, ly * dpr);
-+            e->window = pw->window();
-+            e->global = e->window->handle()->mapToGlobal(e->local.toPoint());
++        e->sourceType = sourceType;
++        qreal dpr = QtOh::densityPixels(pw->screen());
++        e->local = QPointF(lx * dpr, ly * dpr);
++        e->window = pw->window();
++        e->global = e->window->handle()->mapToGlobal(e->local.toPoint());
 +
-+            e->verticalValue = verticalValue;
-+            e->horizontalValue = horizontalValue;
-+            e->keyboardModifiers = keys;
-+            dispatcher->appendOhEvent(e);
-+        }
-+    });
++        e->verticalValue = verticalValue;
++        e->horizontalValue = horizontalValue;
++        e->keyboardModifiers = keys;
++        dispatcher->appendOhEvent(e);
++    }
 +}
 +#endif
 +
