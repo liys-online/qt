@@ -19171,7 +19171,7 @@ index 00000000000..4c6949c07e4
 +#endif // QJSABILITYINFO_H
 diff --git a/src/plugins/platforms/openharmony/jsclass/qjsabilitystage.cpp b/src/plugins/platforms/openharmony/jsclass/qjsabilitystage.cpp
 new file mode 100644
-index 00000000000..b6dddc6d714
+index 00000000000..23470886d86
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/jsclass/qjsabilitystage.cpp
 @@ -0,0 +1,158 @@
@@ -19255,7 +19255,7 @@ index 00000000000..b6dddc6d714
 +        }
 +        return Napi::String::From(info.Env(), key.toUtf8().constData());
 +    });
-+    QJsAbilityStage::instance()->set("onAcceptWant", onAcceptWant);
++    // QJsAbilityStage::instance()->set("onAcceptWant", onAcceptWant);
 +
 +#if OHOS_SDK_VERSION >= 15
 +    Napi::Function prepareToTerminateAsync = Napi::Function::New(QJsAbilityStage::instance()->env(), [](const Napi::CallbackInfo& info){
@@ -21971,7 +21971,7 @@ index 00000000000..749fd54d8ea
 +#endif // QJSUIEXTENSIONCONTEXTSESSION_H
 diff --git a/src/plugins/platforms/openharmony/jsclass/qjswant.cpp b/src/plugins/platforms/openharmony/jsclass/qjswant.cpp
 new file mode 100644
-index 00000000000..40f8d13139a
+index 00000000000..af57f003524
 --- /dev/null
 +++ b/src/plugins/platforms/openharmony/jsclass/qjswant.cpp
 @@ -0,0 +1,132 @@
@@ -22047,31 +22047,31 @@ index 00000000000..40f8d13139a
 +        result << pathFromUri(u);
 +    }
 +
-+    if (object().Has("parameters")) {
-+        Napi::Object jsParameters = get("parameters").As<Napi::Object>();
-+        auto keys = jsParameters.GetPropertyNames();
-+        for (uint32_t i = 0; i < keys.Length(); ++i) {
-+            Napi::Value key = keys.Get(i);
-+            Napi::Value value = jsParameters.Get(key);
-+            std::string keyStr = key.As<Napi::String>();
-+            if ((keyStr == "uriList" || keyStr == "ability.params.stream") && value.IsArray()) {
-+                Napi::Array uriLists = value.As<Napi::Array>();
-+                for (uint32_t j = 0; j < uriLists.Length(); ++j) {
-+                    Napi::Value uri = uriLists.Get(j);
-+                    if (uri.IsString()) {
-+                        auto u = QByteArray::fromStdString(uri.ToString());
-+                        if (u.isEmpty())
-+                            continue;
-+                        auto path = pathFromUri(u);
-+                        if (result.contains(path))
-+                            continue;
-+                        result << path;
-+                    }
-+                }
-+                break;
-+            }
-+        }
-+    }
++    // if (object().Has("parameters")) {
++    //     Napi::Object jsParameters = get("parameters").As<Napi::Object>();
++    //     auto keys = jsParameters.GetPropertyNames();
++    //     for (uint32_t i = 0; i < keys.Length(); ++i) {
++    //         Napi::Value key = keys.Get(i);
++    //         Napi::Value value = jsParameters.Get(key);
++    //         std::string keyStr = key.As<Napi::String>();
++    //         if ((keyStr == "uriList" || keyStr == "ability.params.stream") && value.IsArray()) {
++    //             Napi::Array uriLists = value.As<Napi::Array>();
++    //             for (uint32_t j = 0; j < uriLists.Length(); ++j) {
++    //                 Napi::Value uri = uriLists.Get(j);
++    //                 if (uri.IsString()) {
++    //                     auto u = QByteArray::fromStdString(uri.ToString());
++    //                     if (u.isEmpty())
++    //                         continue;
++    //                     auto path = pathFromUri(u);
++    //                     if (result.contains(path))
++    //                         continue;
++    //                     result << path;
++    //                 }
++    //             }
++    //             break;
++    //         }
++    //     }
++    // }
 +    return result;
 +}
 +
